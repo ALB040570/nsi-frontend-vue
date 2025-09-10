@@ -6,10 +6,15 @@
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
   },
+  
   "scripts": {
-    "dev": "vite",
-    "mock": "json-server --watch db.json --port 3000"
-  },
+    "dev": "vite --host", 
+    "serve:api": "json-server --watch db.json --port 3000",
+    "dev:all": "concurrently -n API,WEB -c magenta,cyan \"npm:serve:api\" \"npm:dev\"",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+,
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "@tanstack/vue-query": "^5.86.0",
@@ -29,6 +34,8 @@
     "@vue/eslint-config-typescript": "^14.6.0",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.7.0",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.0.0",
     "eslint": "^9.31.0",
     "eslint-plugin-vue": "~10.3.0",
     "jiti": "^2.4.2",

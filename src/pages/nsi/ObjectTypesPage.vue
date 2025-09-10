@@ -25,38 +25,45 @@
       :data="filtered"
       class="s360-cards"
       style="width: 100%"
-      :cell-style="{ padding: '0' }"
-      :header-cell-style="{ padding: '0' }"
+
     >
-      <el-table-column prop="name" label="Название" />
-      <el-table-column label="Геометрия" width="120">
+      <!-- 1 колонка - самая большая -->
+      <el-table-column prop="name" label="Название" width="400" />
+      <!-- 2 колонка - по размеру самого длинного значения -->
+      <el-table-column label="Геометрия" width="120" min-width="120">
         <template #default="{ row }">
-          <el-tag effect="plain">
+          <el-tag effect="plain" size="small">
             {{
               row.geometry === 'точка' ? 'Точка' : row.geometry === 'линия' ? 'Линия' : 'Полигон'
             }}
           </el-tag>
         </template>
       </el-table-column>
-
-      <el-table-column label="Компоненты">
+      <!-- 3 колонка - вторая по ширине -->
+      <el-table-column label="Компоненты"  width="400">
         <template #default="{ row }">
-          <div style="display: flex; flex-wrap: wrap; gap: 6px">
-            <el-tag v-for="name in row.component" :key="name" size="small" effect="plain">
+          <div style="display: flex; flex-wrap: wrap; gap: 4px">
+            <el-tag
+              v-for="name in row.component"
+              :key="name"
+              size="small"
+              effect="plain"
+              style="margin: 1px"
+            >
               {{ name }}
             </el-tag>
           </div>
         </template>
       </el-table-column>
-
-      <el-table-column label="Действия" width="180">
+      <!-- 4 колонка - фиксированная ширина для кнопок -->
+      <el-table-column label="Действия" width="120" align="center">
         <template #default="{ row }">
-          <div style="display: flex; gap: 8px; justify-content: center">
+          <div style="display: flex; gap: 8px; justify-content: center;">
             <el-tooltip content="Изменить">
-              <el-button :icon="Edit" circle plain @click="openEdit(row)" />
+              <el-button :icon="Edit" circle plain size="small" @click="openEdit(row)" />
             </el-tooltip>
             <el-tooltip content="Удалить">
-              <el-button :icon="Delete" circle type="danger" plain @click="removeRow(row.id)" />
+              <el-button :icon="Delete" circle type="danger" plain size="small" @click="removeRow(row.id)" />
             </el-tooltip>
           </div>
         </template>

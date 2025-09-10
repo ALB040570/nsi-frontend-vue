@@ -305,19 +305,21 @@ body {
 /* ===== Карточочная таблица Service360 ===== */
 .s360-cards {
   /* токены — можно подстроить под тему */
-  --s360-gap-x: 12px;
-  --s360-gap-y: 10px;
-  --s360-radius: 12px;
+  --s360-gap-x: 5px;
+  --s360-gap-y: 5px;
+  --s360-radius: 8px;
   --s360-cell-bg: #ffffff;
   --s360-head-bg: #f3f5f7;
-  --s360-shadow: 0 1px 2px rgba(20, 30, 50, 0.05);
+  --s360-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --s360-shadow-hover: 0 4px 12px rgba(20, 30, 50, 0.08);
   --s360-text-head: #334155;
 }
 
 /* Убираем все стандартные стили таблицы */
 .s360-cards .el-table {
-  background: transparent;
+  background: transparent !important;
+  border: none !important;
+  width: 100% !important;
 }
 
 .s360-cards .el-table__inner-wrapper::before,
@@ -330,14 +332,16 @@ body {
 .s360-cards .el-table__body {
   border-collapse: separate;
   border-spacing: var(--s360-gap-x) var(--s360-gap-y);
-  background: transparent;
+  background: transparent !important;
+  border: none !important;
 }
 
 /* Ячейки таблицы */
 .s360-cards .el-table__cell {
-  border-bottom: none;
+
   padding: 0;
-  background: transparent;
+  background: transparent !important;
+  border: none !important;
   position: relative;
 }
 
@@ -373,7 +377,7 @@ body {
 
 /* Контейнер таблицы */
 .s360-cards .el-table__inner-wrapper {
-  background: #f7f8fa;
+  background: #f7faf9;
   border-radius: calc(var(--s360-radius) + 4px);
   padding: 8px;
 }
@@ -388,6 +392,7 @@ body {
 .s360-cards .el-table__body,
 .s360-cards .el-table__row {
   background: transparent !important;
+  border: none !important;
 }
 
 /* Фикс для выравнивания содержимого */
