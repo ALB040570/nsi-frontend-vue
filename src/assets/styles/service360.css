@@ -1,0 +1,402 @@
+/* ========================
+   Кнопки Service360
+   ======================== */
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* Базовый шрифт для всего приложения */
+body {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  color: #1a1a1a; /* основной цвет текста */
+  margin: 0;
+  padding: 0;
+}
+
+/* Основная кнопка — морская волна */
+.btn-primary {
+  background-color: #006d77;
+  color: #fff;
+  border: none;
+}
+.btn-primary:hover {
+  background-color: #00565d;
+}
+
+/* Вторичная кнопка (светлая рамка) */
+.btn-outline {
+  background: transparent;
+  color: #006d77;
+  border: 1px solid #006d77;
+}
+.btn-outline:hover {
+  background: rgba(0, 109, 119, 0.08);
+}
+
+/* Кнопка-danger (удаление/критические действия) */
+.btn-danger {
+  background-color: #d64550;
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover {
+  background-color: #ab3740;
+}
+
+/* Кнопка-warning (предупреждения) */
+.btn-warning {
+  background-color: #e2b100;
+  color: #fff;
+  border: none;
+}
+.btn-warning:hover {
+  background-color: #b58d00;
+}
+
+/* Кнопка-success (сохранение/подтверждение) */
+.btn-success {
+  background-color: #3b9d78;
+  color: #fff;
+  border: none;
+}
+.btn-success:hover {
+  background-color: #2f7e60;
+}
+
+/* ========================
+   Таблицы Service360
+   ======================== */
+
+/* Общий стиль таблицы */
+.table-s360 {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+/* Заголовок таблицы */
+.table-s360 thead th {
+  background-color: #006d77;
+  color: #fff;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+/* Ячейки таблицы */
+.table-s360 td {
+  padding: 8px 12px;
+  border-top: 1px solid #eee;
+}
+
+/* Чётные строки */
+.table-s360 tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* ========================
+   Заголовки / Текст
+   ======================== */
+
+.h1-s360 {
+  font-size: 24px;
+  font-weight: bold;
+  color: #006d77;
+  margin-bottom: 16px;
+}
+
+.h2-s360 {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.h3-s360 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+/* Подсказочный текст */
+.text-muted {
+  color: #888;
+  font-size: 0.9em;
+}
+/* ========================
+   Кнопки Service360
+   ======================== */
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+/* Базовый шрифт для всего приложения */
+body {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 400;
+  color: #1a1a1a; /* основной цвет текста */
+  margin: 0;
+  padding: 0;
+}
+
+/* Основная кнопка — морская волна */
+.btn-primary {
+  background-color: #006d77;
+  color: #fff;
+  border: none;
+}
+.btn-primary:hover {
+  background-color: #00565d;
+}
+
+/* Вторичная кнопка (светлая рамка) */
+.btn-outline {
+  background: transparent;
+  color: #006d77;
+  border: 1px solid #006d77;
+}
+.btn-outline:hover {
+  background: rgba(0, 109, 119, 0.08);
+}
+
+/* Кнопка-danger (удаление/критические действия) */
+.btn-danger {
+  background-color: #d64550;
+  color: #fff;
+  border: none;
+}
+.btn-danger:hover {
+  background-color: #ab3740;
+}
+
+/* Кнопка-warning (предупреждения) */
+.btn-warning {
+  background-color: #e2b100;
+  color: #fff;
+  border: none;
+}
+.btn-warning:hover {
+  background-color: #b58d00;
+}
+
+/* Кнопка-success (сохранение/подтверждение) */
+.btn-success {
+  background-color: #3b9d78;
+  color: #fff;
+  border: none;
+}
+.btn-success:hover {
+  background-color: #2f7e60;
+}
+
+/* ========================
+   Таблицы Service360
+   ======================== */
+
+/* Общий стиль таблицы */
+.table-s360 {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+/* Заголовок таблицы */
+.table-s360 thead th {
+  background-color: #006d77;
+  color: #fff;
+  text-align: left;
+  padding: 8px 12px;
+}
+
+/* Ячейки таблицы */
+.table-s360 td {
+  padding: 8px 12px;
+  border-top: 1px solid #eee;
+}
+
+/* Чётные строки */
+.table-s360 tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* ========================
+   Заголовки / Текст
+   ======================== */
+
+.h1-s360 {
+  font-size: 24px;
+  font-weight: bold;
+  color: #006d77;
+  margin-bottom: 16px;
+}
+
+.h2-s360 {
+  font-size: 20px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.h3-s360 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 8px;
+}
+
+/* Подсказочный текст */
+.text-muted {
+  color: #888;
+  font-size: 0.9em;
+}
+
+/* ========================
+   Шапка страницы
+   ======================== */
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-title {
+  max-width: 60ch;
+} /* чтобы описание не растягивалось слишком широко */
+.page-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* адаптив — на узких экранах стекаем блоки */
+@media (max-width: 900px) {
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .page-actions {
+    justify-content: flex-start;
+  }
+}
+
+/* твои кастомизации Element Plus, оставляем как было */
+.el-input__wrapper {
+  border-color: #006d77;
+  box-shadow: 0 0 0 1px #006d77 inset;
+}
+.el-tooltip__wrapper {
+  border-color: #006d77;
+  box-shadow: 0 0 0 1px #006d77 inset;
+}
+
+/* ===== Карточочная таблица Service360 ===== */
+.s360-cards {
+  /* токены — можно подстроить под тему */
+  --s360-gap-x: 12px;
+  --s360-gap-y: 10px;
+  --s360-radius: 12px;
+  --s360-cell-bg: #ffffff;
+  --s360-head-bg: #f3f5f7;
+  --s360-shadow: 0 1px 2px rgba(20, 30, 50, 0.05);
+  --s360-shadow-hover: 0 4px 12px rgba(20, 30, 50, 0.08);
+  --s360-text-head: #334155;
+}
+
+/* Убираем все стандартные стили таблицы */
+.s360-cards .el-table {
+  background: transparent;
+}
+
+.s360-cards .el-table__inner-wrapper::before,
+.s360-cards .el-table__border-left-patch {
+  display: none;
+}
+
+/* Основные стили для таблицы */
+.s360-cards .el-table__header,
+.s360-cards .el-table__body {
+  border-collapse: separate;
+  border-spacing: var(--s360-gap-x) var(--s360-gap-y);
+  background: transparent;
+}
+
+/* Ячейки таблицы */
+.s360-cards .el-table__cell {
+  border-bottom: none;
+  padding: 0;
+  background: transparent;
+  position: relative;
+}
+
+/* Карточка-ячейка */
+.s360-cards .el-table__cell .cell {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  background: var(--s360-cell-bg);
+  border-radius: var(--s360-radius);
+  box-shadow: var(--s360-shadow);
+  padding: 12px 16px;
+  line-height: 1.35;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* Заголовки */
+.s360-cards .el-table__header .el-table__cell .cell {
+  background: var(--s360-head-bg);
+  font-weight: 600;
+  color: var(--s360-text-head);
+  justify-content: center;
+  text-align: center;
+}
+
+/* Ховер эффект */
+.s360-cards .el-table__body tr:hover .el-table__cell .cell {
+  box-shadow: var(--s360-shadow-hover);
+  transform: translateY(-1px);
+  transition: all 160ms ease;
+}
+
+/* Контейнер таблицы */
+.s360-cards .el-table__inner-wrapper {
+  background: #f7f8fa;
+  border-radius: calc(var(--s360-radius) + 4px);
+  padding: 8px;
+}
+
+/* Исправление для последнего столбца с действиями */
+.s360-cards .el-table__cell:last-child .cell {
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Убираем лишние фоны */
+.s360-cards .el-table__body,
+.s360-cards .el-table__row {
+  background: transparent !important;
+}
+
+/* Фикс для выравнивания содержимого */
+.s360-cards .el-table__cell .cell > * {
+  flex-shrink: 0;
+}
+
+/* Для ячеек с текстом - выравнивание по центру по вертикали */
+.s360-cards .el-table__cell .cell {
+  display: flex;
+  align-items: center;
+}

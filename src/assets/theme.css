@@ -1,0 +1,52 @@
+:root {
+  /* Primary — морская волна */
+  --el-color-primary: #006d77;
+  --el-color-primary-light-3: #338f94;
+  --el-color-primary-light-5: #66aeb0;
+  --el-color-primary-light-7: #99cccd;
+  --el-color-primary-light-8: #b3d8d9;
+  --el-color-primary-light-9: #e6f2f2;
+  --el-color-primary-dark-2: #00565d;
+
+  /* Success — морская зелень */
+  --el-color-success: #3b9d78;
+  --el-color-success-light-3: #64b192;
+  --el-color-success-light-5: #8cc6ad;
+  --el-color-success-light-7: #b5dbca;
+  --el-color-success-light-8: #cae7d9;
+  --el-color-success-light-9: #eaf6f2;
+  --el-color-success-dark-2: #2f7e60;
+
+  /* Warning — янтарь */
+  --el-color-warning: #e2b100;
+  --el-color-warning-light-3: #e8c333;
+  --el-color-warning-light-5: #eed466;
+  --el-color-warning-light-7: #f3e699;
+  --el-color-warning-light-8: #f7f0b3;
+  --el-color-warning-light-9: #fcf9e6;
+  --el-color-warning-dark-2: #b58d00;
+
+  /* Danger — кораллово-красный */
+  --el-color-danger: #d64550;
+  --el-color-danger-light-3: #de6a72;
+  --el-color-danger-light-5: #e78f95;
+  --el-color-danger-light-7: #efb5b8;
+  --el-color-danger-light-8: #f3c9cc;
+  --el-color-danger-light-9: #fae7e9;
+  --el-color-danger-dark-2: #ab3740;
+
+  /* Info — бирюза */
+  --el-color-info: #4ecdc4;
+  --el-color-info-light-3: #71d7d0;
+  --el-color-info-light-5: #95e1dc;
+  --el-color-info-light-7: #b9ebe7;
+  --el-color-info-light-8: #cff2ef;
+  --el-color-info-light-9: #f0fbfa;
+  --el-color-info-dark-2: #3eb1a9;
+}
+
+.teal-btn {
+  background-color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+  color: white;
+}
