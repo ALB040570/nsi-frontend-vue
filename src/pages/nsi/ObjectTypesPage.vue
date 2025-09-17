@@ -104,7 +104,7 @@
             @blur="(e) => debouncedCheckComponent(e.target.value)"
           >
             <el-option
-              v-for="c in components.data?.value ?? []"
+              v-for="c in componentOptions.value"
               :key="c.id"
               :label="c.name"
               :value="c.name"
@@ -128,8 +128,18 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { api } from '@/lib/api'
-import type { ObjectType, GeometryKind, Component } from '@/types/nsi'
+import { callRpc } from '@/lib/api'
+import type { ObjectType, GeometryKind } from '@/types/nsi'
+import type {
+  ComponentOption,
+  LoadComponentsObject2Response,
+  LoadFvForSelectResponse,
+  LoadTypesObjectsResponse,
+  SaveTypeObjectRequest,
+  SaveTypeObjectResponse,
+  DeleteTypeObjectRequest,
+} from '@/types/nsi-remote'
+import { normalizeGeometry } from '@/types/nsi-remote'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { debounce } from 'lodash-es'
@@ -137,21 +147,99 @@ import { debounce } from 'lodash-es'
 const qc = useQueryClient()
 const q = ref('')
 
-// список компонентов (для выпадашки — только имена нужны)
-const components = useQuery({
-  queryKey: ['components'],
-  queryFn: async (): Promise<Component[]> => {
-    const { data } = await api.get('/components') // [{id,name}]
-    return data
-  },
+const componentOptions = ref<ComponentOption[]>([])
+const componentsByType = ref<Record<string, ComponentOption[]>>({})
+const geometryOptions = ref<LoadFvForSelectResponse>([])
+const geometryIdByKind = ref<Partial<Record<GeometryKind, string | null>>>({})
+
+const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
+
+const componentMapByName = computed(() => {
+  const map = new Map<string, ComponentOption>()
+  for (const option of componentOptions.value) {
+    map.set(norm(option.name), option)
+  }
+  return map
 })
 
 // список типов
 const list = useQuery({
   queryKey: ['object-types'],
   queryFn: async (): Promise<ObjectType[]> => {
-    const { data } = await api.get('/object-types')
-    return data
+    const [remoteTypes, remoteShapes, remoteComponents] = await Promise.all([
+      callRpc<LoadTypesObjectsResponse>('loadTypesObjects'),
+      callRpc<LoadFvForSelectResponse>('loadFvForSelect', ['Factor_Shape']),
+      callRpc<LoadComponentsObject2Response>('loadComponentsObject2'),
+    ])
+
+    const typesList = Array.isArray(remoteTypes) ? remoteTypes : []
+    const shapeOptions = Array.isArray(remoteShapes) ? remoteShapes : []
+    const componentList = Array.isArray(remoteComponents) ? remoteComponents : []
+
+    geometryOptions.value = shapeOptions
+
+    const geometryById = new Map<string, GeometryKind>()
+    const geometryMapping: Partial<Record<GeometryKind, string | null>> = {}
+
+    for (const option of shapeOptions) {
+      if (!option?.id) continue
+      const geometry = normalizeGeometry(
+        option.name ?? option.value ?? option.code ?? option.id,
+        shapeOptions,
+      )
+      geometryById.set(option.id, geometry)
+      if (!geometryMapping[geometry]) geometryMapping[geometry] = option.id
+    }
+    geometryIdByKind.value = geometryMapping
+
+    const seenOptions = new Map<string, ComponentOption>()
+    const grouped = new Map<string, ComponentOption[]>()
+
+    for (const comp of componentList) {
+      if (!comp) continue
+      const id = comp.id
+      const name = (comp.name ?? '').trim()
+      if (!id || !name) continue
+
+      const option: ComponentOption = { id, name }
+      const normalizedName = norm(name)
+
+      if (!seenOptions.has(normalizedName)) {
+        seenOptions.set(normalizedName, option)
+      }
+
+      if (comp.objectTypeId) {
+        const current = grouped.get(comp.objectTypeId) ?? []
+        current.push(option)
+        grouped.set(comp.objectTypeId, current)
+      }
+    }
+
+    componentOptions.value = Array.from(seenOptions.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'ru'),
+    )
+
+    const groupedRecord: Record<string, ComponentOption[]> = {}
+    for (const type of typesList) {
+      const comps = grouped.get(type.id) ?? []
+      groupedRecord[type.id] = comps
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+    }
+    componentsByType.value = groupedRecord
+
+    return typesList.map((item) => {
+      const geometry =
+        geometryById.get(item.geometryId ?? '') ??
+        normalizeGeometry(item.geometryName ?? item.geometryId ?? '', shapeOptions)
+      const comps = componentsByType.value[item.id] ?? []
+      return {
+        id: item.id,
+        name: item.name,
+        geometry,
+        component: comps.map((c) => c.name),
+      }
+    })
   },
 })
 
@@ -185,24 +273,25 @@ const saving = ref(false)
 // Функции проверки уникальности
 const checkExistingTypeName = (name: string, excludeId?: string): ObjectType | null => {
   const types = list.data?.value ?? []
-  const normalizedName = name.trim().toLowerCase()
-  return types.find((t) => t.name.toLowerCase() === normalizedName && t.id !== excludeId) || null
+  const normalizedName = norm(name)
+  return (
+    types.find((t) => norm(t.name) === normalizedName && t.id !== excludeId) ?? null
+  )
 }
 
 const checkExistingComponentName = (
   name: string,
-): { component: Component; usedInTypes: ObjectType[] } | null => {
-  const componentsList = components.data?.value ?? []
-  const typesList = list.data?.value ?? []
-  const normalizedName = name.trim().toLowerCase()
+): { component: ComponentOption; usedInTypes: ObjectType[] } | null => {
+  const normalizedName = norm(name)
+  if (!normalizedName) return null
 
-  const existingComponent = componentsList.find((c) => c.name.toLowerCase() === normalizedName)
-
+  const existingComponent = componentMapByName.value.get(normalizedName)
   if (!existingComponent) return null
 
-  // Находим типы объектов, которые используют этот компонент
+  const typesList = list.data?.value ?? []
+
   const typesUsingComponent = typesList.filter((t) =>
-    t.component.some((comp) => comp.toLowerCase() === normalizedName),
+    (componentsByType.value[t.id] ?? []).some((comp) => norm(comp.name) === normalizedName),
   )
 
   return { component: existingComponent, usedInTypes: typesUsingComponent }
@@ -217,11 +306,11 @@ const isTypeCompletelyIdentical = (
   const existingComponentsSorted = [...existingType.component].sort()
 
   return (
-    newType.name.toLowerCase() === existingType.name.toLowerCase() &&
+    norm(newType.name) === norm(existingType.name) &&
     newType.geometry === existingType.geometry &&
     newComponentsSorted.length === existingComponentsSorted.length &&
     newComponentsSorted.every(
-      (comp, index) => comp.toLowerCase() === existingComponentsSorted[index].toLowerCase(),
+      (comp, index) => norm(comp) === norm(existingComponentsSorted[index]),
     )
   )
 }
@@ -281,7 +370,7 @@ async function save() {
 
   // Проверка на существующее название типа объекта (только если название изменилось при редактировании)
   const isEditing = !!editing.value
-  const nameChanged = isEditing && editing.value!.name.toLowerCase() !== nameTrimmed.toLowerCase()
+  const nameChanged = isEditing && norm(editing.value!.name) !== norm(nameTrimmed)
 
   if (!isEditing || nameChanged) {
     const existingType = checkExistingTypeName(nameTrimmed, editing.value?.id)
@@ -345,58 +434,48 @@ async function save() {
 
   saving.value = true
   try {
-    // 1) создаём недостающие компоненты в /components
-    // текущий список из кэша vue-query
-    const existing: Component[] = components.data?.value ?? []
-    const existingByName = new Set(existing.map((c) => c.name.toLowerCase()))
+    const missingComponents = compNames.filter(
+      (name) => !componentMapByName.value.has(norm(name)),
+    )
 
-    const toCreate = compNames.filter((n) => !existingByName.has(n.toLowerCase()))
-
-    let created: Component[] = []
-    if (toCreate.length) {
-      // создаём все недостающие компоненты
-      created = await Promise.all(
-        toCreate.map(async (name) => {
-          const { data } = await api.post('/components', { name })
-          return data as Component
-        }),
+    if (missingComponents.length) {
+      const listText = missingComponents.join(', ')
+      ElMessage.warning(
+        listText
+          ? `Новые компоненты пока нельзя добавить из интерфейса: ${listText}`
+          : 'Новые компоненты пока нельзя добавить из интерфейса',
       )
-
-      // 1a) сразу обновим локальный кэш, чтобы выпадающий список видел новые элементы
-      qc.setQueryData<Component[] | undefined>(['components'], (old) => {
-        const base = old ?? existing
-        const merged = base.slice()
-        for (const c of created) {
-          if (!merged.some((x) => x.id === c.id || x.name.toLowerCase() === c.name.toLowerCase())) {
-            merged.push(c)
-          }
-        }
-        return merged
-      })
+      return
     }
 
-    // 2) формируем payload и сохраняем тип
-    const payload = {
+    const componentIds = compNames.map(
+      (name) => componentMapByName.value.get(norm(name))!.id,
+    )
+
+    const geometryId =
+      geometryIdByKind.value[form.value.geometry] ??
+      geometryOptions.value.find(
+        (option) =>
+          normalizeGeometry(
+            option.name ?? option.value ?? option.code ?? option.id,
+            geometryOptions.value,
+          ) === form.value.geometry,
+      )?.id ??
+      null
+
+    const payload: SaveTypeObjectRequest = {
       name: nameTrimmed,
-      geometry: form.value.geometry,
-      component: compNames, // МАССИВ СТРОК — названия
+      geometryId,
+      componentIds,
     }
 
-    if (editing.value?.id) {
-      await api.put(`/object-types/${editing.value.id}`, {
-        id: editing.value.id,
-        ...payload,
-      })
-      ElMessage.success('Изменено')
-    } else {
-      await api.post('/object-types', payload)
-      ElMessage.success('Создано')
-    }
+    if (editing.value?.id) payload.id = editing.value.id
 
-    // 3) обновим списки
+    await callRpc<SaveTypeObjectResponse, SaveTypeObjectRequest>('saveTypeObject', payload)
+
+    ElMessage.success(editing.value?.id ? 'Изменено' : 'Создано')
+
     await qc.invalidateQueries({ queryKey: ['object-types'] })
-    // на всякий случай тоже инвалидация компонентов (рефетч с сервера)
-    await qc.invalidateQueries({ queryKey: ['components'] })
 
     dialog.value = false
   } catch (err) {
@@ -409,9 +488,14 @@ async function save() {
 
 const removeRow = async (id: string) => {
   await ElMessageBox.confirm('Удалить запись?', 'Подтверждение', { type: 'warning' })
-  await api.delete(`/object-types/${id}`)
-  ElMessage.success('Удалено')
-  await qc.invalidateQueries({ queryKey: ['object-types'] })
+  try {
+    await callRpc<void, DeleteTypeObjectRequest>('deleteTypeObject', { id })
+    ElMessage.success('Удалено')
+    await qc.invalidateQueries({ queryKey: ['object-types'] })
+  } catch (err) {
+    console.error(err)
+    ElMessage.error('Не удалось удалить')
+  }
 }
 </script>
 
