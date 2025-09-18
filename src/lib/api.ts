@@ -5,6 +5,7 @@ const rpcPath = import.meta.env.VITE_RPC_PATH ?? ''
 
 export const api = axios.create({
   baseURL,
+  withCredentials: true,
 })
 
 type RpcPayload<TParams> = {

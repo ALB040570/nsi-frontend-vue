@@ -10,6 +10,14 @@
         <router-link to="/nsi/components" class="nav-item">Компоненты</router-link>
         <!-- добавляй пункты по мере роста проекта -->
       </nav>
+
+      <div v-if="auth.isAuthenticated" class="s360-user">
+        <div class="user-details">
+          <span class="user-name">{{ userName }}</span>
+          <span v-if="userLogin" class="user-login">@{{ userLogin }}</span>
+        </div>
+        <el-button link type="primary" size="small" @click="handleLogout">Выйти</el-button>
+      </div>
     </el-aside>
 
     <!-- ПРАВАЯ КОЛОНКА -->
@@ -22,7 +30,32 @@
 </template>
 
 <script setup lang="ts">
-// без логики — это «каркас»
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
+
+const auth = useAuthStore()
+const router = useRouter()
+
+const userName = computed(() => {
+  const user = auth.user
+  return (
+    (typeof user?.name === 'string' && user.name) ||
+    (typeof user?.displayName === 'string' && user.displayName) ||
+    (typeof user?.login === 'string' && user.login) ||
+    'Пользователь'
+  )
+})
+
+const userLogin = computed(() => {
+  const login = typeof auth.user?.login === 'string' ? auth.user?.login : ''
+  return userName.value !== login ? login : ''
+})
+
+const handleLogout = async () => {
+  await auth.logout()
+  router.replace({ name: 'login' })
+}
 </script>
 
 <style scoped>
@@ -42,6 +75,8 @@
   padding: 16px 12px;
   background: #f7fbfb;
   border-right: 1px solid #e6eaea;
+  display: flex;
+  flex-direction: column;
 }
 
 /* логотип/заголовок слева */
@@ -89,5 +124,31 @@
 /* таблица пусть занимает всю доступную ширину */
 .s360-main .el-table {
   width: 100%;
+}
+
+.s360-user {
+  margin-top: auto;
+  padding: 16px 12px;
+  border-radius: 12px;
+  background: rgba(0, 109, 119, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: #0f3e44;
+}
+
+.user-name {
+  font-weight: 600;
+}
+
+.user-login {
+  font-size: 12px;
+  color: #476568;
 }
 </style>
