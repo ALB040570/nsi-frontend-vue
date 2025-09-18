@@ -27,7 +27,35 @@ export interface AuthResponse {
   tokens: AuthTokens
 }
 
-const loginPath = import.meta.env.VITE_AUTH_LOGIN_PATH ?? '/auth/login'
+const ABSOLUTE_URL_PATTERN = /^([a-z][a-z\d+\-.]*:)?\/\//i
+
+function normalizeRelativePath(path: string | undefined | null): string {
+  const trimmed = path?.trim()
+  if (!trimmed) return 'auth/login'
+  const withoutLeadingSlashes = trimmed.replace(/^\/+/, '')
+  return withoutLeadingSlashes || 'auth/login'
+}
+
+function joinWithBase(baseURL: string | undefined, path: string): string {
+  const normalizedBase = baseURL?.replace(/\/+$/, '')
+  if (!normalizedBase) return path
+  return `${normalizedBase}/${path.replace(/^\/+/, '')}`
+}
+
+function resolveLoginPath(): string {
+  const rawPath = import.meta.env.VITE_AUTH_LOGIN_PATH
+
+  if (rawPath && ABSOLUTE_URL_PATTERN.test(rawPath)) {
+    return rawPath
+  }
+
+  const baseURL = api.defaults.baseURL ?? ''
+  const relativePath = normalizeRelativePath(rawPath)
+
+  return joinWithBase(baseURL, relativePath)
+}
+
+const loginPath = resolveLoginPath()
 
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
   const { data } = await api.post<AuthResponse>(loginPath, credentials)
