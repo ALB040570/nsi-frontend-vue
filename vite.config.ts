@@ -13,13 +13,14 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
-  server: {
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, '/dtj/nsi/api'),
     },
   },
+},
+
 })
