@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 const baseURL = import.meta.env.VITE_API_BASE ?? 'http://localhost:3000'
+const rpcPath = import.meta.env.VITE_RPC_PATH ?? ''
 
 export const api = axios.create({
   baseURL,
@@ -23,7 +24,7 @@ export async function callRpc<TResult, TParams = Record<string, unknown>>(
   params?: TParams,
 ): Promise<TResult> {
   const payload: RpcPayload<TParams> = { method, params }
-  const { data } = await api.post<RpcEnvelope<TResult>>('/rpc', payload)
+  const { data } = await api.post<RpcEnvelope<TResult>>(rpcPath, payload)
 
   if (data && typeof data === 'object') {
     if ('error' in data && data.error) {
