@@ -3,6 +3,7 @@
     <header class="s360-top-bar">
       <div class="s360-top-left">
         <button
+          v-if="showNavigation"
           type="button"
           class="s360-toggle"
           :aria-label="toggleAriaLabel"
@@ -37,22 +38,43 @@
           </template>
         </el-dropdown>
 
-        <button type="button" class="s360-icon-btn" aria-label="Уведомления">
+        <button
+          v-if="isAuthenticated"
+          type="button"
+          class="s360-icon-btn"
+          aria-label="Уведомления"
+        >
           <el-icon><Bell /></el-icon>
         </button>
 
-        <button type="button" class="s360-icon-btn" aria-label="Настройки">
+        <button
+          v-if="isAuthenticated"
+          type="button"
+          class="s360-icon-btn"
+          aria-label="Настройки"
+        >
           <el-icon><Setting /></el-icon>
         </button>
 
-        <el-dropdown trigger="click">
-          <span class="s360-profile" aria-label="Профиль">
-            <el-avatar :size="36" class="s360-profile-avatar">{{ userInitials }}</el-avatar>
+        <el-dropdown trigger="click" @command="handleProfileCommand">
+          <span
+            class="s360-profile"
+            :aria-label="profileAriaLabel"
+            :title="profileName"
+          >
+            <el-avatar :size="36" class="s360-profile-avatar">{{ profileInitials }}</el-avatar>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item>Войти</el-dropdown-item>
-              <el-dropdown-item>Регистрация</el-dropdown-item>
+              <template v-if="isAuthenticated">
+                <el-dropdown-item disabled class="s360-profile-name">
+                  {{ profileName }}
+                </el-dropdown-item>
+                <el-dropdown-item divided command="logout">Выйти</el-dropdown-item>
+              </template>
+              <template v-else>
+                <el-dropdown-item command="login">Войти</el-dropdown-item>
+              </template>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -60,7 +82,11 @@
     </header>
 
     <el-container class="s360-body">
-      <el-aside v-show="!isAsideCollapsed" width="240px" class="s360-aside">
+      <el-aside
+        v-if="showNavigation && !isAsideCollapsed"
+        width="240px"
+        class="s360-aside"
+      >
         <div class="s360-aside-inner">
           <nav class="s360-nav">
             <router-link to="/" class="nav-item">Главная</router-link>
@@ -78,9 +104,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
 import { ArrowDown, Bell, Expand, Fold, Setting } from '@element-plus/icons-vue'
 import logoMark from '@/assets/logo.svg'
+import { useAuthStore } from '@/stores/auth'
 
 interface LanguageOption {
   label: string
@@ -94,11 +123,16 @@ const languages: LanguageOption[] = [
 
 const currentLanguage = ref<LanguageOption>(languages[0])
 const isAsideCollapsed = ref(false)
-const userInitials = 'KC'
+
+const auth = useAuthStore()
+const router = useRouter()
+const { isAuthenticated, user } = storeToRefs(auth)
 
 const toggleAriaLabel = computed(() =>
   isAsideCollapsed.value ? 'Открыть левую колонку' : 'Скрыть левую колонку',
 )
+
+const showNavigation = computed(() => isAuthenticated.value)
 
 const toggleAside = () => {
   isAsideCollapsed.value = !isAsideCollapsed.value
@@ -110,6 +144,97 @@ const handleLanguageCommand = (command: LanguageOption['code']) => {
     currentLanguage.value = language
   }
 }
+
+const buildInitials = (source: string): string => {
+  const trimmed = source.trim()
+  if (!trimmed) return ''
+
+  const words = trimmed.split(/\s+/u).filter(Boolean)
+  const letters: string[] = []
+
+  for (const word of words) {
+    const chars = Array.from(word)
+    if (chars[0]) {
+      letters.push(chars[0])
+    }
+    if (letters.length >= 2) break
+  }
+
+  if (letters.length === 1) {
+    const [firstWord] = words
+    if (firstWord) {
+      const chars = Array.from(firstWord)
+      if (chars.length > 1) {
+        letters.push(chars[1])
+      }
+    }
+  }
+
+  const result = letters.slice(0, 2).join('')
+  return result ? result.toLocaleUpperCase('ru-RU') : ''
+}
+
+const profileName = computed(() => {
+  const current = user.value
+  if (!current) return 'Гость'
+
+  const fullName = typeof current.fullName === 'string' ? current.fullName.trim() : ''
+  const fromParts = [current.lastName, current.firstName]
+    .map((part) => (typeof part === 'string' ? part.trim() : ''))
+    .filter(Boolean)
+    .join(' ')
+  const shortName = typeof current.name === 'string' ? current.name.trim() : ''
+  const email = typeof current.email === 'string' ? current.email.trim() : ''
+
+  return fullName || fromParts || shortName || email || 'Пользователь'
+})
+
+const profileAriaLabel = computed(() => {
+  if (!isAuthenticated.value) return 'Меню авторизации'
+  const name = profileName.value
+  return name && name !== 'Пользователь'
+    ? `Профиль пользователя ${name}`
+    : 'Профиль пользователя'
+})
+
+const profileInitials = computed(() => {
+  const current = user.value
+  if (current) {
+    const candidates = [profileName.value, current.email ?? '']
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string') {
+        const initials = buildInitials(candidate)
+        if (initials) return initials
+      }
+    }
+  }
+
+  const fallback = buildInitials('Гость')
+  return fallback || 'S3'
+})
+
+const handleProfileCommand = async (command: string) => {
+  switch (command) {
+    case 'logout':
+      auth.logout()
+      isAsideCollapsed.value = true
+      await router.push({ name: 'login' })
+      break
+    case 'login':
+      await router.push({ name: 'login' })
+      break
+    default:
+      break
+  }
+}
+
+watch(
+  isAuthenticated,
+  (value) => {
+    isAsideCollapsed.value = value ? false : true
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -246,6 +371,14 @@ const handleLanguageCommand = (command: LanguageOption['code']) => {
   text-transform: uppercase;
   color: #0f3e44;
   background: #e7f1ff;
+}
+
+:deep(.s360-profile-name.is-disabled) {
+  font-weight: 600;
+  color: #0f3e44;
+  opacity: 1;
+  cursor: default;
+  pointer-events: none;
 }
 
 .s360-body {
