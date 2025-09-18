@@ -36,12 +36,6 @@ function normalizeRelativePath(path: string | undefined | null): string {
   return withoutLeadingSlashes || 'auth/login'
 }
 
-function joinWithBase(baseURL: string | undefined, path: string): string {
-  const normalizedBase = baseURL?.replace(/\/+$/, '')
-  if (!normalizedBase) return path
-  return `${normalizedBase}/${path.replace(/^\/+/, '')}`
-}
-
 function resolveLoginPath(): string {
   const rawPath = import.meta.env.VITE_AUTH_LOGIN_PATH
 
@@ -49,10 +43,7 @@ function resolveLoginPath(): string {
     return rawPath
   }
 
-  const baseURL = api.defaults.baseURL ?? ''
-  const relativePath = normalizeRelativePath(rawPath)
-
-  return joinWithBase(baseURL, relativePath)
+  return normalizeRelativePath(rawPath)
 }
 
 const loginPath = resolveLoginPath()
