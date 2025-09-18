@@ -167,9 +167,9 @@ const list = useQuery({
   queryKey: ['object-types'],
   queryFn: async (): Promise<ObjectType[]> => {
     const [remoteTypes, remoteShapes, remoteComponents] = await Promise.all([
-      callRpc<LoadTypesObjectsResponse>('loadTypesObjects'),
-      callRpc<LoadFvForSelectResponse>('loadFvForSelect', ['Factor_Shape']),
-      callRpc<LoadComponentsObject2Response>('loadComponentsObject2'),
+      callRpc<LoadTypesObjectsResponse>('data/loadTypesObjects', [0]),
+      callRpc<LoadFvForSelectResponse>('data/loadFvForSelect', ['Factor_Shape']),
+      callRpc<LoadComponentsObject2Response>('data/loadComponentsObject2', ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']),
     ])
 
     const typesList = Array.isArray(remoteTypes) ? remoteTypes : []
