@@ -63,7 +63,7 @@ const rpcPath = import.meta.env.VITE_RPC_PATH ?? ''
 
 export const api = axios.create({
   baseURL,
-  withCredentials: true, // опционально
+  withCredentials: true, // allow cookies for cross-origin requests
 })
 
 type RpcPayload<TParams> = {

@@ -1,24 +1,7 @@
-import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { api } from '@/lib/api'
-import { can as hasPermission, canAny as hasAnyPermission, parseTargets } from '@/lib/permissions'
-import {
-  extractAuthErrorMessage,
-  login as requestLogin,
-  type AuthResponse,
-  type AuthTokens,
-  type AuthUser,
-  type LoginCredentials,
-} from '@/lib/auth'
-
-const STORAGE_KEY = 's360-auth'
-
-interface StoredAuthState {
-  user: AuthUser
-  tokens: AuthTokens
-}
-
-const isBrowser = typeof window !== 'undefined'
+import { login as apiLogin, type LoginCredentials } from '@/lib/auth'
+import { getCurUserInfo, type CurUser } from '@/lib/rpc'
+import { parseTargets, can as canUtil, canAny as canAnyUtil } from '@/lib/permissions'
 
 function sanitizeRedirect(path: unknown): string | null {
   if (typeof path !== 'string') return null
@@ -28,164 +11,75 @@ function sanitizeRedirect(path: unknown): string | null {
   return path
 }
 
-const TARGET_FIELDS = ['target', 'targets'] as const
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null as CurUser | null,
+    permissions: new Set<string>() as Set<string>,
+    isAuthenticating: false,
+    error: null as string | null,
+    redirectPath: null as string | null,
+  }),
 
-function collectTargetStrings(source: unknown): string[] {
-  if (!source || typeof source !== 'object') return []
+  getters: {
+    isAuthenticated: (state) => Boolean(state.user),
+  },
 
-  const record = source as Record<string, unknown>
-  const values: string[] = []
+  actions: {
+    setRedirectPath(p: string | null) {
+      this.redirectPath = sanitizeRedirect(p)
+    },
 
-  for (const field of TARGET_FIELDS) {
-    const raw = record[field]
-    if (typeof raw === 'string') {
-      values.push(raw)
-    } else if (Array.isArray(raw)) {
-      for (const item of raw) {
-        if (typeof item === 'string') {
-          values.push(item)
-        }
-      }
-    }
-  }
+    consumeRedirectPath() {
+      const p = this.redirectPath
+      this.redirectPath = null
+      return p
+    },
 
-  return values
-}
+    clearError() {
+      this.error = null
+    },
 
-export const useAuthStore = defineStore('auth', () => {
-  const user = ref<AuthUser | null>(null)
-  const tokens = ref<AuthTokens | null>(null)
-  const redirectPath = ref<string | null>(null)
-  const isAuthenticating = ref(false)
-  const error = ref<string | null>(null)
+    async login(dto: LoginCredentials) {
+      this.isAuthenticating = true
+      this.error = null
 
-  const accessToken = computed(() => tokens.value?.accessToken ?? null)
-  const refreshToken = computed(() => tokens.value?.refreshToken ?? null)
-  const isAuthenticated = computed(() => Boolean(accessToken.value && user.value))
-
-  const permissions = computed(() => {
-    const combined = new Set<string>()
-    const sources = [...collectTargetStrings(user.value), ...collectTargetStrings(tokens.value)]
-
-    for (const source of sources) {
-      for (const perm of parseTargets(source)) {
-        combined.add(perm)
-      }
-    }
-
-    return combined
-  })
-
-  const can = (perm: string) => hasPermission(permissions.value, perm)
-  const canAny = (list: string[]) => hasAnyPermission(permissions.value, list)
-  const applyAccessToken = (token: string | null) => {
-    if (token) {
-      api.defaults.headers.common.Authorization = `Bearer ${token}`
-    } else {
-      delete api.defaults.headers.common.Authorization
-    }
-  }
-
-  const persist = () => {
-    if (!isBrowser) return
-    if (isAuthenticated.value && user.value && tokens.value) {
-      const payload: StoredAuthState = {
-        user: user.value,
-        tokens: tokens.value,
-      }
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
-    } else {
-      window.localStorage.removeItem(STORAGE_KEY)
-    }
-  }
-
-  const setSession = (nextUser: AuthUser | null, nextTokens: AuthTokens | null) => {
-    user.value = nextUser
-    tokens.value = nextTokens
-    applyAccessToken(nextTokens?.accessToken ?? null)
-    persist()
-  }
-
-  if (isBrowser) {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    if (raw) {
       try {
-        const parsed = JSON.parse(raw) as StoredAuthState
-        if (parsed?.user && parsed?.tokens?.accessToken) {
-          user.value = parsed.user
-          tokens.value = parsed.tokens
-          applyAccessToken(parsed.tokens.accessToken)
-        } else {
-          window.localStorage.removeItem(STORAGE_KEY)
+        const payload: LoginCredentials = {
+          username: dto.username.trim(),
+          password: dto.password,
         }
-      } catch (parseError) {
-        console.warn('Не удалось восстановить сессию пользователя', parseError)
-        window.localStorage.removeItem(STORAGE_KEY)
+
+        await apiLogin(payload)
+        await this.fetchMe()
+        return { ok: true as const }
+      } catch (e: any) {
+        this.error = e?.message ?? '?????? ?????'
+        throw e
+      } finally {
+        this.isAuthenticating = false
       }
-    }
-  }
+    },
 
-  const login = async (credentials: LoginCredentials): Promise<AuthResponse> => {
-    isAuthenticating.value = true
-    error.value = null
+    async fetchMe() {
+      const me = await getCurUserInfo()
+      this.user = me
+      this.permissions = parseTargets(me.target)
+    },
 
-    try {
-      const payload: LoginCredentials = {
-        username: credentials.username.trim(),
-        password: credentials.password,
-      }
+    async logout() {
+      // ??? ??????? /auth/logout ????? ??? ???
+      this.user = null
+      this.permissions = new Set<string>()
+      this.redirectPath = null
+      this.error = null
+    },
 
-      const response = await requestLogin(payload)
-      const { user: nextUser, tokens: nextTokens } = response
+    can(p: string) {
+      return canUtil(this.permissions, p)
+    },
 
-      setSession(nextUser, nextTokens)
-
-      return response
-    } catch (err) {
-      const message = extractAuthErrorMessage(err)
-      error.value = message
-      throw new Error(message)
-    } finally {
-      isAuthenticating.value = false
-    }
-  }
-
-  const logout = () => {
-    setSession(null, null)
-    redirectPath.value = null
-    error.value = null
-  }
-
-  const setRedirectPath = (path: string | null) => {
-    redirectPath.value = sanitizeRedirect(path)
-  }
-
-  const consumeRedirectPath = () => {
-    const path = redirectPath.value
-    redirectPath.value = null
-    return path
-  }
-
-  const clearError = () => {
-    error.value = null
-  }
-
-  return {
-    user,
-    tokens,
-    accessToken,
-    refreshToken,
-    isAuthenticated,
-    isAuthenticating,
-    error,
-    redirectPath,
-    permissions,
-    can,
-    canAny,
-    login,
-    logout,
-    setRedirectPath,
-    consumeRedirectPath,
-    clearError,
-  }
+    canAny(list: string[]) {
+      return canAnyUtil(this.permissions, list)
+    },
+  },
 })

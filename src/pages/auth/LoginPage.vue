@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <section class="login-page">
     <el-card class="login-card" shadow="hover">
       <header class="login-header">
-        <h1 class="login-title">Вход в Service 360</h1>
+        <h1 class="login-title">Р’С…РѕРґ РІ Service 360</h1>
         <p class="login-subtitle">
-          Используйте учетные данные вашей организации, чтобы продолжить работу в системе.
+          РСЃРїРѕР»СЊР·СѓР№С‚Рµ СѓС‡РµС‚РЅС‹Рµ РґР°РЅРЅС‹Рµ РІР°С€РµР№ РѕСЂРіР°РЅРёР·Р°С†РёРё, С‡С‚РѕР±С‹ РїСЂРѕРґРѕР»Р¶РёС‚СЊ СЂР°Р±РѕС‚Сѓ РІ СЃРёСЃС‚РµРјРµ.
         </p>
       </header>
 
@@ -18,15 +18,15 @@
           :title="errorMessage"
         />
 
-        <el-form-item label="Логин" :error="fieldErrors.username ?? undefined">
-          <el-input v-model="form.username" placeholder="Введите логин" autocomplete="username" />
+        <el-form-item label="Р›РѕРіРёРЅ" :error="fieldErrors.username ?? undefined">
+          <el-input v-model="form.username" placeholder="Р’РІРµРґРёС‚Рµ Р»РѕРіРёРЅ" autocomplete="username" />
         </el-form-item>
 
-        <el-form-item label="Пароль" :error="fieldErrors.password ?? undefined">
+        <el-form-item label="РџР°СЂРѕР»СЊ" :error="fieldErrors.password ?? undefined">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="Введите пароль"
+            placeholder="Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ"
             autocomplete="current-password"
             show-password
           />
@@ -40,7 +40,7 @@
             :loading="isAuthenticating"
             :disabled="isAuthenticating"
           >
-            Войти
+            Р’РѕР№С‚Рё
           </el-button>
         </div>
       </el-form>
@@ -60,10 +60,7 @@ const route = useRoute()
 const auth = useAuthStore()
 const { isAuthenticating, error: authError } = storeToRefs(auth)
 
-const form = reactive<LoginCredentials>({
-  username: '',
-  password: '',
-})
+const form = reactive<LoginCredentials>({ username: '', password: '' })
 
 const fieldErrors = reactive<{ username: string | null; password: string | null }>({
   username: null,
@@ -79,23 +76,22 @@ const validate = () => {
   return !fieldErrors.username && !fieldErrors.password
 }
 
-watch(
-  () => form.username,
-  (v) => {
-    if (v && fieldErrors.username) fieldErrors.username = null
-  },
-)
-watch(
-  () => form.password,
-  (v) => {
-    if (v && fieldErrors.password) fieldErrors.password = null
-  },
-)
+watch(() => form.username, (value) => {
+  if (value && fieldErrors.username) {
+    fieldErrors.username = null
+  }
+})
+
+watch(() => form.password, (value) => {
+  if (value && fieldErrors.password) {
+    fieldErrors.password = null
+  }
+})
 
 watch(
   () => route.query.redirect,
-  (value) => {
-    const redirect = Array.isArray(value) ? value[0] : value
+  (val) => {
+    const redirect = Array.isArray(val) ? val[0] : val
     auth.setRedirectPath(typeof redirect === 'string' ? redirect : null)
   },
   { immediate: true },
@@ -114,14 +110,9 @@ const handleSubmit = async () => {
 
   try {
     const res = await auth.login({ ...form })
-
     if (res?.ok) {
       form.password = ''
-
-      const redirectQuery = route.query.redirect
-      const redirect = Array.isArray(redirectQuery) ? redirectQuery[0] : redirectQuery
-      const target = auth.consumeRedirectPath() ?? redirect ?? '/'
-
+      const target = auth.consumeRedirectPath?.() ?? (route.query.redirect as string) ?? '/'
       await router.replace(target)
     }
   } catch (err) {
@@ -181,3 +172,4 @@ const handleSubmit = async () => {
   min-width: 120px;
 }
 </style>
+
