@@ -2,9 +2,9 @@
   <section class="login-page">
     <el-card class="login-card" shadow="hover">
       <header class="login-header">
-        <h1 class="login-title">Р’С…РѕРґ РІ Service 360</h1>
+        <h1 class="login-title">Вход в Service 360</h1>
         <p class="login-subtitle">
-          РСЃРїРѕР»СЊР·СѓР№С‚Рµ СѓС‡РµС‚РЅС‹Рµ РґР°РЅРЅС‹Рµ РІР°С€РµР№ РѕСЂРіР°РЅРёР·Р°С†РёРё, С‡С‚РѕР±С‹ РїСЂРѕРґРѕР»Р¶РёС‚СЊ СЂР°Р±РѕС‚Сѓ РІ СЃРёСЃС‚РµРјРµ.
+          Используйте учетные данные вашей организации, чтобы продолжить работу в системе.
         </p>
       </header>
 
@@ -18,15 +18,19 @@
           :title="errorMessage"
         />
 
-        <el-form-item label="Р›РѕРіРёРЅ" :error="fieldErrors.username ?? undefined">
-          <el-input v-model="form.username" placeholder="Р’РІРµРґРёС‚Рµ Р»РѕРіРёРЅ" autocomplete="username" />
+        <el-form-item label="Логин" :error="fieldErrors.username ?? undefined">
+          <el-input
+            v-model="form.username"
+            placeholder="Введите логин"
+            autocomplete="username"
+          />
         </el-form-item>
 
-        <el-form-item label="РџР°СЂРѕР»СЊ" :error="fieldErrors.password ?? undefined">
+        <el-form-item label="Пароль" :error="fieldErrors.password ?? undefined">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ"
+            placeholder="Введите пароль"
             autocomplete="current-password"
             show-password
           />
@@ -40,7 +44,7 @@
             :loading="isAuthenticating"
             :disabled="isAuthenticating"
           >
-            Р’РѕР№С‚Рё
+            Войти
           </el-button>
         </div>
       </el-form>
@@ -172,4 +176,3 @@ const handleSubmit = async () => {
   min-width: 120px;
 }
 </style>
-
