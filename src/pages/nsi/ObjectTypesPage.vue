@@ -139,7 +139,6 @@ import type {
   SaveTypeObjectResponse,
   DeleteTypeObjectRequest,
 } from '@/types/nsi-remote'
-import { normalizeGeometry } from '@/types/nsi-remote'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { debounce } from 'lodash-es'
@@ -163,85 +162,90 @@ const componentMapByName = computed(() => {
 })
 
 // список типов
+const recs = <T = any>(x: any): T[] =>
+  Array.isArray(x) ? x : x?.result?.records ?? x?.records ?? x?.data ?? []
+
+const toKind = (name: any): GeometryKind =>
+  name === 'точка' ? 'точка' : name === 'линия' ? 'линия' : 'полигон'
+
 const list = useQuery({
   queryKey: ['object-types'],
   queryFn: async (): Promise<ObjectType[]> => {
-    const [remoteTypes, remoteShapes, remoteComponents] = await Promise.all([
-      callRpc<LoadTypesObjectsResponse>('data/loadTypesObjects', [0]),
-      callRpc<LoadFvForSelectResponse>('data/loadFvForSelect', ['Factor_Shape']),
-      callRpc<LoadComponentsObject2Response>('data/loadComponentsObject2', ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']),
+    const [typesRaw, shapesRaw, compsRaw] = await Promise.all([
+      callRpc('data/loadTypesObjects', [0]),
+      callRpc('data/loadFvForSelect', ['Factor_Shape']),
+      callRpc('data/loadComponentsObject2', ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']),
     ])
 
-    const typesList = Array.isArray(remoteTypes) ? remoteTypes : []
-    const shapeOptions = Array.isArray(remoteShapes) ? remoteShapes : []
-    const componentList = Array.isArray(remoteComponents) ? remoteComponents : []
+    const typesList = recs<any>(typesRaw)
+    const shapeOptions = recs<any>(shapesRaw)
+    const compPairs = recs<any>(compsRaw)
 
     geometryOptions.value = shapeOptions
 
-    const geometryById = new Map<string, GeometryKind>()
+    const geomByFvId = new Map<string, GeometryKind>()
+    const geomByPvId = new Map<string, GeometryKind>()
     const geometryMapping: Partial<Record<GeometryKind, string | null>> = {}
 
-    for (const option of shapeOptions) {
-      if (!option?.id) continue
-      const geometry = normalizeGeometry(
-        option.name ?? option.value ?? option.code ?? option.id,
-        shapeOptions,
-      )
-      geometryById.set(option.id, geometry)
-      if (!geometryMapping[geometry]) geometryMapping[geometry] = option.id
+    for (const opt of shapeOptions) {
+      const fvId = String(opt.id ?? opt.ID ?? '')
+      const pvId = String(opt.pv ?? opt.PV ?? '')
+      if (!fvId && !pvId) continue
+      const kind = toKind(opt.name ?? opt.value ?? opt.code ?? '')
+      if (fvId) geomByFvId.set(fvId, kind)
+      if (pvId) geomByPvId.set(pvId, kind)
+      if (!geometryMapping[kind] && fvId) geometryMapping[kind] = fvId
     }
     geometryIdByKind.value = geometryMapping
 
-    const seenOptions = new Map<string, ComponentOption>()
-    const grouped = new Map<string, ComponentOption[]>()
+    const seenByName = new Map<string, ComponentOption>()
+    const compsByType = new Map<string, ComponentOption[]>()
 
-    for (const comp of componentList) {
-      if (!comp) continue
-      const id = comp.id
-      const name = (comp.name ?? '').trim()
-      if (!id || !name) continue
+    for (const r of compPairs) {
+      const typeId = r.idrom1
+      const compId = r.idrom2
+      const compName = (r.namerom2 ?? '').trim()
+      if (typeId == null || !compId || !compName) continue
 
-      const option: ComponentOption = { id, name }
-      const normalizedName = norm(name)
+      const option: ComponentOption = { id: String(compId), name: compName }
+      const keyName = norm(compName)
+      if (!seenByName.has(keyName)) seenByName.set(keyName, option)
 
-      if (!seenOptions.has(normalizedName)) {
-        seenOptions.set(normalizedName, option)
-      }
-
-      if (comp.objectTypeId) {
-        const current = grouped.get(comp.objectTypeId) ?? []
-        current.push(option)
-        grouped.set(comp.objectTypeId, current)
-      }
+      const k = String(typeId)
+      const arr = compsByType.get(k) ?? []
+      arr.push(option)
+      compsByType.set(k, arr)
     }
 
-    componentOptions.value = Array.from(seenOptions.values()).sort((a, b) =>
+    componentOptions.value = Array.from(seenByName.values()).sort((a, b) =>
       a.name.localeCompare(b.name, 'ru'),
     )
 
     const groupedRecord: Record<string, ComponentOption[]> = {}
-    for (const type of typesList) {
-      const comps = grouped.get(type.id) ?? []
-      groupedRecord[type.id] = comps
+    for (const t of typesList) {
+      const k = String(t.id ?? t.typeId)
+      const arr = (compsByType.get(k) ?? [])
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+      groupedRecord[k] = arr
     }
     componentsByType.value = groupedRecord
 
-    return typesList.map((item) => {
+    return typesList.map((item: any) => {
+      const id = String(item.id)
+      const name = item.name ?? item.nameCls ?? ''
+
       const geometry =
-        geometryById.get(item.geometryId ?? '') ??
-        normalizeGeometry(item.geometryName ?? item.geometryId ?? '', shapeOptions)
-      const comps = componentsByType.value[item.id] ?? []
-      return {
-        id: item.id,
-        name: item.name,
-        geometry,
-        component: comps.map((c) => c.name),
-      }
+        geomByFvId.get(String(item.fvShape)) ??
+        geomByPvId.get(String(item.pvShape)) ??
+        ('точка' as GeometryKind)
+
+      const comps = componentsByType.value[id] ?? []
+      return { id, name, geometry, component: comps.map((c) => c.name) } as ObjectType
     })
   },
 })
+
 
 // фильтр по поиску
 const filtered = computed(() =>
