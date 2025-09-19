@@ -19,11 +19,7 @@
         />
 
         <el-form-item label="Логин" :error="fieldErrors.username ?? undefined">
-          <el-input
-            v-model="form.username"
-            placeholder="Введите логин"
-            autocomplete="username"
-          />
+          <el-input v-model="form.username" placeholder="Введите логин" autocomplete="username" />
         </el-form-item>
 
         <el-form-item label="Пароль" :error="fieldErrors.password ?? undefined">
@@ -58,6 +54,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { LoginCredentials } from '@/lib/auth'
+import { api } from '@/lib/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -75,7 +72,6 @@ const fieldErrors = reactive<{ username: string | null; password: string | null 
 })
 
 const submitError = ref<string | null>(null)
-
 const errorMessage = computed(() => submitError.value ?? authError.value ?? null)
 
 const validate = () => {
@@ -86,19 +82,14 @@ const validate = () => {
 
 watch(
   () => form.username,
-  (value) => {
-    if (value && fieldErrors.username) {
-      fieldErrors.username = null
-    }
+  (v) => {
+    if (v && fieldErrors.username) fieldErrors.username = null
   },
 )
-
 watch(
   () => form.password,
-  (value) => {
-    if (value && fieldErrors.password) {
-      fieldErrors.password = null
-    }
+  (v) => {
+    if (v && fieldErrors.password) fieldErrors.password = null
   },
 )
 
@@ -123,9 +114,22 @@ const handleSubmit = async () => {
   }
 
   try {
-    await auth.login({ ...form })
-    const target = auth.consumeRedirectPath() ?? '/'
+    // логин; ожидаем { user, tokens } либо стор заполнит tokens сам
+    const res = await auth.login({ ...form })
+
+    // сохранить accessToken и проставить в axios
+    const access =
+      (res && 'tokens' in res && (res as any).tokens?.accessToken) ||
+      (auth as any).tokens?.accessToken
+
+    if (access) {
+      localStorage.setItem('accessToken', access)
+      api.defaults.headers.common.Authorization = `Bearer ${access}`
+    }
+
     form.password = ''
+
+    const target = auth.consumeRedirectPath?.() ?? (route.query.redirect as string) ?? '/'
     await router.replace(target)
   } catch (err) {
     submitError.value = err instanceof Error ? err.message : 'Не удалось выполнить вход'

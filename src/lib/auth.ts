@@ -2,7 +2,7 @@ import type { AxiosError } from 'axios'
 import { api } from './api'
 
 export interface LoginCredentials {
-  username: string
+  username: string // если бек ждёт "login", маппинг ниже это учтёт
   password: string
 }
 
@@ -31,25 +31,31 @@ const ABSOLUTE_URL_PATTERN = /^([a-z][a-z\d+\-.]*:)?\/\//i
 
 function normalizeRelativePath(path: string | undefined | null): string {
   const trimmed = path?.trim()
-  if (!trimmed) return 'auth/login'
-  const withoutLeadingSlashes = trimmed.replace(/^\/+/, '')
-  return withoutLeadingSlashes || 'auth/login'
+  if (!trimmed) return '/auth/login'
+  const p = trimmed.replace(/\/+$/, '')
+  return p.startsWith('/') ? p : `/${p}`
 }
 
 function resolveLoginPath(): string {
-  const rawPath = import.meta.env.VITE_AUTH_LOGIN_PATH
-
-  if (rawPath && ABSOLUTE_URL_PATTERN.test(rawPath)) {
-    return rawPath
-  }
-
-  return normalizeRelativePath(rawPath)
+  const raw = import.meta.env.VITE_AUTH_LOGIN_PATH as string | undefined
+  if (raw && ABSOLUTE_URL_PATTERN.test(raw)) return raw // абсолютный URL — используем как есть
+  return normalizeRelativePath(raw)
 }
 
 const loginPath = resolveLoginPath()
 
 export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
-  const { data } = await api.post<AuthResponse>(loginPath, credentials)
+  // маппинг на случай, если сервер ждёт поле "login", а не "username"
+  const loginValue = (credentials as unknown as { login?: string }).login ?? credentials.username
+
+  const body = new URLSearchParams()
+  body.set('username', loginValue) // при необходимости замени на body.set('login', loginValue)
+  body.set('password', credentials.password)
+
+  const { data } = await api.post<AuthResponse>(loginPath, body, {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  })
+
   return data
 }
 
@@ -58,32 +64,21 @@ export function extractAuthErrorMessage(
   fallbackMessage = 'Не удалось выполнить вход',
 ): string {
   const fallback = fallbackMessage || 'Не удалось выполнить вход'
-
   const asAny = error as Partial<AxiosError<{ message?: string; error?: string }>> | undefined
 
   if (asAny?.response?.data) {
-    const responseData = asAny.response.data
-
-    if (typeof responseData === 'string' && responseData.trim()) {
-      return responseData
-    }
-
-    if (typeof responseData === 'object') {
-      if (responseData?.message) return responseData.message
-      if (responseData?.error) return responseData.error
+    const rd = asAny.response.data
+    if (typeof rd === 'string' && rd.trim()) return rd
+    if (typeof rd === 'object') {
+      if (rd?.message) return rd.message
+      if (rd?.error) return rd.error
     }
   }
-
-  if (asAny?.message) {
-    return asAny.message
-  }
+  if ((asAny as any)?.message) return (asAny as any).message as string
 
   if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message
-    if (typeof message === 'string' && message) {
-      return message
-    }
+    const m = (error as { message?: unknown }).message
+    if (typeof m === 'string' && m) return m
   }
-
   return fallback
 }

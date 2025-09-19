@@ -10,7 +10,7 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
     // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
-    { path: '/', name: 'home', component: Home },
+    { path: '/', name: 'home', component: Home, props: { msg: 'Service 360' } },
     {
       path: '/nsi/object-types',
       name: 'object-types',
