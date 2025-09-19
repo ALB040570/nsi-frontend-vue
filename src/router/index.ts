@@ -9,12 +9,13 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
-    { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
+    // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
+    { path: '/', name: 'home', component: Home },
     {
       path: '/nsi/object-types',
       name: 'object-types',
       component: ObjectTypesPage,
-      meta: { requiresAuth: true },
+      // meta: { requiresAuth: true },
     },
   ],
 })
@@ -45,12 +46,13 @@ router.beforeEach((to) => {
   }
 
   if (to.meta.requiresAuth && !auth.isAuthenticated) {
-    const target = normalizeRedirect(to.fullPath) ?? '/'
-    auth.setRedirectPath(target)
+    // const target = normalizeRedirect(to.fullPath) ?? '/'
+    // auth.setRedirectPath(target)
 
-    const query = target && target !== '/' ? { redirect: target } : undefined
+    // const query = target && target !== '/' ? { redirect: target } : undefined
 
-    return { name: 'login', query }
+    // return { name: 'login', query }
+    return true
   }
 
   return true
