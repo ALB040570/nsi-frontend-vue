@@ -12,12 +12,6 @@ import App from './App.vue'
 import router from './router' // роутер нужен для наших страниц
 
 const app = createApp(App)
-import { api } from '@/lib/api'
-
-const saved = localStorage.getItem('accessToken')
-if (saved) {
-  api.defaults.headers.common.Authorization = `Bearer ${saved}`
-}
 // Pinia (глобальное хранилище)
 app.use(createPinia())
 

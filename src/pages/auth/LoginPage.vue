@@ -54,7 +54,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import type { LoginCredentials } from '@/lib/auth'
-import { api } from '@/lib/api'
 
 const router = useRouter()
 const route = useRoute()
@@ -114,23 +113,17 @@ const handleSubmit = async () => {
   }
 
   try {
-    // логин; ожидаем { user, tokens } либо стор заполнит tokens сам
     const res = await auth.login({ ...form })
 
-    // сохранить accessToken и проставить в axios
-    const access =
-      (res && 'tokens' in res && (res as any).tokens?.accessToken) ||
-      (auth as any).tokens?.accessToken
+    if (res?.ok) {
+      form.password = ''
 
-    if (access) {
-      localStorage.setItem('accessToken', access)
-      api.defaults.headers.common.Authorization = `Bearer ${access}`
+      const redirectQuery = route.query.redirect
+      const redirect = Array.isArray(redirectQuery) ? redirectQuery[0] : redirectQuery
+      const target = auth.consumeRedirectPath() ?? redirect ?? '/'
+
+      await router.replace(target)
     }
-
-    form.password = ''
-
-    const target = auth.consumeRedirectPath?.() ?? (route.query.redirect as string) ?? '/'
-    await router.replace(target)
   } catch (err) {
     submitError.value = err instanceof Error ? err.message : 'Не удалось выполнить вход'
   }

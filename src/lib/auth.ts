@@ -44,19 +44,24 @@ function resolveLoginPath(): string {
 
 const loginPath = resolveLoginPath()
 
-export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
-  // маппинг на случай, если сервер ждёт поле "login", а не "username"
-  const loginValue = (credentials as unknown as { login?: string }).login ?? credentials.username
-
+export async function login(credentials: LoginCredentials): Promise<{ ok: true }> {
   const body = new URLSearchParams()
-  body.set('username', loginValue) // при необходимости замени на body.set('login', loginValue)
+  body.set('username', credentials.username) // если бек ждёт "login", замени ключ
   body.set('password', credentials.password)
 
-  const { data } = await api.post<AuthResponse>(loginPath, body, {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-  })
+  const { data } = await api.post<string>(
+    import.meta.env.VITE_AUTH_LOGIN_PATH || '/auth/login',
+    body,
+    {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      responseType: 'text',
+      transformResponse: (v) => v, // не парсить как JSON
+    },
+  )
 
-  return data
+  const text = (typeof data === 'string' ? data : '').trim().toLowerCase()
+  if (text !== 'ok') throw new Error(text || 'Не удалось выполнить вход')
+  return { ok: true }
 }
 
 export function extractAuthErrorMessage(
@@ -82,3 +87,5 @@ export function extractAuthErrorMessage(
   }
   return fallback
 }
+export { getCurUserInfo } from './rpc'
+export type { CurUser } from './rpc'

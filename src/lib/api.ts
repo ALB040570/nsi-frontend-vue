@@ -63,6 +63,7 @@ const rpcPath = import.meta.env.VITE_RPC_PATH ?? ''
 
 export const api = axios.create({
   baseURL,
+  withCredentials: true, // опционально
 })
 
 type RpcPayload<TParams> = {
@@ -89,7 +90,7 @@ export async function callRpc<TResult, TParams = Record<string, unknown>>(
       const message =
         typeof data.error === 'string'
           ? data.error
-          : data.error?.message ?? `RPC ${method} failed`
+          : (data.error?.message ?? `RPC ${method} failed`)
       throw new Error(message)
     }
 

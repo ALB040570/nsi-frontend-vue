@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
+import { can as hasPermission, canAny as hasAnyPermission, parseTargets } from '@/lib/permissions'
 import {
   extractAuthErrorMessage,
   login as requestLogin,
@@ -27,6 +28,30 @@ function sanitizeRedirect(path: unknown): string | null {
   return path
 }
 
+const TARGET_FIELDS = ['target', 'targets'] as const
+
+function collectTargetStrings(source: unknown): string[] {
+  if (!source || typeof source !== 'object') return []
+
+  const record = source as Record<string, unknown>
+  const values: string[] = []
+
+  for (const field of TARGET_FIELDS) {
+    const raw = record[field]
+    if (typeof raw === 'string') {
+      values.push(raw)
+    } else if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string') {
+          values.push(item)
+        }
+      }
+    }
+  }
+
+  return values
+}
+
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<AuthUser | null>(null)
   const tokens = ref<AuthTokens | null>(null)
@@ -38,6 +63,21 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = computed(() => tokens.value?.refreshToken ?? null)
   const isAuthenticated = computed(() => Boolean(accessToken.value && user.value))
 
+  const permissions = computed(() => {
+    const combined = new Set<string>()
+    const sources = [...collectTargetStrings(user.value), ...collectTargetStrings(tokens.value)]
+
+    for (const source of sources) {
+      for (const perm of parseTargets(source)) {
+        combined.add(perm)
+      }
+    }
+
+    return combined
+  })
+
+  const can = (perm: string) => hasPermission(permissions.value, perm)
+  const canAny = (list: string[]) => hasAnyPermission(permissions.value, list)
   const applyAccessToken = (token: string | null) => {
     if (token) {
       api.defaults.headers.common.Authorization = `Bearer ${token}`
@@ -139,6 +179,9 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticating,
     error,
     redirectPath,
+    permissions,
+    can,
+    canAny,
     login,
     logout,
     setRedirectPath,
