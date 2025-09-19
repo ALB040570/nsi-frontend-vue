@@ -1,5 +1,5 @@
 <template>
-  <section>
+  <section class="object-types-page">
     <header class="page-header">
       <div class="page-title">
         <h2 class="h2">Справочник "Типы обслуживаемых объектов"</h2>
@@ -21,54 +21,67 @@
       компоненты.
     </p>
 
-    <el-table
-      :data="filtered"
-      class="s360-cards"
-      style="width: 100%"
-
-    >
-      <!-- 1 колонка - самая большая -->
-      <el-table-column prop="name" label="Название" width="400" />
-      <!-- 2 колонка - по размеру самого длинного значения -->
-      <el-table-column label="Геометрия" width="120" min-width="120">
-        <template #default="{ row }">
-          <el-tag effect="plain" size="small">
-            {{
-              row.geometry === 'точка' ? 'Точка' : row.geometry === 'линия' ? 'Линия' : 'Полигон'
-            }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <!-- 3 колонка - вторая по ширине -->
-      <el-table-column label="Компоненты"  width="400">
-        <template #default="{ row }">
-          <div style="display: flex; flex-wrap: wrap; gap: 4px">
-            <el-tag
-              v-for="name in row.component"
-              :key="name"
-              size="small"
-              effect="plain"
-              style="margin: 1px"
-            >
-              {{ name }}
+    <div class="table-area">
+      <el-table
+        :data="paged"
+        class="s360-cards table-full"
+        style="width: 100%"
+        height="100%"
+      >
+        <!-- 1 колонка - самая большая -->
+        <el-table-column prop="name" label="Название" width="400" />
+        <!-- 2 колонка - по размеру самого длинного значения -->
+        <el-table-column label="Геометрия" width="120" min-width="120">
+          <template #default="{ row }">
+            <el-tag effect="plain" size="small">
+              {{
+                row.geometry === 'точка' ? 'Точка' : row.geometry === 'линия' ? 'Линия' : 'Полигон'
+              }}
             </el-tag>
-          </div>
-        </template>
-      </el-table-column>
-      <!-- 4 колонка - фиксированная ширина для кнопок -->
-      <el-table-column label="Действия" width="120" align="center">
-        <template #default="{ row }">
-          <div style="display: flex; gap: 8px; justify-content: center;">
-            <el-tooltip content="Изменить">
-              <el-button :icon="Edit" circle plain size="small" @click="openEdit(row)" />
-            </el-tooltip>
-            <el-tooltip content="Удалить">
-              <el-button :icon="Delete" circle type="danger" plain size="small" @click="removeRow(row.id)" />
-            </el-tooltip>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+          </template>
+        </el-table-column>
+        <!-- 3 колонка - вторая по ширине -->
+        <el-table-column label="Компоненты" width="400">
+          <template #default="{ row }">
+            <div class="components-cell">
+              <el-tag
+                v-for="name in row.component"
+                :key="name"
+                size="small"
+                effect="plain"
+                class="component-tag"
+              >
+                {{ name }}
+              </el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <!-- 4 колонка - фиксированная ширина для кнопок -->
+        <el-table-column label="Действия" width="120" align="center">
+          <template #default="{ row }">
+            <div style="display: flex; gap: 8px; justify-content: center;">
+              <el-tooltip content="Изменить">
+                <el-button :icon="Edit" circle plain size="small" @click="openEdit(row)" />
+              </el-tooltip>
+              <el-tooltip content="Удалить">
+                <el-button :icon="Delete" circle type="danger" plain size="small" @click="removeRow(row.id)" />
+              </el-tooltip>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination-bar">
+        <el-pagination
+          background
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="total"
+          :page-sizes="[10, 20, 50, 100]"
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+        />
+      </div>
+    </div>
 
     <!-- Диалог создания/редактирования -->
     <el-dialog v-model="dialog" :title="editing ? 'Изменить тип' : 'Создать тип'" width="560">
@@ -126,7 +139,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 import { callRpc } from '@/lib/api'
 import type { ObjectType, GeometryKind } from '@/types/nsi'
@@ -257,6 +270,31 @@ const filtered = computed(() =>
   ),
 )
 
+const page = ref(1)
+const pageSize = ref(20)
+
+const total = computed(() => filtered.value.length)
+
+const paged = computed(() => {
+  const arr = filtered.value
+  const start = Math.max(0, (page.value - 1) * pageSize.value)
+  return arr.slice(start, start + pageSize.value)
+})
+
+watch([q, () => filtered.value], () => {
+  page.value = 1
+})
+
+watch(pageSize, () => {
+  page.value = 1
+})
+
+watch(total, (newTotal) => {
+  const maxPage = Math.max(1, Math.ceil((newTotal || 0) / pageSize.value) || 1)
+  if (page.value > maxPage) {
+    page.value = maxPage
+  }
+})
 // ---- диалог / форма ----
 const dialog = ref(false)
 const editing = ref<ObjectType | null>(null)
@@ -504,6 +542,43 @@ const removeRow = async (id: string) => {
 </script>
 
 <style scoped>
+.object-types-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.table-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.table-full {
+  flex: 1;
+}
+
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 4px 0 0;
+}
+
+.components-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.component-tag {
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+}
 .page-header {
   display: flex;
   align-items: flex-start;
