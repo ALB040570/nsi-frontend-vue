@@ -23,15 +23,16 @@
 
     <div class="table-area">
       <el-table
-        :data="paged"
-        class="s360-cards table-full"
+        :data="paged ?? filtered"
+        class="s360-cards table-full table-stretch"
         style="width: 100%"
         height="100%"
+        table-layout="fixed"
       >
         <!-- 1 колонка - самая большая -->
-        <el-table-column prop="name" label="Название" width="400" />
+        <el-table-column prop="name" label="Название" width="400" class-name="col-name" />
         <!-- 2 колонка - по размеру самого длинного значения -->
-        <el-table-column label="Геометрия" width="120" min-width="120">
+        <el-table-column label="Геометрия" width="120" align="center">
           <template #default="{ row }">
             <el-tag effect="plain" size="small">
               {{
@@ -41,17 +42,17 @@
           </template>
         </el-table-column>
         <!-- 3 колонка - вторая по ширине -->
-        <el-table-column label="Компоненты" width="400">
+        <el-table-column label="Компоненты" class-name="col-components">
           <template #default="{ row }">
             <div class="components-cell">
               <el-tag
                 v-for="name in row.component"
                 :key="name"
+                class="component-tag"
                 size="small"
                 effect="plain"
-                class="component-tag"
               >
-                {{ name }}
+                <span class="tag-text">{{ name }}</span>
               </el-tag>
             </div>
           </template>
@@ -542,6 +543,22 @@ const removeRow = async (id: string) => {
 </script>
 
 <style scoped>
+.table-stretch {
+  width: 100%;
+}
+
+::v-deep(.el-table .cell) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+::v-deep(.el-table .col-name .cell),
+::v-deep(.el-table .col-components .cell) {
+  white-space: normal;
+  word-break: break-word;
+}
+
 .object-types-page {
   height: 100vh;
   display: flex;
@@ -570,12 +587,16 @@ const removeRow = async (id: string) => {
 .components-cell {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   align-items: flex-start;
+  overflow: hidden;
 }
 
 .component-tag {
   max-width: 100%;
+}
+
+::v-deep(.component-tag .el-tag__content) {
   white-space: normal;
   word-break: break-word;
 }
