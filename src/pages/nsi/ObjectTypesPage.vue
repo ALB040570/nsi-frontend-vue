@@ -29,9 +29,9 @@
         height="100%"
       >
         <!-- 1 колонка - самая большая -->
-        <el-table-column prop="name" label="Название" width="400" />
+        <el-table-column prop="name" label="Название" min-width="400" />
         <!-- 2 колонка - по размеру самого длинного значения -->
-        <el-table-column label="Геометрия" width="120" min-width="120">
+        <el-table-column label="Геометрия" min-width="120">
           <template #default="{ row }">
             <el-tag effect="plain" size="small">
               {{
@@ -41,7 +41,7 @@
           </template>
         </el-table-column>
         <!-- 3 колонка - вторая по ширине -->
-        <el-table-column label="Компоненты" width="400">
+        <el-table-column label="Компоненты" min-width="400">
           <template #default="{ row }">
             <div class="components-cell">
               <el-tag
@@ -57,7 +57,7 @@
           </template>
         </el-table-column>
         <!-- 4 колонка - фиксированная ширина для кнопок -->
-        <el-table-column label="Действия" width="120" align="center">
+        <el-table-column label="Действия" width="120" align="center" fixed="right">
           <template #default="{ row }">
             <div style="display: flex; gap: 8px; justify-content: center;">
               <el-tooltip content="Изменить">
