@@ -23,10 +23,11 @@
 
     <div class="table-area">
       <el-table
-        :data="paged ?? filtered"
+        :data="paginatedRows"
         class="s360-cards table-full table-stretch"
         style="width: 100%"
         height="100%"
+        v-loading="tableLoading"
         table-layout="fixed"
       >
         <!-- 1 колонка - самая большая -->
@@ -78,10 +79,11 @@
           layout="total, sizes, prev, pager, next, jumper"
           :total="total"
           :page-sizes="[10, 20, 50, 100]"
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
+          v-model:current-page="pagination.page"
+          v-model:page-size="pagination.pageSize"
           prev-text="Назад"
-          next-text="Далее"
+          next-text="Вперёд"
+          aria-label="Пагинация типов объектов"
         />
       </div>
     </div>
@@ -117,13 +119,13 @@
             default-first-option
             placeholder="Выберите или введите новый"
             style="width: 100%"
-            @blur="(e) => debouncedCheckComponent(e.target.value)"
+            @blur="handleComponentBlur"
           >
             <el-option
-              v-for="c in componentOptions.value"
-              :key="c.id"
-              :label="c.name"
-              :value="c.name"
+              v-for="option in componentOptions"
+              :key="option.id"
+              :label="option.name"
+              :value="option.name"
             />
           </el-select>
           <p class="text-small" style="margin-top: 6px">
@@ -142,207 +144,393 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, reactive, ref, watch, watchEffect } from 'vue'
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
-import { callRpc } from '@/lib/api'
-import type { ObjectType, GeometryKind } from '@/types/nsi'
-import type {
-  ComponentOption,
-  LoadComponentsObject2Response,
-  LoadFvForSelectResponse,
-  LoadTypesObjectsResponse,
-  SaveTypeObjectRequest,
-  SaveTypeObjectResponse,
-  DeleteTypeObjectRequest,
-} from '@/types/nsi-remote'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { debounce } from 'lodash-es'
 
+import { callRpc } from '@/lib/api'
+import type { GeometryKind, ObjectType } from '@/types/nsi'
+import type {
+  ComponentOption,
+  ComponentsByType,
+  LoadFvForSelectResponse,
+  SaveTypeObjectRequest,
+  SaveTypeObjectResponse,
+  DeleteTypeObjectRequest,
+} from '@/types/nsi-remote'
+import { normalizeGeometry } from '@/types/nsi-remote'
+
+interface PaginationState {
+  page: number
+  pageSize: number
+}
+
+interface FetchState {
+  isLoading: boolean
+  isFetching: boolean
+  isError: boolean
+  errorMessage: string
+}
+
+interface RawObjectTypeRecord {
+  id?: string | number | null
+  name?: string | null
+  nameCls?: string | null
+  fvShape?: string | number | null
+  pvShape?: string | number | null
+}
+
+interface RawComponentRecord {
+  idrom1?: string | number | null
+  idrom2?: string | number | null
+  namerom2?: string | null
+}
+
+interface RawGeometryRecord {
+  id?: string | number | null
+  ID?: string | number | null
+  pv?: string | number | null
+  PV?: string | number | null
+  name?: string | null
+  value?: string | null
+  code?: string | null
+}
+
+interface ObjectTypesSnapshot {
+  items: ObjectType[]
+  componentOptions: ComponentOption[]
+  componentsByType: ComponentsByType
+  geometryOptions: LoadFvForSelectResponse
+  geometryIdByKind: Partial<Record<GeometryKind, string | null>>
+}
+
+interface FormState {
+  name: string
+  geometry: GeometryKind
+  component: string[]
+}
+
+interface FormErrors {
+  name?: string
+}
+
+const DEFAULT_GEOMETRY: GeometryKind = 'точка'
+
+const normalizeText = (value: string | null | undefined): string =>
+  value?.trim().toLowerCase() ?? ''
+
+const safeString = (value: unknown): string => (value ?? '').toString()
+
+const trimmedString = (value: unknown): string => safeString(value).trim()
+
+const toOptionalString = (value: unknown): string | null => {
+  const valueString = trimmedString(value)
+  return valueString ? valueString : null
+}
+
+function extractRecords<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) {
+    return payload as T[]
+  }
+
+  if (payload && typeof payload === 'object') {
+    const envelope = payload as {
+      result?: { records?: unknown; data?: unknown } | null
+      records?: unknown
+      data?: unknown
+    }
+
+    const records = envelope.result?.records
+    if (Array.isArray(records)) {
+      return records as T[]
+    }
+
+    const data = envelope.result?.data
+    if (Array.isArray(data)) {
+      return data as T[]
+    }
+
+    if (Array.isArray(envelope.records)) {
+      return envelope.records as T[]
+    }
+
+    if (Array.isArray(envelope.data)) {
+      return envelope.data as T[]
+    }
+  }
+
+  return []
+}
+
+function getErrorMessage(error: unknown): string {
+  if (!error) {
+    return ''
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}
+
+async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
+  const [typesResponse, geometryResponse, componentsResponse] = await Promise.all([
+    callRpc<unknown>('data/loadTypesObjects', [0]),
+    callRpc<unknown>('data/loadFvForSelect', ['Factor_Shape']),
+    callRpc<unknown>('data/loadComponentsObject2', ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']),
+  ])
+
+  const rawTypes = extractRecords<RawObjectTypeRecord>(typesResponse)
+  const rawGeometry = extractRecords<RawGeometryRecord>(geometryResponse)
+  const rawComponents = extractRecords<RawComponentRecord>(componentsResponse)
+
+  const geometryOptions: LoadFvForSelectResponse = rawGeometry.map((option) => {
+    const id = safeString(option.id ?? option.ID)
+    const displayName = trimmedString(option.name ?? option.value ?? option.code) || id
+
+    return {
+      id,
+      name: displayName,
+      code: toOptionalString(option.code),
+      value: toOptionalString(option.value),
+    }
+  })
+
+  const geometryKindByFvId = new Map<string, GeometryKind>()
+  const geometryKindByPvId = new Map<string, GeometryKind>()
+  const geometryIdByKind: Partial<Record<GeometryKind, string | null>> = {}
+
+  for (const option of rawGeometry) {
+    const fvId = toOptionalString(option.id ?? option.ID)
+    const pvId = toOptionalString(option.pv ?? option.PV)
+    if (!fvId && !pvId) {
+      continue
+    }
+
+    const geometryLabel =
+      option.name ?? option.value ?? option.code ?? option.id ?? option.ID ?? ''
+    const kind = normalizeGeometry(geometryLabel, geometryOptions)
+
+    if (fvId) {
+      geometryKindByFvId.set(fvId, kind)
+      if (!geometryIdByKind[kind]) {
+        geometryIdByKind[kind] = fvId
+      }
+    }
+
+    if (pvId) {
+      geometryKindByPvId.set(pvId, kind)
+    }
+  }
+
+  const componentOptionsMap = new Map<string, ComponentOption>()
+  const componentsByTypeMap = new Map<string, ComponentOption[]>()
+
+  for (const link of rawComponents) {
+    const typeId = toOptionalString(link.idrom1)
+    const componentId = toOptionalString(link.idrom2)
+    const componentName = toOptionalString(link.namerom2)
+
+    if (!typeId || !componentId || !componentName) {
+      continue
+    }
+
+    const normalizedName = normalizeText(componentName)
+    let option = componentOptionsMap.get(normalizedName)
+
+    if (!option) {
+      option = { id: componentId, name: componentName }
+      componentOptionsMap.set(normalizedName, option)
+    }
+
+    const list = componentsByTypeMap.get(typeId) ?? []
+    list.push(option)
+    componentsByTypeMap.set(typeId, list)
+  }
+
+  const componentOptions = Array.from(componentOptionsMap.values()).sort((a, b) =>
+    a.name.localeCompare(b.name, 'ru'),
+  )
+
+  const componentsByType: ComponentsByType = {}
+  for (const [typeId, componentList] of componentsByTypeMap.entries()) {
+    const uniqueById = new Map<string, ComponentOption>()
+    for (const component of componentList) {
+      if (!uniqueById.has(component.id)) {
+        uniqueById.set(component.id, component)
+      }
+    }
+
+    componentsByType[typeId] = Array.from(uniqueById.values()).sort((a, b) =>
+      a.name.localeCompare(b.name, 'ru'),
+    )
+  }
+
+  const items: ObjectType[] = rawTypes.map((record) => {
+    const id = safeString(record.id)
+    const name = safeString(record.name ?? record.nameCls)
+
+    const fvKey = toOptionalString(record.fvShape)
+    const pvKey = toOptionalString(record.pvShape)
+    const geometry =
+      (fvKey ? geometryKindByFvId.get(fvKey) : undefined) ??
+      (pvKey ? geometryKindByPvId.get(pvKey) : undefined) ??
+      DEFAULT_GEOMETRY
+
+    const componentNames =
+      componentsByType[id]?.map((component) => component.name) ?? []
+
+    return { id, name, geometry, component: componentNames }
+  })
+
+  return {
+    items,
+    componentOptions,
+    componentsByType,
+    geometryOptions,
+    geometryIdByKind,
+  }
+}
+
 const qc = useQueryClient()
+
 const q = ref('')
 
-const componentOptions = ref<ComponentOption[]>([])
-const componentsByType = ref<Record<string, ComponentOption[]>>({})
-const geometryOptions = ref<LoadFvForSelectResponse>([])
-const geometryIdByKind = ref<Partial<Record<GeometryKind, string | null>>>({})
+const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
-const norm = (value: string | null | undefined) => (value ?? '').trim().toLowerCase()
+const {
+  data: snapshot,
+  isLoading,
+  isFetching,
+  error,
+} = useQuery({
+  queryKey: ['object-types'],
+  queryFn: fetchObjectTypes,
+})
+
+const fetchState = computed<FetchState>(() => ({
+  isLoading: isLoading.value,
+  isFetching: isFetching.value,
+  isError: Boolean(error.value),
+  errorMessage: getErrorMessage(error.value),
+}))
+
+const tableLoading = computed(
+  () => fetchState.value.isLoading || fetchState.value.isFetching,
+)
+
+watch(
+  () => fetchState.value.errorMessage,
+  (message, previous) => {
+    if (message && message !== previous) {
+      ElMessage.error(message)
+    }
+  },
+)
+
+const objectTypes = computed(() => snapshot.value?.items ?? [])
+const componentsByType = computed(
+  () => snapshot.value?.componentsByType ?? {},
+)
+const componentOptions = computed(() => snapshot.value?.componentOptions ?? [])
+const geometryOptions = computed(() => snapshot.value?.geometryOptions ?? [])
+const geometryIdByKind = computed(
+  () => snapshot.value?.geometryIdByKind ?? {},
+)
 
 const componentMapByName = computed(() => {
   const map = new Map<string, ComponentOption>()
   for (const option of componentOptions.value) {
-    map.set(norm(option.name), option)
+    map.set(normalizeText(option.name), option)
   }
   return map
 })
 
-// список типов
-const recs = <T = any>(x: any): T[] =>
-  Array.isArray(x) ? x : x?.result?.records ?? x?.records ?? x?.data ?? []
+const filteredRows = computed(() => {
+  const search = q.value.trim().toLowerCase()
+  if (!search) {
+    return objectTypes.value
+  }
 
-const toKind = (name: any): GeometryKind =>
-  name === 'точка' ? 'точка' : name === 'линия' ? 'линия' : 'полигон'
+  return objectTypes.value.filter((item) =>
+    Object.values(item).some((value) => {
+      if (value === null || value === undefined) {
+        return false
+      }
 
-const list = useQuery({
-  queryKey: ['object-types'],
-  queryFn: async (): Promise<ObjectType[]> => {
-    const [typesRaw, shapesRaw, compsRaw] = await Promise.all([
-      callRpc('data/loadTypesObjects', [0]),
-      callRpc('data/loadFvForSelect', ['Factor_Shape']),
-      callRpc('data/loadComponentsObject2', ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']),
-    ])
-
-    const typesList = recs<any>(typesRaw)
-    const shapeOptions = recs<any>(shapesRaw)
-    const compPairs = recs<any>(compsRaw)
-
-    geometryOptions.value = shapeOptions
-
-    const geomByFvId = new Map<string, GeometryKind>()
-    const geomByPvId = new Map<string, GeometryKind>()
-    const geometryMapping: Partial<Record<GeometryKind, string | null>> = {}
-
-    for (const opt of shapeOptions) {
-      const fvId = String(opt.id ?? opt.ID ?? '')
-      const pvId = String(opt.pv ?? opt.PV ?? '')
-      if (!fvId && !pvId) continue
-      const kind = toKind(opt.name ?? opt.value ?? opt.code ?? '')
-      if (fvId) geomByFvId.set(fvId, kind)
-      if (pvId) geomByPvId.set(pvId, kind)
-      if (!geometryMapping[kind] && fvId) geometryMapping[kind] = fvId
-    }
-    geometryIdByKind.value = geometryMapping
-
-    const seenByName = new Map<string, ComponentOption>()
-    const compsByType = new Map<string, ComponentOption[]>()
-
-    for (const r of compPairs) {
-      const typeId = r.idrom1
-      const compId = r.idrom2
-      const compName = (r.namerom2 ?? '').trim()
-      if (typeId == null || !compId || !compName) continue
-
-      const option: ComponentOption = { id: String(compId), name: compName }
-      const keyName = norm(compName)
-      if (!seenByName.has(keyName)) seenByName.set(keyName, option)
-
-      const k = String(typeId)
-      const arr = compsByType.get(k) ?? []
-      arr.push(option)
-      compsByType.set(k, arr)
-    }
-
-    componentOptions.value = Array.from(seenByName.values()).sort((a, b) =>
-      a.name.localeCompare(b.name, 'ru'),
-    )
-
-    const groupedRecord: Record<string, ComponentOption[]> = {}
-    for (const t of typesList) {
-      const k = String(t.id ?? t.typeId)
-      const arr = (compsByType.get(k) ?? [])
-        .slice()
-        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-      groupedRecord[k] = arr
-    }
-    componentsByType.value = groupedRecord
-
-    return typesList.map((item: any) => {
-      const id = String(item.id)
-      const name = item.name ?? item.nameCls ?? ''
-
-      const geometry =
-        geomByFvId.get(String(item.fvShape)) ??
-        geomByPvId.get(String(item.pvShape)) ??
-        ('точка' as GeometryKind)
-
-      const comps = componentsByType.value[id] ?? []
-      return { id, name, geometry, component: comps.map((c) => c.name) } as ObjectType
-    })
-  },
+      return String(value).toLowerCase().includes(search)
+    }),
+  )
 })
 
+const total = computed(() => filteredRows.value.length)
 
-// фильтр по поиску
-const filtered = computed(() =>
-  (list.data?.value ?? []).filter((item) =>
-    Object.values(item).some((value) => {
-      if (value === null || value === undefined) return false
-      return String(value).toLowerCase().includes(q.value.toLowerCase())
-    }),
-  ),
+const paginatedRows = computed(() => {
+  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
+  return filteredRows.value.slice(start, start + pagination.pageSize)
+})
+
+const maxPage = computed(() =>
+  Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1),
 )
 
-const page = ref(1)
-const pageSize = ref(10)
-
-const total = computed(() => filtered.value.length)
-
-const paged = computed(() => {
-  const arr = filtered.value
-  const start = Math.max(0, (page.value - 1) * pageSize.value)
-  return arr.slice(start, start + pageSize.value)
+watch([q, objectTypes], () => {
+  pagination.page = 1
 })
 
-watch([q, () => filtered.value], () => {
-  page.value = 1
-})
+watch(
+  () => pagination.pageSize,
+  () => {
+    pagination.page = 1
+  },
+)
 
-watch(pageSize, () => {
-  page.value = 1
-})
-
-watch(total, (newTotal) => {
-  const maxPage = Math.max(1, Math.ceil((newTotal || 0) / pageSize.value) || 1)
-  if (page.value > maxPage) {
-    page.value = maxPage
+watchEffect(() => {
+  if (pagination.page > maxPage.value) {
+    pagination.page = maxPage.value
   }
 })
-// ---- диалог / форма ----
+
 const dialog = ref(false)
 const editing = ref<ObjectType | null>(null)
-
-const form = ref<{
-  name: string
-  geometry: GeometryKind
-  component: string[] // СТРОКИ — названия компонентов
-}>({
-  name: '',
-  geometry: 'точка',
-  component: [],
-})
-
-const errors = ref<{ name?: string }>({})
+const form = ref<FormState>({ name: '', geometry: DEFAULT_GEOMETRY, component: [] })
+const errors = ref<FormErrors>({})
 const saving = ref(false)
 
-// Функции проверки уникальности
 const checkExistingTypeName = (name: string, excludeId?: string): ObjectType | null => {
-  const types = list.data?.value ?? []
-  const normalizedName = norm(name)
+  const normalizedName = normalizeText(name)
   return (
-    types.find((t) => norm(t.name) === normalizedName && t.id !== excludeId) ?? null
+    objectTypes.value.find(
+      (type) => normalizeText(type.name) === normalizedName && type.id !== excludeId,
+    ) ?? null
   )
 }
 
 const checkExistingComponentName = (
   name: string,
 ): { component: ComponentOption; usedInTypes: ObjectType[] } | null => {
-  const normalizedName = norm(name)
-  if (!normalizedName) return null
+  const normalizedName = normalizeText(name)
+  if (!normalizedName) {
+    return null
+  }
 
   const existingComponent = componentMapByName.value.get(normalizedName)
-  if (!existingComponent) return null
+  if (!existingComponent) {
+    return null
+  }
 
-  const typesList = list.data?.value ?? []
-
-  const typesUsingComponent = typesList.filter((t) =>
-    (componentsByType.value[t.id] ?? []).some((comp) => norm(comp.name) === normalizedName),
+  const usedInTypes = objectTypes.value.filter((type) =>
+    (componentsByType.value[type.id] ?? []).some(
+      (component) => normalizeText(component.name) === normalizedName,
+    ),
   )
 
-  return { component: existingComponent, usedInTypes: typesUsingComponent }
+  return { component: existingComponent, usedInTypes }
 }
 
-// Проверка на полное совпадение типа
 const isTypeCompletelyIdentical = (
   newType: { name: string; geometry: GeometryKind; component: string[] },
   existingType: ObjectType,
@@ -351,27 +539,29 @@ const isTypeCompletelyIdentical = (
   const existingComponentsSorted = [...existingType.component].sort()
 
   return (
-    norm(newType.name) === norm(existingType.name) &&
+    normalizeText(newType.name) === normalizeText(existingType.name) &&
     newType.geometry === existingType.geometry &&
     newComponentsSorted.length === existingComponentsSorted.length &&
     newComponentsSorted.every(
-      (comp, index) => norm(comp) === norm(existingComponentsSorted[index]),
+      (componentName, index) =>
+        normalizeText(componentName) === normalizeText(existingComponentsSorted[index]),
     )
   )
 }
 
-// Предупреждение при вводе названия
 const nameWarning = computed(() => {
-  if (!form.value.name.trim()) return ''
+  if (!form.value.name.trim()) {
+    return ''
+  }
 
   const existingType = checkExistingTypeName(form.value.name, editing.value?.id)
   if (existingType) {
-    return `Внимание: тип с таким названием уже существует (${existingType.geometry})`
+    return `Предупреждение: тип с таким названием уже существует (${existingType.geometry})`
   }
+
   return ''
 })
 
-// Проверка компонентов при вводе
 const checkComponent = (componentName: string) => {
   const existingComponentInfo = checkExistingComponentName(componentName)
   if (existingComponentInfo && existingComponentInfo.usedInTypes.length > 0) {
@@ -381,9 +571,16 @@ const checkComponent = (componentName: string) => {
 
 const debouncedCheckComponent = debounce(checkComponent, 500)
 
+const handleComponentBlur = (event: FocusEvent) => {
+  const target = event.target as HTMLInputElement | null
+  if (target) {
+    debouncedCheckComponent(target.value)
+  }
+}
+
 function openCreate() {
   editing.value = null
-  form.value = { name: '', geometry: 'точка', component: [] }
+  form.value = { name: '', geometry: DEFAULT_GEOMETRY, component: [] }
   errors.value = {}
   dialog.value = true
 }
@@ -393,118 +590,114 @@ function openEdit(row: ObjectType) {
   form.value = {
     name: row.name,
     geometry: row.geometry,
-    component: [...row.component], // копия массива строк
+    component: [...row.component],
   }
   errors.value = {}
   dialog.value = true
 }
 
 async function save() {
-  // простая валидация
   errors.value = {}
-  const nameTrimmed = (form.value.name ?? '').trim()
+  const nameTrimmed = form.value.name.trim()
   if (nameTrimmed.length < 2) {
-    errors.value.name = 'Мин. 2 символа'
+    errors.value = { name: 'Минимум 2 символа' }
     return
   }
 
-  // Нормализуем список компонентов: убираем пустые, пробелы, дубликаты
   const compNames = Array.from(
-    new Set((form.value.component ?? []).map((s) => (s ?? '').trim()).filter(Boolean)),
+    new Set(form.value.component.map((value) => value.trim()).filter(Boolean)),
   )
 
-  // Проверка на существующее название типа объекта (только если название изменилось при редактировании)
-  const isEditing = !!editing.value
-  const nameChanged = isEditing && norm(editing.value!.name) !== norm(nameTrimmed)
+  const isEditing = Boolean(editing.value)
+  const nameChanged =
+    isEditing && normalizeText(editing.value!.name) !== normalizeText(nameTrimmed)
 
   if (!isEditing || nameChanged) {
     const existingType = checkExistingTypeName(nameTrimmed, editing.value?.id)
     if (existingType) {
-      const geometryMap: Record<GeometryKind, string> = {
-        точка: 'Точка',
-        линия: 'Линия',
-        полигон: 'Полигон',
+      const newTypeData = {
+        name: nameTrimmed,
+        geometry: form.value.geometry,
+        component: compNames,
       }
 
-      // Проверяем на полное совпадение
-      const newTypeData = { name: nameTrimmed, geometry: form.value.geometry, component: compNames }
       if (isTypeCompletelyIdentical(newTypeData, existingType)) {
         ElMessage.error('Нельзя создать полностью идентичный тип объекта')
         return
       }
 
-      const confirm = await ElMessageBox.confirm(
+      const confirmOverwrite = await ElMessageBox.confirm(
         `Тип объекта "${nameTrimmed}" уже существует:<br><br>` +
-          `• Геометрия: ${geometryMap[existingType.geometry]}<br>` +
+          `• Геометрия: ${existingType.geometry}<br>` +
           `• Компоненты: ${existingType.component.join(', ') || 'нет'}<br><br>` +
-          `Всё равно продолжить? Это создаст дубликат названия.`,
-        'Такое название уже существует',
+          'Вы уверены, что хотите продолжить?',
+        'Тип с таким названием уже есть',
         {
           confirmButtonText: 'Продолжить',
-          cancelButtonText: 'Отменить',
+          cancelButtonText: 'Отмена',
           type: 'warning',
           dangerouslyUseHTMLString: true,
         },
       ).catch(() => false)
 
-      if (!confirm) return
+      if (!confirmOverwrite) {
+        return
+      }
     }
   }
 
-  // Проверяем каждый компонент на существование
   for (const componentName of compNames) {
     const existingComponentInfo = checkExistingComponentName(componentName)
     if (existingComponentInfo) {
-      const { component, usedInTypes } = existingComponentInfo
+      const { usedInTypes } = existingComponentInfo
 
       if (usedInTypes.length > 0) {
-        const typeNames = usedInTypes.map((t) => t.name).join(', ')
-        const confirm = await ElMessageBox.confirm(
-          `Компонент "${componentName}" уже используется в:<br><br>` +
-            `• Типах объектов: ${typeNames}<br><br>` +
-            `Всё равно использовать этот компонент?`,
-          'Компонент уже существует',
+        const typeNames = usedInTypes.map((type) => type.name).join(', ')
+        const confirmReuse = await ElMessageBox.confirm(
+          `Компонент "${componentName}" уже используется в: ${typeNames}.<br>` +
+            'Вы уверены, что хотите продолжить?',
+          'Компонент уже используется',
           {
-            confirmButtonText: 'Использовать',
-            cancelButtonText: 'Изменить название',
+            confirmButtonText: 'Продолжить',
+            cancelButtonText: 'Отмена',
             type: 'warning',
             dangerouslyUseHTMLString: true,
           },
         ).catch(() => false)
 
-        if (!confirm) return
+        if (!confirmReuse) {
+          return
+        }
       }
     }
   }
 
+  const missingComponents = compNames.filter(
+    (name) => !componentMapByName.value.has(normalizeText(name)),
+  )
+
+  if (missingComponents.length > 0) {
+    const listText = missingComponents.join(', ')
+    ElMessage.warning(
+      listText
+        ? `Новые компоненты пока нельзя добавить из интерфейса: ${listText}`
+        : 'Новые компоненты пока нельзя добавить из интерфейса',
+    )
+    return
+  }
+
   saving.value = true
   try {
-    const missingComponents = compNames.filter(
-      (name) => !componentMapByName.value.has(norm(name)),
-    )
-
-    if (missingComponents.length) {
-      const listText = missingComponents.join(', ')
-      ElMessage.warning(
-        listText
-          ? `Новые компоненты пока нельзя добавить из интерфейса: ${listText}`
-          : 'Новые компоненты пока нельзя добавить из интерфейса',
-      )
-      return
-    }
-
     const componentIds = compNames.map(
-      (name) => componentMapByName.value.get(norm(name))!.id,
+      (name) => componentMapByName.value.get(normalizeText(name))!.id,
     )
 
     const geometryId =
       geometryIdByKind.value[form.value.geometry] ??
       geometryOptions.value.find(
         (option) =>
-          normalizeGeometry(
-            option.name ?? option.value ?? option.code ?? option.id,
-            geometryOptions.value,
-          ) === form.value.geometry,
+          normalizeGeometry(option.name ?? option.value ?? option.code ?? option.id, geometryOptions.value) ===
+          form.value.geometry,
       )?.id ??
       null
 
@@ -514,7 +707,9 @@ async function save() {
       componentIds,
     }
 
-    if (editing.value?.id) payload.id = editing.value.id
+    if (editing.value?.id) {
+      payload.id = editing.value.id
+    }
 
     await callRpc<SaveTypeObjectResponse, SaveTypeObjectRequest>('saveTypeObject', payload)
 
@@ -524,7 +719,6 @@ async function save() {
 
     dialog.value = false
   } catch (err) {
-    console.error(err)
     ElMessage.error('Не удалось сохранить')
   } finally {
     saving.value = false
@@ -538,7 +732,6 @@ const removeRow = async (id: string) => {
     ElMessage.success('Удалено')
     await qc.invalidateQueries({ queryKey: ['object-types'] })
   } catch (err) {
-    console.error(err)
     ElMessage.error('Не удалось удалить')
   }
 }
@@ -624,26 +817,26 @@ const removeRow = async (id: string) => {
     align-items: stretch;
     gap: 12px;
   }
-  .page-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
+ .page-actions {
+justify-content: flex-start;
+flex-wrap: wrap;
+}
 }
 
 /* твои кастомизации Element Plus */
 ::v-deep(.el-input__wrapper) {
-  border-color: #006d77;
-  box-shadow: 0 0 0 1px #006d77 inset;
+border-color: #006d77;
+box-shadow: 0 0 0 1px #006d77 inset;
 }
 ::v-deep(.el-tooltip__wrapper) {
-  border-color: #006d77;
-  box-shadow: 0 0 0 1px #006d77 inset;
+border-color: #006d77;
+box-shadow: 0 0 0 1px #006d77 inset;
 }
 
 .warning-text {
-  color: #e6a23c;
-  font-size: 12px;
-  margin-top: 4px;
-  font-style: italic;
+color: #e6a23c;
+font-size: 12px;
+margin-top: 4px;
+font-style: italic;
 }
 </style>
