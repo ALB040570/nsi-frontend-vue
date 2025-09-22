@@ -80,6 +80,8 @@
           :page-sizes="[10, 20, 50, 100]"
           v-model:current-page="page"
           v-model:page-size="pageSize"
+          prev-text="Назад"
+          next-text="Далее"
         />
       </div>
     </div>
@@ -272,7 +274,7 @@ const filtered = computed(() =>
 )
 
 const page = ref(1)
-const pageSize = ref(20)
+const pageSize = ref(10)
 
 const total = computed(() => filtered.value.length)
 
@@ -560,7 +562,7 @@ const removeRow = async (id: string) => {
 }
 
 .object-types-page {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;

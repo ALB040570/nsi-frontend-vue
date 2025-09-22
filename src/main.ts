@@ -4,6 +4,7 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
 import ElementPlus from 'element-plus'
+import ru from 'element-plus/es/locale/lang/ru'
 import 'element-plus/dist/index.css'
 import './assets/theme.css'
 import './assets/styles/service360.css' // наши глобальные стили
@@ -22,7 +23,7 @@ const queryClient = new QueryClient({
 app.use(VueQueryPlugin, { queryClient })
 
 // Element Plus (UI-компоненты)
-app.use(ElementPlus)
+app.use(ElementPlus, { locale: ru })
 
 // Router (навигация)
 app.use(router)
