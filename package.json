@@ -14,11 +14,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
     "@tanstack/vue-query": "^5.86.0",
+    "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.11.0",
-    "element-plus": "^2.11.1",
+    "naive-ui": "^2.43.1",
     "pinia": "^3.0.3",
+    "vfonts": "^0.0.3",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },

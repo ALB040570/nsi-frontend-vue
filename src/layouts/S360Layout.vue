@@ -1,5 +1,5 @@
 <template>
-  <el-container class="s360-layout">
+  <div class="s360-layout">
     <header class="s360-top-bar">
       <div class="s360-top-left">
         <button
@@ -9,8 +9,8 @@
           :aria-label="toggleAriaLabel"
           @click="toggleAside"
         >
-          <el-icon v-if="isAsideCollapsed"><Expand /></el-icon>
-          <el-icon v-else><Fold /></el-icon>
+          <NIcon v-if="isAsideCollapsed" :component="MenuOutline" />
+          <NIcon v-else :component="CloseOutline" />
         </button>
 
         <router-link to="/" class="s360-logo">
@@ -20,94 +20,63 @@
       </div>
 
       <div class="s360-top-right">
-        <el-dropdown trigger="click" @command="handleLanguageCommand">
+        <NDropdown trigger="click" :options="languageOptions" @select="handleLanguageSelect">
           <span class="s360-lang-switcher">
             {{ currentLanguage.code }}
-            <el-icon class="lang-arrow"><ArrowDown /></el-icon>
+            <NIcon class="lang-arrow" :component="ChevronDown" />
           </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                v-for="lang in languages"
-                :key="lang.code"
-                :command="lang.code"
-              >
-                {{ lang.label }}
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        </NDropdown>
 
-        <button
-          v-if="isAuthenticated"
-          type="button"
-          class="s360-icon-btn"
-          aria-label="Уведомления"
-        >
-          <el-icon><Bell /></el-icon>
+        <button v-if="isAuthenticated" type="button" class="s360-icon-btn" aria-label="Уведомления">
+          <NIcon :component="NotificationsOutline" />
         </button>
 
-        <button
-          v-if="isAuthenticated"
-          type="button"
-          class="s360-icon-btn"
-          aria-label="Настройки"
-        >
-          <el-icon><Setting /></el-icon>
+        <button v-if="isAuthenticated" type="button" class="s360-icon-btn" aria-label="Настройки">
+          <NIcon :component="SettingsOutline" />
         </button>
 
-        <el-dropdown trigger="click" @command="handleProfileCommand">
-          <span
-            class="s360-profile"
-            :aria-label="profileAriaLabel"
-            :title="profileName"
-          >
-            <el-avatar :size="36" class="s360-profile-avatar">{{ profileInitials }}</el-avatar>
+        <NDropdown trigger="click" :options="profileOptions" @select="handleProfileSelect">
+          <span class="s360-profile" :aria-label="profileAriaLabel" :title="profileName">
+            <NAvatar :size="36" class="s360-profile-avatar">{{ profileInitials }}</NAvatar>
           </span>
-          <template #dropdown>
-            <el-dropdown-menu>
-              <template v-if="isAuthenticated">
-                <el-dropdown-item disabled class="s360-profile-name">
-                  {{ profileName }}
-                </el-dropdown-item>
-                <el-dropdown-item divided command="logout">Выйти</el-dropdown-item>
-              </template>
-              <template v-else>
-                <el-dropdown-item command="login">Войти</el-dropdown-item>
-              </template>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
+        </NDropdown>
       </div>
     </header>
 
-    <el-container class="s360-body">
-      <el-aside
-        v-if="showNavigation && !isAsideCollapsed"
-        width="240px"
-        class="s360-aside"
-      >
+    <div class="s360-body">
+      <aside v-if="showNavigation && !isAsideCollapsed" class="s360-aside">
         <div class="s360-aside-inner">
           <nav class="s360-nav">
-            <router-link to="/" class="nav-item">Главная</router-link>
-            <router-link to="/nsi/object-types" class="nav-item">Типы объектов</router-link>
-            <router-link to="/nsi/components" class="nav-item">Компоненты</router-link>
+            <router-link to="/" class="nav-item">Главная панель</router-link>
+            <router-link to="/nsi/object-types" class="nav-item">
+              Справочник типов объектов
+            </router-link>
+            <router-link to="/nsi/components" class="nav-item">Компоненты объектов</router-link>
           </nav>
         </div>
-      </el-aside>
+      </aside>
 
-      <el-main class="s360-main">
+      <main class="s360-main">
         <slot />
-      </el-main>
-    </el-container>
-  </el-container>
+      </main>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { ArrowDown, Bell, Expand, Fold, Setting } from '@element-plus/icons-vue'
+import type { DropdownDividerOption, DropdownMixedOption } from 'naive-ui'
+import { NAvatar, NDropdown, NIcon } from 'naive-ui'
+import {
+  ChevronDown,
+  CloseOutline,
+  MenuOutline,
+  NotificationsOutline,
+  SettingsOutline,
+} from '@vicons/ionicons5'
+
 import logoMark from '@/assets/logo.svg'
 import { useAuthStore } from '@/stores/auth'
 
@@ -117,19 +86,23 @@ interface LanguageOption {
 }
 
 const languages: LanguageOption[] = [
-  { label: 'Русский', code: 'РУС' },
-  { label: 'English', code: 'ENG' },
+  { label: 'Русский', code: 'ru' },
+  { label: 'English', code: 'en' },
 ]
 
 const currentLanguage = ref<LanguageOption>(languages[0])
-const isAsideCollapsed = ref(false)
+const languageOptions = computed<DropdownMixedOption[]>(() =>
+  languages.map((item) => ({ label: item.label, key: item.code })),
+)
 
 const auth = useAuthStore()
 const router = useRouter()
 const { isAuthenticated, user } = storeToRefs(auth)
 
+const isAsideCollapsed = ref(false)
+
 const toggleAriaLabel = computed(() =>
-  isAsideCollapsed.value ? 'Открыть левую колонку' : 'Скрыть левую колонку',
+  isAsideCollapsed.value ? 'Открыть навигацию' : 'Скрыть навигацию',
 )
 
 const showNavigation = computed(() => isAuthenticated.value)
@@ -138,26 +111,27 @@ const toggleAside = () => {
   isAsideCollapsed.value = !isAsideCollapsed.value
 }
 
-const handleLanguageCommand = (command: LanguageOption['code']) => {
-  const language = languages.find((item) => item.code === command)
-  if (language) {
-    currentLanguage.value = language
+const handleLanguageSelect = (key: string | number | null) => {
+  if (key == null) return
+  const normalized = String(key)
+  const nextLanguage = languages.find((item) => item.code === normalized)
+  if (nextLanguage) {
+    currentLanguage.value = nextLanguage
   }
 }
 
 const buildInitials = (source: string): string => {
-  const trimmed = source.trim()
-  if (!trimmed) return ''
+  const words = source
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 
-  const words = trimmed.split(/\s+/u).filter(Boolean)
   const letters: string[] = []
-
   for (const word of words) {
-    const chars = Array.from(word)
-    if (chars[0]) {
-      letters.push(chars[0])
+    const firstLetter = word[0]
+    if (firstLetter) {
+      letters.push(firstLetter)
     }
-    if (letters.length >= 2) break
   }
 
   if (letters.length === 1) {
@@ -186,15 +160,13 @@ const profileName = computed(() => {
   const shortName = typeof current.name === 'string' ? current.name.trim() : ''
   const email = typeof current.email === 'string' ? current.email.trim() : ''
 
-  return fullName || fromParts || shortName || email || 'Пользователь'
+  return fullName || fromParts || shortName || email || 'Сотрудник'
 })
 
 const profileAriaLabel = computed(() => {
-  if (!isAuthenticated.value) return 'Меню авторизации'
+  if (!isAuthenticated.value) return 'Меню профиля'
   const name = profileName.value
-  return name && name !== 'Пользователь'
-    ? `Профиль пользователя ${name}`
-    : 'Профиль пользователя'
+  return name && name !== 'Сотрудник' ? `Меню профиля: ${name}` : 'Меню профиля'
 })
 
 const profileInitials = computed(() => {
@@ -209,12 +181,38 @@ const profileInitials = computed(() => {
     }
   }
 
-  const fallback = buildInitials('Гость')
+  const fallback = buildInitials('Service 360')
   return fallback || 'S3'
 })
 
-const handleProfileCommand = async (command: string) => {
-  switch (command) {
+const PROFILE_NAME_KEY = 'profile-name'
+const PROFILE_DIVIDER_KEY = 'profile-divider'
+
+const profileOptions = computed<DropdownMixedOption[]>(() => {
+  if (!isAuthenticated.value) {
+    return [{ label: 'Войти', key: 'login' }]
+  }
+
+  const divider = { type: 'divider', key: PROFILE_DIVIDER_KEY } as DropdownDividerOption
+  return [
+    {
+      label: profileName.value,
+      key: PROFILE_NAME_KEY,
+      disabled: true,
+      props: { class: 's360-profile-name' },
+    },
+    divider,
+    { label: 'Выйти', key: 'logout' },
+  ]
+})
+
+const handleProfileSelect = async (key: string | number | null) => {
+  if (key == null) return
+  const normalized = String(key)
+  switch (normalized) {
+    case PROFILE_NAME_KEY:
+    case PROFILE_DIVIDER_KEY:
+      return
     case 'logout':
       auth.logout()
       isAsideCollapsed.value = true
@@ -282,7 +280,10 @@ watch(
   background: #f5f7f8;
   color: #0f3e44;
   cursor: pointer;
-  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
   outline: none;
 }
 
@@ -347,7 +348,9 @@ watch(
   font-size: 14px;
   cursor: pointer;
   user-select: none;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .s360-lang-switcher:hover {
@@ -373,7 +376,7 @@ watch(
   background: #e7f1ff;
 }
 
-:deep(.s360-profile-name.is-disabled) {
+:deep(.s360-profile-name) {
   font-weight: 600;
   color: #0f3e44;
   opacity: 1;
@@ -417,7 +420,9 @@ watch(
   border-radius: 8px;
   color: #0f3e44;
   text-decoration: none;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .nav-item:hover,
@@ -437,7 +442,7 @@ watch(
   overflow: auto;
 }
 
-.s360-main .el-table {
+.s360-main table {
   width: 100%;
 }
 </style>

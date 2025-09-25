@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] }
+    "paths": { "@/*": ["./src/*"] },
+    "types": ["naive-ui/volar"]
   }
 }

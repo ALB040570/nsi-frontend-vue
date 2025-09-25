@@ -292,16 +292,6 @@ body {
   }
 }
 
-/* твои кастомизации Element Plus, оставляем как было */
-.el-input__wrapper {
-  border-color: #006d77;
-  box-shadow: 0 0 0 1px #006d77 inset;
-}
-.el-tooltip__wrapper {
-  border-color: #006d77;
-  box-shadow: 0 0 0 1px #006d77 inset;
-}
-
 /* ===== Карточочная таблица Service360 ===== */
 .s360-cards {
   /* токены — можно подстроить под тему */
@@ -338,7 +328,6 @@ body {
 
 /* Ячейки таблицы */
 .s360-cards .el-table__cell {
-
   padding: 0;
   background: transparent !important;
   border: none !important;

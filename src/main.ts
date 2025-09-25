@@ -1,31 +1,81 @@
 import './assets/main.css'
+import './assets/styles/service360.css'
 
-import { createApp } from 'vue'
+import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
-import { VueQueryPlugin, QueryClient } from '@tanstack/vue-query'
-import ElementPlus from 'element-plus'
-import ru from 'element-plus/es/locale/lang/ru'
-import 'element-plus/dist/index.css'
-import './assets/theme.css'
-import './assets/styles/service360.css' // наши глобальные стили
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import {
+  NConfigProvider,
+  NDialogProvider,
+  NLoadingBarProvider,
+  NMessageProvider,
+  NNotificationProvider,
+  createDiscreteApi,
+  dateRuRU,
+  ruRU,
+} from 'naive-ui'
+import type { ConfigProviderProps, GlobalThemeOverrides } from 'naive-ui'
 
 import App from './App.vue'
-import router from './router' // роутер нужен для наших страниц
+import router from './router'
 
-const app = createApp(App)
-// Pinia (глобальное хранилище)
-app.use(createPinia())
+const themeOverrides: GlobalThemeOverrides = {
+  common: {
+    primaryColor: '#006d77',
+    primaryColorHover: '#338f94',
+    primaryColorPressed: '#00565d',
+    primaryColorSuppl: '#338f94',
+    infoColor: '#4ecdc4',
+    successColor: '#3b9d78',
+    warningColor: '#e2b100',
+    errorColor: '#d64550',
+  },
+}
 
-// Vue Query (работа с серверными данными)
+const configProviderProps: ConfigProviderProps = {
+  locale: ruRU,
+  dateLocale: dateRuRU,
+  themeOverrides,
+}
+
+const discreteApis = createDiscreteApi(['message', 'notification', 'dialog', 'loadingBar'], {
+  configProviderProps,
+})
+
+const app = createApp({
+  setup() {
+    return () =>
+      h(NConfigProvider, configProviderProps, {
+        default: () =>
+          h(NLoadingBarProvider, null, {
+            default: () =>
+              h(NDialogProvider, null, {
+                default: () =>
+                  h(NNotificationProvider, null, {
+                    default: () => h(NMessageProvider, null, { default: () => h(App) }),
+                  }),
+              }),
+          }),
+      })
+  },
+})
+
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 })
+
+const messageKey = Symbol('naive-message')
+const notificationKey = Symbol('naive-notification')
+const dialogKey = Symbol('naive-dialog')
+const loadingBarKey = Symbol('naive-loading-bar')
+
+app.provide(messageKey, discreteApis.message)
+app.provide(notificationKey, discreteApis.notification)
+app.provide(dialogKey, discreteApis.dialog)
+app.provide(loadingBarKey, discreteApis.loadingBar)
+
+app.use(createPinia())
 app.use(VueQueryPlugin, { queryClient })
-
-// Element Plus (UI-компоненты)
-app.use(ElementPlus, { locale: ru })
-
-// Router (навигация)
 app.use(router)
 
 app.mount('#app')
