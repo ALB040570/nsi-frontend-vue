@@ -114,18 +114,20 @@
         </NFormItem>
 
         <NFormItem label="Компоненты">
-          <NSelect
-            v-model:value="form.component"
-            multiple
-            filterable
-            placeholder="Начните вводить, чтобы найти компонент"
-            :options="componentSelectOptions"
-            style="width: 100%"
-            @blur="handleComponentBlur"
-          />
-          <p class="text-small" style="margin-top: 6px">
-            Выбирайте компоненты из списка. Чтобы добавить новый, обратитесь к разделу «Компоненты».
-          </p>
+          <div class="field-stack">
+            <NSelect
+              v-model:value="form.component"
+              multiple
+              filterable
+              placeholder="Начните вводить, чтобы найти компонент"
+              :options="componentSelectOptions"
+              @blur="handleComponentBlur"
+            />
+            <p class="text-small" style="margin-top: 6px">
+              Выбирайте компоненты из списка. Чтобы добавить новый компонент, напишите его название
+              и нажмите Enter.
+            </p>
+          </div>
         </NFormItem>
       </NForm>
 
@@ -1182,8 +1184,7 @@ const removeRow = async (id: string) => {
   width: 100%;
 }
 
-:deep(.n-data-table .n-data-table-td.col-name),
-:deep(.n-data-table .n-data-table-td.col-components) {
+:deep(.n-data-table .n-data-table-td.col-name) {
   white-space: normal;
   word-break: break-word;
 }
@@ -1224,21 +1225,16 @@ const removeRow = async (id: string) => {
 :deep(.n-data-table .n-data-table-tbody .n-data-table-td) {
   border-bottom: none;
   padding: 0 12px;
-  height: 24px;
+  height: auto;
   line-height: 24px;
   vertical-align: middle;
 }
 
 :deep(.n-data-table .n-data-table-td.col-components) {
-  padding: 0 12px;
-  min-width: 0;
-}
-
-:deep(.n-data-table .n-data-table-td.col-components .n-data-table-td__content),
-:deep(.n-data-table .n-data-table-td.col-components .n-data-table-td__ellipsis) {
-  display: block;
-  width: 100%;
-  min-width: 0;
+  height: auto; /* снимаем глобальный height:24px */
+  line-height: normal;
+  padding-top: 0; /* при желании подправьте отступы */
+  padding-bottom: 0;
 }
 
 :deep(.n-data-table thead th) {
@@ -1357,28 +1353,30 @@ const removeRow = async (id: string) => {
 }
 
 .components-content {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 0;
+  /* было flex — делаем блочный поток + принудительно 1 строка */
+  display: block;
+  white-space: nowrap;
   line-height: 24px;
   max-height: 24px;
   overflow: hidden;
+  width: 100%;
+  min-width: 0;
   mask-image: linear-gradient(to right, black 85%, transparent 100%);
   -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
 
 .components-content.is-expanded {
-  flex-wrap: wrap;
+  white-space: normal; /* разрешаем переносы */
   max-height: none;
   overflow: visible;
   mask-image: none;
   -webkit-mask-image: none;
 }
 
+/* теги выстраиваем «в линию» */
 .component-tag {
+  display: inline-flex;
+  vertical-align: top;
   margin: 2px 6px 2px 0;
   flex-shrink: 0;
 }
@@ -1406,6 +1404,7 @@ const removeRow = async (id: string) => {
   align-self: flex-start;
 }
 
+/* внутри тега текст не переносится */
 :deep(.component-tag .n-tag__content) {
   white-space: nowrap;
 }
@@ -1456,5 +1455,11 @@ const removeRow = async (id: string) => {
   color: #e6a23c;
   font-size: 12px;
   font-style: italic;
+}
+.field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
 }
 </style>
