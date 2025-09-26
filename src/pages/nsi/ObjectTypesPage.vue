@@ -24,13 +24,51 @@
 
     <div class="table-area">
       <NDataTable
+        v-if="!isMobile"
         class="s360-cards table-full table-stretch"
         :columns="columns"
-        :data="paginatedRows || []"
+        :data="rows"
         :loading="tableLoading"
         :row-key="rowKey"
         :bordered="false"
       />
+
+      <div v-else class="cards">
+        <article
+          v-for="item in rows"
+          :key="item.id || item._id || item.key"
+          class="card"
+          role="group"
+          :aria-label="primaryTitle(item)"
+        >
+          <header class="card__header">
+            <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+            <span v-if="statusText(item)" class="badge" :class="statusClass(item)">
+              {{ statusText(item) }}
+            </span>
+          </header>
+
+          <dl class="card__grid">
+            <template
+              v-for="field in infoFields"
+              :key="
+                (item.id || item._id || item.key || item.uuid || '') +
+                ':' +
+                (field.key || field.label)
+              "
+            >
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <FieldRenderer :field="field" :row="item" />
+              </dd>
+            </template>
+          </dl>
+
+          <footer v-if="actionsField" class="card__actions">
+            <ActionsRenderer :row="item" />
+          </footer>
+        </article>
+      </div>
 
       <div class="pagination-bar">
         <NPagination
@@ -114,7 +152,10 @@ import {
   onUpdated,
   onBeforeUnmount,
   h,
+  defineComponent,
 } from 'vue'
+
+import type { PropType, VNodeChild } from 'vue'
 
 import { useQuery, useQueryClient } from '@tanstack/vue-query'
 
@@ -274,7 +315,18 @@ function checkOverflowFor(id: string | number) {
   }
 }
 
+const isMobile = ref(false)
+if (typeof window !== 'undefined') {
+  isMobile.value = window.matchMedia('(max-width: 768px)').matches
+}
 // аккуратные массовые пересчёты
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  mediaQueryList = window.matchMedia('(max-width: 768px)')
+  handleMediaQueryChange(mediaQueryList)
+  mediaQueryList.addEventListener('change', handleMediaQueryChange)
+})
 
 onMounted(() =>
   nextTick(() => {
@@ -291,6 +343,11 @@ onUpdated(() =>
 // при уходе со страницы выключим всё
 
 onBeforeUnmount(() => {
+  if (mediaQueryList) {
+    mediaQueryList.removeEventListener('change', handleMediaQueryChange)
+    mediaQueryList = null
+  }
+
   for (const [, ro] of roById) ro.disconnect()
 
   roById.clear()
@@ -576,6 +633,11 @@ const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
+
+let mediaQueryList: MediaQueryList | null = null
+const handleMediaQueryChange = (e: MediaQueryList | MediaQueryListEvent) => {
+  isMobile.value = 'matches' in e ? e.matches : false
+}
 const {
   data: snapshot,
   isLoading,
@@ -630,17 +692,62 @@ const paginatedRows = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
   return filteredRows.value.slice(start, start + pagination.pageSize)
 })
+const rows = computed(() => paginatedRows.value || [])
 const rowKey = (row: ObjectType) => row.id
+const renderActions = (row: ObjectType) => {
+  const editButton = h(
+    NTooltip,
+    { placement: 'top' },
+    {
+      trigger: () =>
+        h(
+          NButton,
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            onClick: () => openEdit(row),
+            'aria-label': 'Изменить тип',
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
+          },
+        ),
+      default: () => 'Изменить',
+    },
+  )
+
+  const deleteButton = h(
+    NTooltip,
+    { placement: 'top' },
+    {
+      trigger: () =>
+        h(
+          NButton,
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            onClick: () => removeRow(row.id),
+            'aria-label': 'Удалить тип',
+          },
+          {
+            icon: () => h(NIcon, null, { default: () => h(TrashOutline) }),
+          },
+        ),
+      default: () => 'Удалить',
+    },
+  )
+
+  return h('div', { class: 'table-actions' }, [editButton, deleteButton])
+}
+
 const columns = computed<DataTableColumns<ObjectType>>(() => [
   {
     title: 'Типы объектов',
     key: 'name',
-    sorter: (a, b) => a.name - b.name,
-    defaultSortOrder: 'ascend',
-    customNextSortOrder: (order) => {
-      if (order === 'ascend') return 'descend'
-      return 'ascend'
-    },
+    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     width: 400,
     ellipsis: { tooltip: true },
     className: 'col-name',
@@ -718,54 +825,117 @@ const columns = computed<DataTableColumns<ObjectType>>(() => [
     key: 'actions',
     width: 120,
     align: 'center',
-    render: (row) => {
-      const editButton = h(
-        NTooltip,
-        { placement: 'top' },
-        {
-          trigger: () =>
-            h(
-              NButton,
-              {
-                quaternary: true,
-                circle: true,
-                size: 'small',
-                onClick: () => openEdit(row),
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
-              },
-            ),
-          default: () => 'Изменить',
-        },
-      )
-
-      const deleteButton = h(
-        NTooltip,
-        { placement: 'top' },
-        {
-          trigger: () =>
-            h(
-              NButton,
-              {
-                quaternary: true,
-                circle: true,
-                size: 'small',
-                type: 'error',
-                onClick: () => removeRow(row.id),
-              },
-              {
-                icon: () => h(NIcon, null, { default: () => h(TrashOutline) }),
-              },
-            ),
-          default: () => 'Удалить',
-        },
-      )
-
-      return h('div', { class: 'table-actions' }, [editButton, deleteButton])
-    },
+    render: renderActions,
   },
 ])
+
+interface CardField {
+  key: string
+  label: string
+  render: (row: ObjectType) => VNodeChild
+  isPrimary?: boolean
+  isStatus?: boolean
+  isActions?: boolean
+}
+
+const createFieldRenderer = (column: DataTableColumns<ObjectType>[number]) => {
+  if (typeof column.render === 'function') {
+    return (row: ObjectType) => column.render!(row as any)
+  }
+
+  const key = column.key as keyof ObjectType | undefined
+  return (row: ObjectType) => {
+    if (!key) return ''
+    const value = row[key]
+    return value == null ? '' : value
+  }
+}
+
+const cardFields = computed<CardField[]>(() =>
+  columns.value.map((column, index) => {
+    const columnKey =
+      (typeof column.key === 'string' && column.key) ||
+      (typeof column.key === 'number' ? String(column.key) : undefined) ||
+      (typeof column.title === 'string' ? column.title : `field-${index}`)
+
+    const label = typeof column.title === 'string' ? column.title : columnKey
+
+    const renderFn =
+      column.key === 'geometry'
+        ? (row: ObjectType) => geometryLabel(row.geometry)
+        : column.key === 'actions'
+          ? renderActions
+          : createFieldRenderer(column)
+
+    return {
+      key: columnKey,
+      label,
+      render: renderFn,
+      isPrimary: column.key === 'name',
+      isStatus: column.key === 'geometry',
+      isActions: column.key === 'actions',
+    }
+  }),
+)
+
+const primaryField = computed(
+  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
+)
+const statusField = computed(() => cardFields.value.find((field) => field.isStatus))
+const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
+const infoFields = computed(() =>
+  cardFields.value.filter((field) => !field.isPrimary && !field.isStatus && !field.isActions),
+)
+
+const toPlainText = (value: VNodeChild): string => {
+  if (value == null || typeof value === 'boolean') return ''
+  if (Array.isArray(value))
+    return value
+      .map((item) => toPlainText(item as VNodeChild))
+      .filter(Boolean)
+      .join(' ')
+  if (typeof value === 'object') {
+    const children = (value as any).children
+    return children != null ? toPlainText(children as VNodeChild) : ''
+  }
+  return String(value)
+}
+
+const primaryTitle = (row: ObjectType) =>
+  toPlainText(primaryField.value ? primaryField.value.render(row) : '')
+const statusText = (row: ObjectType) =>
+  toPlainText(statusField.value ? statusField.value.render(row) : '')
+const statusClass = (row: ObjectType) => {
+  const text = statusText(row).toLowerCase()
+  if (!text) return ''
+  if (text.includes('точ')) return 'ok'
+  if (text.includes('полиг')) return 'ok'
+  if (text.includes('лин')) return 'warn'
+  return ''
+}
+
+const FieldRenderer = defineComponent({
+  name: 'FieldRenderer',
+  props: {
+    field: { type: Object as PropType<CardField>, required: true },
+    row: { type: Object as PropType<ObjectType>, required: true },
+  },
+  setup(props) {
+    return () => props.field.render(props.row)
+  },
+})
+
+const ActionsRenderer = defineComponent({
+  name: 'ActionsRenderer',
+  props: {
+    row: { type: Object as PropType<ObjectType>, required: true },
+  },
+  setup(props) {
+    return () => renderActions(props.row)
+  },
+})
+
+// TODO: подключить виртуализацию (VirtualList), если потребуется отображать более 100 карточек на мобильных устройствах
 
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
 
@@ -1095,6 +1265,80 @@ const removeRow = async (id: string) => {
   margin-right: 12px;
   font-size: 12px;
   color: var(--n-text-color-3);
+}
+
+.cards {
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.card__grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px 10px;
+  margin: 10px 0;
+}
+
+.card__grid dt {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.card__grid dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.card__actions .table-actions {
+  justify-content: flex-start;
+}
+
+.badge {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+}
+
+.badge.ok {
+  background: #ecfdf5;
+}
+
+.badge.warn {
+  background: #fff7ed;
+}
+
+@media (max-width: 360px) {
+  .card__grid {
+    grid-template-columns: 100px 1fr;
+  }
 }
 
 .components-cell-wrap {
