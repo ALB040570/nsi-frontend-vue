@@ -197,8 +197,6 @@ import type {
   ComponentOption,
   ComponentsByType,
   LoadFvForSelectResponse,
-  SaveTypeObjectRequest,
-  SaveTypeObjectResponse,
   DeleteTypeObjectRequest,
 } from '@/types/nsi-remote'
 
@@ -385,9 +383,23 @@ interface RawObjectTypeRecord {
   fvShape?: string | number | null
 
   pvShape?: string | number | null
+
+  cls?: string | number | null
+
+  idShape?: string | number | null
+
+  number?: string | number | null
 }
 
 interface RawComponentRecord {
+  id?: string | number | null
+
+  number?: string | number | null
+
+  idRel?: string | number | null
+
+  idrel?: string | number | null
+
   idrom1?: string | number | null
 
   idrom2?: string | number | null
@@ -411,8 +423,12 @@ interface RawGeometryRecord {
   code?: string | null
 }
 
+type LoadedObjectType = ObjectType & { cls?: string | null; idShape?: string | null; number?: string | null }
+
+type GeometryPair = { fv: string | null; pv: string | null }
+
 interface ObjectTypesSnapshot {
-  items: ObjectType[]
+  items: LoadedObjectType[]
 
   componentOptions: ComponentOption[]
 
@@ -421,6 +437,10 @@ interface ObjectTypesSnapshot {
   geometryOptions: LoadFvForSelectResponse
 
   geometryIdByKind: Partial<Record<GeometryKind, string | null>>
+
+  geometryPairByKind: Partial<Record<GeometryKind, { fv: string | null; pv: string | null }>>
+
+  linksByType: Record<string, Array<{ compId: string; linkId: string }>>
 }
 
 interface FormState {
@@ -562,13 +582,17 @@ async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
   const geometryKindByFvId = new Map<string, GeometryKind>()
   const geometryKindByPvId = new Map<string, GeometryKind>()
   const geometryIdByKind: Partial<Record<GeometryKind, string | null>> = {}
+  const geometryPairByKind: Partial<Record<GeometryKind, GeometryPair>> = {}
 
   for (const option of rawGeometry) {
     const fvId = toOptionalString(option.id ?? option.ID)
     const pvId = toOptionalString(option.pv ?? option.PV)
-    if (!fvId && !pvId) continue
     const geometryLabel = option.name ?? option.value ?? option.code ?? option.id ?? option.ID ?? ''
     const kind = normalizeGeometry(geometryLabel, geometryOptions)
+    const prev = geometryPairByKind[kind] ?? { fv: null, pv: null }
+    geometryPairByKind[kind] = { fv: prev.fv ?? fvId ?? null, pv: prev.pv ?? pvId ?? null }
+
+    if (!fvId && !pvId) continue
 
     if (fvId) {
       geometryKindByFvId.set(fvId, kind)
@@ -579,6 +603,7 @@ async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
 
   const componentOptionsMap = new Map<string, ComponentOption>()
   const componentsByTypeMap = new Map<string, ComponentOption[]>()
+  const linksByType: Record<string, Array<{ compId: string; linkId: string }>> = {}
 
   for (const link of rawComponents) {
     const typeId = toOptionalString(link.idrom1)
@@ -597,6 +622,20 @@ async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
     const list = componentsByTypeMap.get(typeId) ?? []
     list.push(option)
     componentsByTypeMap.set(typeId, list)
+
+    const rawLink = link as any
+    const linkId =
+      toOptionalString(rawLink?.id) ??
+      toOptionalString(rawLink?.number) ??
+      toOptionalString(rawLink?.idRel) ??
+      toOptionalString(rawLink?.idrel) ??
+      null
+
+    if (linkId) {
+      const bucket = linksByType[typeId] ?? []
+      bucket.push({ compId: componentId, linkId })
+      linksByType[typeId] = bucket
+    }
   }
 
   const componentOptions = Array.from(componentOptionsMap.values()).sort((a, b) =>
@@ -613,7 +652,7 @@ async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
     )
   }
 
-  const items: ObjectType[] = rawTypes.map((r) => {
+  const items: LoadedObjectType[] = rawTypes.map((r) => {
     const id = safeString(r.id)
     const name = safeString(r.name ?? r.nameCls)
     const fvKey = toOptionalString(r.fvShape)
@@ -623,9 +662,12 @@ async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
       (pvKey ? geometryKindByPvId.get(pvKey) : undefined) ??
       DEFAULT_GEOMETRY
     const componentNames = componentsByType[id]?.map((c) => c.name) ?? []
-    return { id, name, geometry, component: componentNames }
+    const cls = toOptionalString(r.cls)
+    const idShape = toOptionalString((r as any)?.idShape)
+    const number = toOptionalString(r.number)
+    return { id, name, geometry, component: componentNames, cls, idShape, number }
   })
-  return { items, componentOptions, componentsByType, geometryOptions, geometryIdByKind }
+  return { items, componentOptions, componentsByType, geometryOptions, geometryIdByKind, geometryPairByKind, linksByType }
 }
 
 /* ---------- таблица/поиск/пагинация ---------- */
@@ -675,11 +717,213 @@ const componentSelectOptions = computed(() =>
 
 const geometryOptions = computed(() => snapshot.value?.geometryOptions ?? [])
 const geometryIdByKind = computed(() => snapshot.value?.geometryIdByKind ?? {})
+const geometryPairByKind = computed(() => snapshot.value?.geometryPairByKind ?? {})
+const linksByType = computed(() => snapshot.value?.linksByType ?? {})
 const componentMapByName = computed(() => {
   const map = new Map<string, ComponentOption>()
   for (const o of componentOptions.value) map.set(normalizeText(o.name), o)
   return map
 })
+
+const getGeometryPair = (kind: GeometryKind): GeometryPair => {
+  const pair = geometryPairByKind.value[kind]
+  if (pair) return pair
+  const fallbackFv = geometryIdByKind.value[kind] ?? null
+  return { fv: fallbackFv, pv: null }
+}
+
+const relName = (typeName: string, compName: string) => `${typeName} <=> ${compName}`
+
+async function ensureComponentIds(names: string[]): Promise<string[]> {
+  const ids: string[] = []
+
+  for (const rawName of names) {
+    const trimmed = rawName.trim()
+    if (!trimmed) throw new Error('Пустое имя компонента')
+
+    const key = normalizeText(trimmed)
+    const existing = componentMapByName.value.get(key)
+
+    if (existing) {
+      ids.push(existing.id)
+      continue
+    }
+
+    const resp = await callRpc<unknown>('data/saveComponents', [
+      'ins',
+      { accessLevel: 1, cls: 1027, name: trimmed },
+    ])
+
+    const record = extractRecords<any>(resp)[0] ?? (resp as any)?.result?.records?.[0]
+    const newId = toOptionalString(record?.id ?? record?.ID ?? record?.number)
+
+    if (!newId) throw new Error('Не удалось создать компонент: ' + trimmed)
+
+    const option: ComponentOption = { id: newId, name: trimmed }
+    componentMapByName.value.set(key, option)
+
+    ids.push(newId)
+  }
+
+  return ids
+}
+
+const resolveComponentName = (id: string, fallback: string) =>
+  componentOptions.value.find((c) => c.id === id)?.name ?? fallback
+
+async function createTypeWithComponents(
+  typeName: string,
+  fvShape: number | undefined,
+  pvShape: number | undefined,
+  componentNames: string[],
+): Promise<void> {
+  const componentIds = await ensureComponentIds(componentNames)
+
+  const payload: any = {
+    accessLevel: 1,
+    name: typeName,
+    fullName: typeName,
+    fvShape,
+    pvShape,
+  }
+
+  const saveTypeResp = await callRpc<unknown>('data/saveTypesObjects', ['ins', payload])
+  const saved = extractRecords<any>(saveTypeResp)[0] ?? (saveTypeResp as any)?.result?.records?.[0]
+  const typeId = Number(saved?.id)
+  const typeCls = Number(saved?.cls)
+
+  if (!typeId || !typeCls) {
+    message.error('Не удалось получить id/cls типа')
+    throw new Error('Missing type metadata')
+  }
+
+  await Promise.all(
+    componentIds.map((compId, index) => {
+      const numericCompId = Number(compId)
+      if (!Number.isFinite(numericCompId)) {
+        throw new Error('Некорректный идентификатор компонента: ' + compId)
+      }
+
+      const originalName = componentNames[index] ?? compId
+      const title = resolveComponentName(compId, originalName)
+
+      return callRpc('data/saveRelObj', [
+        {
+          uch1: typeId,
+          cls1: typeCls,
+          uch2: numericCompId,
+          cls2: 1027,
+          codRelTyp: 'RT_Components',
+          name: relName(typeName, title),
+        },
+      ])
+    }),
+  )
+}
+
+interface SyncComponentLinksArgs {
+  type: LoadedObjectType
+  typeName: string
+  addedNormalized: string[]
+  removedNormalized: string[]
+  newNamesMap: Map<string, string>
+  oldNamesMap: Map<string, string>
+}
+
+async function syncComponentLinks({
+  type,
+  typeName,
+  addedNormalized,
+  removedNormalized,
+  newNamesMap,
+  oldNamesMap,
+}: SyncComponentLinksArgs): Promise<void> {
+  if (addedNormalized.length === 0 && removedNormalized.length === 0) return
+
+  const typeKey = String(type.id)
+  const typeId = Number(type.id)
+
+  if (!Number.isFinite(typeId)) throw new Error('Некорректный идентификатор типа: ' + type.id)
+
+  const typeClsNumber = type.cls != null ? Number(type.cls) : NaN
+  if (addedNormalized.length > 0 && !Number.isFinite(typeClsNumber)) {
+    message.error('Не удалось получить cls типа')
+    throw new Error('Missing type cls')
+  }
+
+  const prevComponents = componentsByType.value[typeKey] ?? []
+  const prevByName = new Map(prevComponents.map((comp) => [normalizeText(comp.name), comp.id]))
+  const linkEntries = linksByType.value[typeKey] ?? []
+  const linkByCompId = new Map(linkEntries.map((entry) => [entry.compId, entry.linkId]))
+
+  const removePromises: Promise<unknown>[] = []
+
+  for (const normalized of removedNormalized) {
+    const sourceName = oldNamesMap.get(normalized) ?? normalized
+    const compId = prevByName.get(normalized) ?? componentMapByName.value.get(normalized)?.id
+
+    if (!compId) {
+      console.warn('[object-types] Не найден компонент для удаления связи', { normalized, sourceName })
+      continue
+    }
+
+    const linkId = linkByCompId.get(compId)
+
+    if (!linkId) {
+      console.warn('[object-types] Не найден linkId для удаления связи', { normalized, compId })
+      continue
+    }
+
+    const numericLinkId = Number(linkId)
+
+    if (!Number.isFinite(numericLinkId)) {
+      console.warn('[object-types] Некорректный linkId', { linkId })
+      continue
+    }
+
+    removePromises.push(callRpc('data/deleteOwnerWithProperties', [numericLinkId, 0]))
+  }
+
+  if (removePromises.length > 0) await Promise.all(removePromises)
+
+  if (addedNormalized.length === 0) return
+
+  const addedNames = addedNormalized
+    .map((key) => newNamesMap.get(key))
+    .filter((name): name is string => Boolean(name))
+
+  if (addedNames.length === 0) return
+
+  if (!Number.isFinite(typeClsNumber)) {
+    message.error('Не удалось получить cls типа')
+    throw new Error('Missing type cls')
+  }
+
+  const addIds = await ensureComponentIds(addedNames)
+
+  await Promise.all(
+    addIds.map((compId, index) => {
+      const numericCompId = Number(compId)
+      if (!Number.isFinite(numericCompId)) {
+        throw new Error('Некорректный идентификатор компонента: ' + compId)
+      }
+
+      const name = addedNames[index] ?? compId
+      const displayName = resolveComponentName(compId, name)
+
+      return callRpc('data/saveRelObj', [
+        {
+          uch1: typeId,
+          cls1: typeClsNumber,
+          uch2: numericCompId,
+          cls2: 1027,
+          codRelTyp: 'RT_Components',
+          name: relName(typeName, displayName),
+        },
+      ])
+    }),
+  )
+}
 
 const filteredRows = computed(() => {
   const search = q.value.trim().toLowerCase()
@@ -957,7 +1201,7 @@ watchEffect(() => {
 
 const dialog = ref(false)
 
-const editing = ref<ObjectType | null>(null)
+const editing = ref<LoadedObjectType | null>(null)
 
 const form = ref<FormState>({ name: '', geometry: DEFAULT_GEOMETRY, component: [] })
 
@@ -1068,8 +1312,9 @@ async function save() {
   const compNames = Array.from(new Set(form.value.component.map((v) => v.trim()).filter(Boolean)))
 
   const isEditing = Boolean(editing.value)
-
-  const nameChanged = isEditing && normalizeText(editing.value!.name) !== normalizeText(nameTrimmed)
+  const old = editing.value
+  const nameChanged = isEditing && normalizeText(old!.name) !== normalizeText(nameTrimmed)
+  const geometryChanged = isEditing && old!.geometry !== form.value.geometry
 
   if (!isEditing || nameChanged) {
     const existingType = checkExistingTypeName(nameTrimmed, editing.value?.id)
@@ -1078,7 +1323,7 @@ async function save() {
       const next = { name: nameTrimmed, geometry: form.value.geometry, component: compNames }
 
       if (isTypeCompletelyIdentical(next, existingType)) {
-        message.error('Нельзя создать полностью идентичный тип объекта')
+        message.error('Нельзя создать полностью идентичный тип')
 
         return
       }
@@ -1086,9 +1331,9 @@ async function save() {
       const ok = await confirmDialog({
         title: 'Тип с таким названием уже есть',
         content:
-          `Тип объекта "${nameTrimmed}" уже существует:<br><br>` +
-          `• Геометрия: ${existingType.geometry}<br>` +
-          `• Компоненты: ${existingType.component.join(', ') || 'нет'}<br><br>` +
+          `Тип "${nameTrimmed}" уже существует:<br><br>` +
+          `- Геометрия: ${existingType.geometry}<br>` +
+          `- Компоненты: ${existingType.component.join(', ') || 'нет'}<br><br>` +
           'Вы уверены, что хотите продолжить?',
         positiveText: 'Продолжить',
         negativeText: 'Отмена',
@@ -1107,7 +1352,7 @@ async function save() {
 
       const ok = await confirmDialog({
         title: 'Компонент уже используется',
-        content: `Компонент "${cn}" уже используется в: ${typeNames}.<br>Вы уверены, что хотите продолжить?`,
+        content: `Компонент "${cn}" уже используется в: ${typeNames}.<br>Продолжить?`,
         positiveText: 'Продолжить',
         negativeText: 'Отмена',
         html: true,
@@ -1120,37 +1365,95 @@ async function save() {
   const missing = compNames.filter((n) => !componentMapByName.value.has(normalizeText(n)))
 
   if (missing.length > 0) {
-    message.warning(`Новые компоненты пока нельзя добавить из интерфейса: ${missing.join(', ')}`)
+    message.warning(`Некоторые компоненты будут созданы автоматически: ${missing.join(', ')}`)
+  }
 
+  const pair = getGeometryPair(form.value.geometry)
+  const rawFvShape = pair.fv != null ? Number(pair.fv) : undefined
+  const rawPvShape = pair.pv != null ? Number(pair.pv) : undefined
+  const fvShape = rawFvShape != null && !Number.isNaN(rawFvShape) ? rawFvShape : undefined
+  const pvShape = rawPvShape != null && !Number.isNaN(rawPvShape) ? rawPvShape : undefined
+
+  if (fvShape == null && pvShape == null) {
+    message.error('Не найдены идентификаторы геометрии')
     return
   }
+
+  const oldCompNamesSet = new Set((old?.component ?? []).map(normalizeText))
+  const newCompNamesSet = new Set(compNames.map(normalizeText))
+  const removedNormalized = isEditing
+    ? [...oldCompNamesSet].filter((n) => !newCompNamesSet.has(n))
+    : []
+  const addedNormalized = isEditing
+    ? [...newCompNamesSet].filter((n) => !oldCompNamesSet.has(n))
+    : []
+
+  const newNamesMap = new Map(compNames.map((n) => [normalizeText(n), n]))
+  const oldNamesMap = new Map((old?.component ?? []).map((n) => [normalizeText(n), n]))
 
   saving.value = true
 
   try {
-    const componentIds = compNames.map((n) => componentMapByName.value.get(normalizeText(n))!.id)
+    const sanitizedFvShape = fvShape ?? undefined
+    const sanitizedPvShape = pvShape ?? undefined
 
-    const geometryId =
-      geometryIdByKind.value[form.value.geometry] ??
-      geometryOptions.value.find(
-        (o) =>
-          normalizeGeometry(o.name ?? o.value ?? o.code ?? o.id, geometryOptions.value) ===
-          form.value.geometry,
-      )?.id ??
-      null
+    if (!isEditing) {
+      await createTypeWithComponents(nameTrimmed, sanitizedFvShape, sanitizedPvShape, compNames)
+    } else if (nameChanged) {
+      const oldIdNumber = Number(old!.id)
+      if (!Number.isFinite(oldIdNumber)) throw new Error('Некорректный идентификатор типа: ' + old!.id)
 
-    const payload: SaveTypeObjectRequest = { name: nameTrimmed, geometryId, componentIds }
+      await callRpc('data/deleteTypesObjects', [oldIdNumber])
+      await createTypeWithComponents(nameTrimmed, sanitizedFvShape, sanitizedPvShape, compNames)
+    } else {
+      if (geometryChanged) {
+        const oldIdNumber = Number(old!.id)
+        if (!Number.isFinite(oldIdNumber)) throw new Error('Некорректный идентификатор типа: ' + old!.id)
 
-    if (editing.value?.id) payload.id = editing.value.id
+        const oldClsNumber = old?.cls != null ? Number(old.cls) : undefined
+        const clsValue = oldClsNumber != null && !Number.isNaN(oldClsNumber) ? oldClsNumber : undefined
+        const oldNumberNumber = old?.number != null ? Number(old.number) : undefined
+        const numberValue =
+          oldNumberNumber != null && !Number.isNaN(oldNumberNumber) ? oldNumberNumber : undefined
+        const oldIdShapeNumber = old?.idShape != null ? Number(old.idShape) : undefined
+        const idShapeValue =
+          oldIdShapeNumber != null && !Number.isNaN(oldIdShapeNumber) ? oldIdShapeNumber : undefined
 
-    await callRpc<SaveTypeObjectResponse, SaveTypeObjectRequest>('saveTypeObject', payload)
+        await callRpc('data/saveTypesObjects', [
+          'upd',
+          {
+            accessLevel: 1,
+            number: numberValue,
+            id: oldIdNumber,
+            cls: clsValue,
+            name: old!.name,
+            nameCls: old!.name,
+            idShape: idShapeValue,
+            fvShape: sanitizedFvShape,
+            pvShape: sanitizedPvShape,
+          },
+        ])
+      }
 
-    message.success(editing.value?.id ? 'Изменено' : 'Создано')
+      if (old) {
+        await syncComponentLinks({
+          type: old,
+          typeName: nameTrimmed,
+          addedNormalized,
+          removedNormalized,
+          newNamesMap,
+          oldNamesMap,
+        })
+      }
+    }
+
+    message.success(isEditing ? 'Изменено' : 'Создано')
 
     await qc.invalidateQueries({ queryKey: ['object-types'] })
 
     dialog.value = false
-  } catch {
+  } catch (error) {
+    console.error(error)
     message.error('Не удалось сохранить')
   } finally {
     saving.value = false
