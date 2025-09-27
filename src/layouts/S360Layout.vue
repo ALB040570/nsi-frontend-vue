@@ -44,17 +44,24 @@
     </header>
 
     <div class="s360-body">
-      <aside v-if="showNavigation && !isAsideCollapsed" class="s360-aside">
+      <aside
+        v-if="showNavigation && !isAsideCollapsed"
+        class="s360-aside sider"
+        :style="{ width: siderWidth + 'px', flexBasis: siderWidth + 'px' }"
+      >
         <div class="s360-aside-inner">
           <nav class="s360-nav">
-            <router-link to="/" class="nav-item">Главная панель</router-link>
-            <router-link to="/nsi/object-types" class="nav-item">
-              Справочник типов объектов
-            </router-link>
-            <router-link to="/nsi/components" class="nav-item">Компоненты объектов</router-link>
+            <NMenu :options="menuOptions" :value="menuValue" @update:value="handleMenuSelect" />
           </nav>
         </div>
       </aside>
+
+      <div
+        v-if="showNavigation && !isAsideCollapsed"
+        class="sider-resizer"
+        @mousedown="startResize"
+        @touchstart="startResize"
+      ></div>
 
       <main class="s360-main">
         <slot />
@@ -64,17 +71,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import type { DropdownDividerOption, DropdownMixedOption } from 'naive-ui'
-import { NAvatar, NDropdown, NIcon } from 'naive-ui'
+import type { DropdownDividerOption, DropdownMixedOption, MenuOption } from 'naive-ui'
+import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
 import {
   ChevronDown,
   CloseOutline,
   MenuOutline,
   NotificationsOutline,
   SettingsOutline,
+  HomeOutline,
+  AlbumsOutline,
+  ConstructOutline,
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
@@ -97,6 +107,106 @@ const languageOptions = computed<DropdownMixedOption[]>(() =>
 
 const auth = useAuthStore()
 const router = useRouter()
+const route = useRoute()
+
+const renderIcon = (icon: any) => () => h(NIcon, null, { default: () => h(icon) })
+
+const withTooltip = (text: string) => () =>
+  h(
+    NTooltip,
+    { placement: 'right' },
+    {
+      trigger: () => h('span', { class: 'menu-title', title: text }, text),
+      default: () => text,
+    },
+  )
+
+const menuRouteByKey: Record<string, string> = {
+  dashboard: '/',
+  'object-types': '/nsi/object-types',
+  components: '/nsi/components',
+}
+
+const menuOptions: MenuOption[] = [
+  { label: withTooltip('Главная панель'), key: 'dashboard', icon: renderIcon(HomeOutline) },
+  {
+    label: withTooltip('Справочник типов объектов'),
+    key: 'object-types',
+    icon: renderIcon(AlbumsOutline),
+  },
+  { label: withTooltip('Компоненты объектов'), key: 'components', icon: renderIcon(ConstructOutline) },
+]
+
+const MIN_W = 200
+const MAX_W = 360
+const KEY = 's360.sidebar.width'
+const startX = ref(0)
+const startW = ref(0)
+function clamp(n: number) {
+  return Math.min(MAX_W, Math.max(MIN_W, n))
+}
+
+const initialSiderWidth = clamp(
+  typeof window !== 'undefined' ? Number(localStorage.getItem(KEY)) || 240 : 240,
+)
+const siderWidth = ref<number>(initialSiderWidth)
+
+function onMove(e: MouseEvent | TouchEvent) {
+  const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+  if ('touches' in e && e.cancelable) {
+    e.preventDefault()
+  }
+  siderWidth.value = clamp(startW.value + (clientX - startX.value))
+}
+
+function onUp() {
+  document.removeEventListener('mousemove', onMove as any)
+  document.removeEventListener('mouseup', onUp as any)
+  document.removeEventListener('touchmove', onMove as any)
+  document.removeEventListener('touchend', onUp as any)
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(KEY, String(siderWidth.value))
+  }
+}
+
+function startResize(e: MouseEvent | TouchEvent) {
+  startX.value = 'touches' in e ? e.touches[0].clientX : e.clientX
+  startW.value = siderWidth.value
+  if (e.cancelable) {
+    e.preventDefault()
+  }
+  document.addEventListener('mousemove', onMove as any)
+  document.addEventListener('mouseup', onUp as any)
+  document.addEventListener('touchmove', onMove as any, { passive: false })
+  document.addEventListener('touchend', onUp as any)
+}
+
+const menuValue = ref<string | null>(null)
+
+const handleMenuSelect = (key: string | number | null) => {
+  if (key == null) return
+  const normalized = String(key)
+  const target = menuRouteByKey[normalized]
+  if (!target) return
+  if (target !== route.path) {
+    void router.push(target)
+  }
+}
+
+const syncMenuValue = () => {
+  const current = route.path
+  const match = Object.entries(menuRouteByKey).find(([, path]) => path === current)
+  menuValue.value = match ? match[0] : null
+}
+
+watch(
+  () => route.path,
+  () => {
+    syncMenuValue()
+  },
+  { immediate: true },
+)
+
 const { isAuthenticated, user } = storeToRefs(auth)
 
 const isAsideCollapsed = ref(false)
@@ -233,6 +343,13 @@ watch(
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onMove as any)
+  document.removeEventListener('mouseup', onUp as any)
+  document.removeEventListener('touchmove', onMove as any)
+  document.removeEventListener('touchend', onUp as any)
+})
 </script>
 
 <style scoped>
@@ -391,12 +508,29 @@ watch(
 }
 
 .s360-aside {
-  flex: 0 0 240px;
+  flex: 0 0 auto;
   width: 240px;
   min-height: 100%;
   box-sizing: border-box;
   background: #f7fbfb;
   border-right: 1px solid #e6eaea;
+}
+
+.sider {
+  position: relative;
+}
+
+.sider-resizer {
+  flex: 0 0 6px;
+  width: 6px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.15s ease;
+  align-self: stretch;
+}
+
+.sider-resizer:hover {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .s360-aside-inner {
@@ -414,19 +548,29 @@ watch(
   gap: 6px;
 }
 
-.nav-item {
-  display: block;
-  padding: 10px 12px;
+.s360-nav :deep(.n-menu) {
+  border: none;
+  background: transparent;
+}
+
+.s360-nav :deep(.n-menu-item-content) {
   border-radius: 8px;
+  padding: 10px 12px;
   color: #0f3e44;
-  text-decoration: none;
+  overflow: hidden;
   transition:
     background-color 0.2s ease,
     color 0.2s ease;
 }
 
-.nav-item:hover,
-.router-link-active.nav-item {
+.s360-nav :deep(.n-menu-item-content .n-menu-item-content__title) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s360-nav :deep(.n-menu-item-content:hover),
+.s360-nav :deep(.n-menu-item-content--selected) {
   background: #e6f2f2;
   color: #006d77;
   font-weight: 600;
@@ -444,5 +588,19 @@ watch(
 
 .s360-main table {
   width: 100%;
+}
+
+.menu-title {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .sider-resizer {
+    display: none;
+  }
 }
 </style>

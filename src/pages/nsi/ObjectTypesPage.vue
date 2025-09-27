@@ -1,26 +1,36 @@
 ﻿<template>
   <section class="object-types-page">
-    <header class="page-header">
-      <div class="page-title">
-        <h2 class="h2">Справочник "Типы обслуживаемых объектов"</h2>
-
-        <p class="text-small">
-          Здесь отображаются все доступные типы обслуживаемых объектов и их компоненты. Используйте
-          «Создать», чтобы добавить новый.
-        </p>
+    <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
+      <div class="toolbar__left">
+        <h2 class="page-title">
+          Справочник «Типы обслуживаемых объектов»
+          <NButton
+            quaternary
+            circle
+            size="small"
+            class="page-title__info"
+            aria-label="Справка о справочнике"
+            @click="infoOpen = true"
+          >
+            <template #icon>
+              <NIcon><InformationCircleOutline /></NIcon>
+            </template>
+          </NButton>
+        </h2>
+        <div class="subtext">Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты</div>
       </div>
 
-      <div class="page-actions">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable style="width: 260px" />
+      <div class="toolbar__controls">
+        <NInput v-model:value="q" placeholder="Поиск…" clearable round style="width: 340px" />
+        <NRadioGroup v-model:value="geomFilter" class="geom-filter" size="small">
+          <NRadioButton :value="'*'">Все</NRadioButton>
+          <NRadioButton :value="'точка'">Точка</NRadioButton>
+          <NRadioButton :value="'линия'">Линия</NRadioButton>
+          <NRadioButton :value="'полигон'">Полигон</NRadioButton>
+        </NRadioGroup>
         <NButton type="primary" @click="openCreate">+ Создать</NButton>
       </div>
-    </header>
-
-    <p class="text-body">
-      Это перечень категорий инфраструктурных объектов, используемый для их классификации,
-      планирования и учёта работ. Вы можете редактировать существующие типы, удалять или привязывать
-      компоненты.
-    </p>
+    </NCard>
 
     <div class="table-area">
       <NDataTable
@@ -105,7 +115,7 @@
           </div>
         </NFormItem>
 
-        <NFormItem label="Геометрия">
+        <NFormItem label="Форма на карте">
           <NRadioGroup v-model:value="form.geometry">
             <NRadioButton value="точка">Точка</NRadioButton>
             <NRadioButton value="линия">Линия</NRadioButton>
@@ -160,6 +170,18 @@
         </div>
       </template>
     </NModal>
+
+    <NModal
+      v-model:show="infoOpen"
+      preset="card"
+      title="О справочнике"
+      style="max-width: 640px; width: 92vw"
+    >
+      <p>Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать, планировать и учитывать работы.</p> <p>Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или полигон) и добавьте компоненты.</p> <p>Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и работ. В этом случае вы можете менять название, форму на карте и состав компонентов.</p>
+      <template #footer>
+        <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+      </template>
+    </NModal>
   </section>
 </template>
 <script setup lang="ts">
@@ -169,9 +191,7 @@ import {
   ref,
   watch,
   watchEffect,
-  nextTick,
   onMounted,
-  onUpdated,
   onBeforeUnmount,
   h,
   defineComponent,
@@ -183,6 +203,7 @@ import { useQuery, useQueryClient } from '@tanstack/vue-query'
 
 import {
   NButton,
+  NCard,
   NDataTable,
   NForm,
   NFormItem,
@@ -190,22 +211,18 @@ import {
   NInput,
   NModal,
   NPagination,
+  NPopover,
+  NPopconfirm,
   NRadioButton,
   NRadioGroup,
   NSelect,
   NTag,
-  NTooltip,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumns } from 'naive-ui'
 
-import {
-  CreateOutline,
-  TrashOutline,
-  ChevronUpOutline,
-  EllipsisHorizontal,
-} from '@vicons/ionicons5'
+import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/ionicons5'
 
 import { debounce } from 'lodash-es'
 
@@ -216,119 +233,6 @@ import type { GeometryKind, ObjectType } from '@/types/nsi'
 import type { ComponentOption, ComponentsByType, LoadFvForSelectResponse } from '@/types/nsi-remote'
 
 import { normalizeGeometry } from '@/types/nsi-remote'
-
-/* ---------- состояние раскрытия/обрезания чипов ---------- */
-
-const expandedRows = ref<Set<number | string>>(new Set())
-
-const hasMore = ref<Record<string | number, boolean>>({})
-
-const cellRefs = new Map<number | string, HTMLElement>()
-
-const roById = new Map<number | string, ResizeObserver>()
-
-function toggleRow(id: string | number) {
-  const set = expandedRows.value
-
-  if (set.has(id)) {
-    set.delete(id)
-  } else {
-    set.add(id)
-  }
-
-  // пересчитать после раскрытия/сворачивания
-
-  nextTick(() => rafCheck(id))
-}
-
-// ref-коллбек, который Vue вызывает при монтировании/размонтаже ячейки
-
-function setCellRef(id: string | number) {
-  return (el: HTMLElement | null) => {
-    // если раньше что-то было — отцепим старый обсервер
-
-    const prevRo = roById.get(id)
-
-    if (prevRo) {
-      prevRo.disconnect()
-
-      roById.delete(id)
-    }
-
-    if (!el) {
-      // ячейка размонтировалась
-
-      cellRefs.delete(id)
-
-      // сбросим индикатор «есть продолжение»
-
-      if (hasMore.value[id]) {
-        const clone = { ...hasMore.value }
-
-        delete clone[id]
-
-        hasMore.value = clone
-      }
-
-      return
-    }
-
-    // ячейка смонтировалась
-
-    cellRefs.set(id, el)
-
-    // подписка на изменения размера (если доступно в браузере)
-
-    if ('ResizeObserver' in window) {
-      const ro = new ResizeObserver(() => rafCheck(id))
-
-      ro.observe(el)
-
-      roById.set(id, ro)
-    }
-
-    // первичный пересчёт
-
-    rafCheck(id)
-  }
-}
-
-// задержим пересчёт до кадра анимации — меньше «дёрганий»
-
-function rafCheck(id: string | number) {
-  requestAnimationFrame(() => checkOverflowFor(id))
-}
-
-function checkOverflowFor(id: string | number) {
-  const el = cellRefs.get(id)
-
-  if (!el) return
-
-  if (expandedRows.value.has(id)) {
-    if (hasMore.value[id] !== true) {
-      hasMore.value = { ...hasMore.value, [id]: true }
-    }
-    return
-  }
-
-  // одна строка — по line-height, запас в 1px на округления
-
-  const lh = parseFloat(getComputedStyle(el).lineHeight || '24') || 24
-
-  const oneLineHeight = Math.ceil(lh)
-
-  // "есть продолжение", если контент выше видимой высоты первой строки
-
-  const hasVerticalOverflow = el.scrollHeight - 1 > Math.min(el.clientHeight, oneLineHeight)
-  const hasHorizontalOverflow = el.scrollWidth - el.clientWidth > 1
-  const more = hasVerticalOverflow || hasHorizontalOverflow
-
-  // обновляем только если реально поменялось (чтобы не зациклить рендер)
-
-  if (hasMore.value[id] !== more) {
-    hasMore.value = { ...hasMore.value, [id]: more }
-  }
-}
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
@@ -343,18 +247,6 @@ onMounted(() => {
   mediaQueryList.addEventListener('change', handleMediaQueryChange)
 })
 
-onMounted(() =>
-  nextTick(() => {
-    for (const [id] of cellRefs) rafCheck(id)
-  }),
-)
-
-onUpdated(() =>
-  nextTick(() => {
-    for (const [id] of cellRefs) rafCheck(id)
-  }),
-)
-
 // при уходе со страницы выключим всё
 
 onBeforeUnmount(() => {
@@ -362,12 +254,6 @@ onBeforeUnmount(() => {
     mediaQueryList.removeEventListener('change', handleMediaQueryChange)
     mediaQueryList = null
   }
-
-  for (const [, ro] of roById) ro.disconnect()
-
-  roById.clear()
-
-  cellRefs.clear()
 })
 
 /* ---------- типы и утилиты ---------- */
@@ -721,6 +607,7 @@ const qc = useQueryClient()
 const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
+const geomFilter = ref<'*' | GeometryKind>('*')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
 let mediaQueryList: MediaQueryList | null = null
@@ -1034,10 +921,15 @@ const handleUpdateComponentValue = async (nextNames: string[]) => {
 
 const filteredRows = computed(() => {
   const search = q.value.trim().toLowerCase()
-  if (!search) return objectTypes.value
-  return objectTypes.value.filter((item) =>
-    Object.values(item).some((v) => v != null && String(v).toLowerCase().includes(search)),
-  )
+  const gf = geomFilter.value
+  return objectTypes.value.filter((item) => {
+    const geometryOk = gf === '*' ? true : item.geometry === gf
+    if (!search) return geometryOk
+    const hit = Object.values(item).some(
+      (v) => v != null && String(v).toLowerCase().includes(search),
+    )
+    return geometryOk && hit
+  })
 })
 
 const total = computed(() => filteredRows.value.length)
@@ -1047,54 +939,69 @@ const paginatedRows = computed(() => {
 })
 const rows = computed(() => paginatedRows.value || [])
 const rowKey = (row: ObjectType) => row.id
+
+const MAX_CHIPS = 4
+
+function renderComponents(row: ObjectType) {
+  const list = Array.isArray(row.component) ? row.component : []
+  const chips = list.slice(0, MAX_CHIPS)
+  const rest = Math.max(0, list.length - MAX_CHIPS)
+
+  const chipsNodes = chips.map((name) =>
+    h(
+      NTag,
+      { size: 'small', bordered: true, round: true, class: 'chip', key: name },
+      { default: () => name },
+    ),
+  )
+
+  const more =
+    rest > 0
+      ? h(
+          NPopover,
+          { trigger: 'hover' },
+          {
+            trigger: () =>
+              h(NTag, { size: 'small', round: true, class: 'chip' }, { default: () => `+${rest}` }),
+            default: () =>
+              h(
+                'div',
+                { class: 'popover-list' },
+                list.map((n) => h('div', { class: 'popover-item', key: n }, n)),
+              ),
+          },
+        )
+      : null
+
+  return h('div', { class: 'chips-row' }, more ? [...chipsNodes, more] : chipsNodes)
+}
+
 const renderActions = (row: ObjectType) => {
-  const editButton = h(
-    NTooltip,
-    { placement: 'top' },
+  const editBtn = h(
+    NButton,
+    { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить тип' },
+    { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+  )
+
+  const delBtn = h(
+    NPopconfirm,
+    {
+      positiveText: 'Удалить',
+      negativeText: 'Отмена',
+      onPositiveClick: () => removeRow(row.id as any),
+    },
     {
       trigger: () =>
         h(
           NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            onClick: () => openEdit(row),
-            'aria-label': 'Изменить тип',
-          },
-          {
-            icon: () => h(NIcon, null, { default: () => h(CreateOutline) }),
-          },
+          { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить тип' },
+          { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
-      default: () => 'Изменить',
+      default: () => 'Удалить тип и все связи?',
     },
   )
 
-  const deleteButton = h(
-    NTooltip,
-    { placement: 'top' },
-    {
-      trigger: () =>
-        h(
-          NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            type: 'error',
-            loading: removingId.value === String(row.id),
-            onClick: () => removeRow(row.id),
-            'aria-label': 'Удалить тип',
-          },
-          {
-            icon: () => h(NIcon, null, { default: () => h(TrashOutline) }),
-          },
-        ),
-      default: () => 'Удалить',
-    },
-  )
-
-  return h('div', { class: 'table-actions' }, [editButton, deleteButton])
+  return h('div', { class: 'table-actions' }, [editBtn, delBtn])
 }
 
 const columns = computed<DataTableColumns<ObjectType>>(() => [
@@ -1108,9 +1015,9 @@ const columns = computed<DataTableColumns<ObjectType>>(() => [
     render: (row) => row.name,
   },
   {
-    title: 'Геометрия',
+    title: 'Форма на карте',
     key: 'geometry',
-    width: 120,
+    width: 150,
     align: 'center',
     render: (row) =>
       h(
@@ -1125,54 +1032,7 @@ const columns = computed<DataTableColumns<ObjectType>>(() => [
     className: 'col-components',
     minWidth: 420,
     align: 'left',
-    render: (row) => {
-      const id = row.id
-      const isExpanded = expandedRows.value.has(id)
-
-      const content = h(
-        'div',
-        {
-          class: ['components-content', { 'is-expanded': isExpanded }],
-          id: `components-${id}`,
-          ref: setCellRef(id),
-        },
-        row.component.map((name) =>
-          h(
-            NTag,
-            { class: 'component-tag', size: 'small', bordered: true, key: name },
-            { default: () => h('span', { class: 'tag-text' }, name) },
-          ),
-        ),
-      )
-
-      const toggle =
-        hasMore.value[id] === true
-          ? h(
-              'button',
-              {
-                type: 'button',
-                class: 'components-toggle',
-                'aria-label': isExpanded
-                  ? 'Свернуть список компонентов'
-                  : 'Показать все компоненты',
-                'aria-pressed': isExpanded,
-                'aria-controls': `components-${id}`,
-                onClick: () => toggleRow(id),
-              },
-              [
-                h(NIcon, null, {
-                  default: () => h(isExpanded ? ChevronUpOutline : EllipsisHorizontal),
-                }),
-              ],
-            )
-          : null
-
-      return h(
-        'div',
-        { class: ['components-cell-wrap', { 'is-expanded': isExpanded }] },
-        toggle ? [content, toggle] : [content],
-      )
-    },
+    render: renderComponents,
   },
   {
     title: 'Действия',
@@ -1308,6 +1168,7 @@ watchEffect(() => {
 /* ---------- CRUD формы ---------- */
 
 const dialog = ref(false)
+const infoOpen = ref(false)
 
 const editing = ref<LoadedObjectType | null>(null)
 
@@ -1442,7 +1303,7 @@ async function save() {
         title: 'Тип с таким названием уже есть',
         content:
           `Тип "${nameTrimmed}" уже существует:<br><br>` +
-          `- Геометрия: ${existingType.geometry}<br>` +
+          `- Форма на карте: ${existingType.geometry}<br>` +
           `- Компоненты: ${existingType.component.join(', ') || 'нет'}<br><br>` +
           'Вы уверены, что хотите продолжить?',
         positiveText: 'Продолжить',
@@ -1483,7 +1344,7 @@ async function save() {
   const pvShape = toRpcValue(pair.pv)
 
   if (pair.fv == null && pair.pv == null) {
-    message.error('Не найдены идентификаторы геометрии')
+    message.error('Не найдены идентификаторы Формы на карте')
     return
   }
 
@@ -1764,6 +1625,7 @@ const removeRow = async (id: string | number) => {
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .table-area {
@@ -1815,26 +1677,161 @@ const removeRow = async (id: string | number) => {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
-.table-actions {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
 
-.pagination-bar {
-  display: flex;
-  justify-content: flex-end;
-  padding: 4px 0 0;
+:deep(.n-pagination) {
+  font-size: 14px;
 }
 
 .pagination-total {
   margin-right: 12px;
+  font-size: 14px;
+  color: var(--n-text-color-3);
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  gap: 16px;
+}
+
+:deep(.n-card.toolbar) {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.toolbar__left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolbar__controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.page-title {
+  margin: 0;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.page-title__info {
+  padding: 0;
+  background: #f5f7fa;
+  color: var(--n-text-color);
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.page-title__info :deep(.n-button__content) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.page-title__info :deep(.n-icon) {
+  font-size: 16px;
+}
+
+.page-title__info:hover,
+.page-title__info:focus {
+  background: #edf1f7;
+  color: var(--n-text-color);
+}
+
+.page-title__info:active {
+  background: #e2e8f0;
+}
+
+.subtext {
   font-size: 12px;
   color: var(--n-text-color-3);
 }
 
+.geom-filter :deep(.n-radio-button) {
+  min-width: 64px;
+}
+
+/* Компоненты — чипсы */
+.chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.chip {
+  background: #fff;
+}
+
+.popover-list {
+  max-width: 280px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.popover-item {
+  padding: 2px 8px;
+}
+
+/* Действия — показывать по hover */
+.table-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  opacity: 0;
+  transition: 0.15s ease;
+}
+
+:deep(.n-data-table .n-data-table-tr:hover) .table-actions {
+  opacity: 1;
+}
+
+/* Toolbar адаптив */
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .toolbar__controls {
+    justify-content: flex-start;
+  }
+}
+
+/* Pagination layout */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+
 .cards {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
 
@@ -1844,6 +1841,14 @@ const removeRow = async (id: string | number) => {
   padding: 12px;
   background: #fff;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card__header,
+.card__actions {
+  min-width: 0;
 }
 
 .card__header {
@@ -1856,11 +1861,12 @@ const removeRow = async (id: string | number) => {
 .card__title {
   margin: 0;
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .card__grid {
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: 110px 1fr;
   gap: 6px 10px;
   margin: 10px 0;
 }
@@ -1873,6 +1879,7 @@ const removeRow = async (id: string | number) => {
 .card__grid dd {
   margin: 0;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .card__actions {
@@ -1884,6 +1891,16 @@ const removeRow = async (id: string | number) => {
 
 .card__actions .table-actions {
   justify-content: flex-start;
+}
+
+.cards .chips-row {
+  flex-wrap: wrap;
+  min-width: 0;
+  overflow: visible;
+}
+
+.cards .chip {
+  max-width: 100%;
 }
 
 .badge {
@@ -1903,86 +1920,10 @@ const removeRow = async (id: string | number) => {
 
 @media (max-width: 360px) {
   .card__grid {
-    grid-template-columns: 100px 1fr;
+    grid-template-columns: 96px 1fr;
   }
 }
 
-.components-cell-wrap {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
-  min-width: 0;
-  min-height: 24px;
-  height: 24px;
-}
-
-.components-cell-wrap.is-expanded {
-  align-items: flex-start;
-  height: auto;
-}
-
-.components-content {
-  /* было flex — делаем блочный поток + принудительно 1 строка */
-  display: block;
-  white-space: nowrap;
-  line-height: 24px;
-  max-height: 24px;
-  overflow: hidden;
-  width: 100%;
-  min-width: 0;
-  mask-image: linear-gradient(to right, black 85%, transparent 100%);
-  -webkit-mask-image: linear-gradient(to right, black 85%, transparent 100%);
-}
-
-.components-content.is-expanded {
-  white-space: normal; /* разрешаем переносы */
-  max-height: none;
-  overflow: visible;
-  mask-image: none;
-  -webkit-mask-image: none;
-}
-
-/* теги выстраиваем «в линию» */
-.component-tag {
-  display: inline-flex;
-  vertical-align: top;
-  margin: 2px 6px 2px 0;
-  flex-shrink: 0;
-}
-
-:deep(.component-tag.n-tag.n-tag--bordered) {
-  background-color: transparent;
-}
-
-.components-toggle {
-  flex: 0 0 auto;
-  height: 24px;
-  width: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 9999px;
-  background: var(--n-color, #fff);
-  color: inherit;
-  cursor: pointer;
-}
-
-.components-cell-wrap.is-expanded .components-toggle {
-  margin-top: 4px;
-  align-self: flex-start;
-}
-
-/* внутри тега текст не переносится */
-:deep(.component-tag .n-tag__content) {
-  white-space: nowrap;
-}
-
-.components-content.is-expanded :deep(.component-tag .n-tag__content) {
-  white-space: normal;
-  word-break: break-word;
-}
 
 .select-action {
   padding: 6px 12px;
@@ -1994,41 +1935,10 @@ const removeRow = async (id: string | number) => {
   color: var(--n-text-color-3);
 }
 
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.page-title {
-  max-width: 60ch;
-}
-
-.page-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-@media (max-width: 900px) {
-  .page-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-  }
-
-  .page-actions {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
 }
 
 .warning-text {
