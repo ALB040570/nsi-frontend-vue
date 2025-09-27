@@ -1,54 +1,62 @@
-﻿<template>
+<template>
   <section class="login-page">
-    <el-card class="login-card" shadow="hover">
+    <NCard class="login-card">
       <header class="login-header">
         <h1 class="login-title">Вход в Service 360</h1>
         <p class="login-subtitle">
-          Используйте учетные данные вашей организации, чтобы продолжить работу в системе.
+          Используйте свою учетную запись, чтобы продолжить работу в системе.
         </p>
       </header>
 
-      <el-form class="login-form" label-position="top" @submit.prevent="handleSubmit">
-        <el-alert
+      <NForm class="login-form" label-placement="top" @submit.prevent="handleSubmit">
+        <NAlert
           v-if="errorMessage"
           class="login-error"
           type="error"
-          show-icon
+          :show-icon="true"
           :closable="false"
-          :title="errorMessage"
-        />
+        >
+          {{ errorMessage }}
+        </NAlert>
 
-        <el-form-item label="Логин" :error="fieldErrors.username ?? undefined">
-          <el-input
-            v-model="form.username"
+        <NFormItem
+          label="Логин"
+          :feedback="fieldErrors.username ?? undefined"
+          :validation-status="fieldErrors.username ? 'error' : undefined"
+        >
+          <NInput
+            v-model:value="form.username"
             placeholder="Введите логин"
             autocomplete="username"
           />
-        </el-form-item>
+        </NFormItem>
 
-        <el-form-item label="Пароль" :error="fieldErrors.password ?? undefined">
-          <el-input
-            v-model="form.password"
+        <NFormItem
+          label="Пароль"
+          :feedback="fieldErrors.password ?? undefined"
+          :validation-status="fieldErrors.password ? 'error' : undefined"
+        >
+          <NInput
+            v-model:value="form.password"
             type="password"
             placeholder="Введите пароль"
             autocomplete="current-password"
-            show-password
           />
-        </el-form-item>
+        </NFormItem>
 
         <div class="login-actions">
-          <el-button
+          <NButton
             class="btn-primary"
             type="primary"
-            native-type="submit"
+            attr-type="submit"
             :loading="isAuthenticating"
             :disabled="isAuthenticating"
           >
             Войти
-          </el-button>
+          </NButton>
         </div>
-      </el-form>
-    </el-card>
+      </NForm>
+    </NCard>
   </section>
 </template>
 
@@ -56,6 +64,8 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui'
+
 import { useAuthStore } from '@/stores/auth'
 import type { LoginCredentials } from '@/lib/auth'
 
@@ -108,7 +118,7 @@ const handleSubmit = async () => {
   auth.clearError()
 
   if (!validate()) {
-    submitError.value = 'Проверьте правильность заполнения формы'
+    submitError.value = 'Проверьте правильность введенных данных'
     return
   }
 
@@ -172,7 +182,7 @@ const handleSubmit = async () => {
   justify-content: flex-end;
 }
 
-.login-actions .el-button {
+.login-actions .n-button {
   min-width: 120px;
 }
 </style>

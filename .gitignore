@@ -28,3 +28,4 @@ coverage
 *.sw?
 
 *.tsbuildinfo
+_tmp_edit_step8.py _tmp_update_template_style.py
