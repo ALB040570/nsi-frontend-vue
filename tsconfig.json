@@ -1,7 +1,19 @@
 {
+  /* Файл: tsconfig.json
+     Назначение: общая конфигурация TypeScript и путевых алиасов для проекта.
+     Использование: читается tsc, Vite и IDE для разрешения модулей. */
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
+    "paths": {
+      "@/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@shared/*": ["src/shared/*"],
+      "@entities/*": ["src/entities/*"],
+      "@features/*": ["src/features/*"],
+      "@widgets/*": ["src/widgets/*"],
+      "@pages/*": ["src/pages/*"],
+      "@layouts/*": ["src/layouts/*"]
+    },
     "types": ["naive-ui/volar"]
   }
 }

@@ -1,0 +1,6 @@
+/* Файл: src/shared/styles/globals.css
+   Назначение: глобальные сбросы и базовая типографика. Без агрессивных переопределений Naive UI.
+   Использование: импорт в app/main.ts или корневой компонент. */
+
+html, body, #app { height: 100%; margin: 0; }
+body { font-family: 'Montserrat', system-ui, -apple-system, sans-serif; color: #1a1a1a; }

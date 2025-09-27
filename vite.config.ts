@@ -1,3 +1,7 @@
+/** Файл: vite.config.ts
+ *  Назначение: конфигурация Vite с dev-прокси и алиасами слоёв приложения.
+ *  Использование: считывается сборщиком при запуске dev/production серверов.
+ */
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
@@ -78,6 +82,13 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
+        '@app': fileURLToPath(new URL('./src/app', import.meta.url)),
+        '@shared': fileURLToPath(new URL('./src/shared', import.meta.url)),
+        '@entities': fileURLToPath(new URL('./src/entities', import.meta.url)),
+        '@features': fileURLToPath(new URL('./src/features', import.meta.url)),
+        '@widgets': fileURLToPath(new URL('./src/widgets', import.meta.url)),
+        '@pages': fileURLToPath(new URL('./src/pages', import.meta.url)),
+        '@layouts': fileURLToPath(new URL('./src/layouts', import.meta.url)),
       },
     },
     server: {
