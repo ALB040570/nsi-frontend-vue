@@ -21,8 +21,11 @@ import type {
   ObjectType,
   ObjectTypesSnapshot,
 } from '../model/types'
+import { useQuery } from '@tanstack/vue-query'
 
-const COMPONENT_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components']
+const COMPONENT_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
+type ComponentRelCode = typeof COMPONENT_REL_ARGS[0] // 'RT_Components'
+
 
 function buildGeometryOptions(raw: RawGeometryRecord[]): Array<{
   id: string
@@ -301,7 +304,7 @@ export async function linkComponent(payload: {
   cls1: number | string
   uch2: number | string
   cls2: number | string
-  codRelTyp: string
+  codRelTyp: ComponentRelCode
   name: string
 }): Promise<void> {
   await rpc('data/saveRelObj', [payload])
@@ -326,4 +329,14 @@ export async function createComponentIfMissing(name: string): Promise<{ id: numb
     cls: Number(record?.cls ?? record?.CLS ?? 1027),
     name: record?.name ?? name,
   }
+}
+export function useObjectTypesQuery() {
+  return useQuery({ queryKey: ['object-types'], queryFn: listObjectTypes })
+}
+
+export function useObjectTypesSnapshotQuery() {
+  return useQuery({
+    queryKey: ['object-types', 'snapshot'],
+    queryFn: fetchObjectTypesSnapshot,
+  })
 }
