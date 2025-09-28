@@ -25,9 +25,13 @@ async function ensureComponents(names: string[]): Promise<Component[]> {
       result.push(found)
       continue
     }
-    const created = await componentRepo.createComponent(rawName)
-    map.set(normalized, created)
-    result.push(created)
+    const created = await objectTypeRepo.createComponentIfMissing(rawName)
+    const normalizedComponent: Component = {
+      id: String(created.id),
+      name: created.name,
+    }
+    map.set(normalized, normalizedComponent)
+    result.push(normalizedComponent)
   }
 
   return result
