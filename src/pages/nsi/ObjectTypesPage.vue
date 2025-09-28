@@ -130,6 +130,7 @@
           <div class="field-stack">
             <ComponentsSelect
               :value="form.component"
+              :options="componentSelectOptions"
               :placeholder="'Начните вводить, чтобы найти компонент'"
               @update:value="handleUpdateComponentValue"
               @blur="handleComponentBlur"
@@ -400,6 +401,10 @@ const allComponentOptions = computed<ComponentOption[]>(() => {
   return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 })
 
+const componentSelectOptions = computed(() =>
+  allComponentOptions.value.map((option) => ({ label: option.name, value: option.name })),
+)
+
 const geometryOptions = computed(() => snapshot.value?.geometryOptions ?? [])
 const geometryPairByKind = computed(() => snapshot.value?.geometryPairByKind ?? {})
 const linksByType = computed<Record<string, LinkEntry[]>>(
@@ -458,13 +463,14 @@ const handleUpdateComponentValue = (nextNames: string[]) => {
   form.value.component = nextNames
 }
 
-const handleComponentCreated = (component: Component) => {
+const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {
   if (!createdComponents.value.some((item) => item.id === component.id)) {
     createdComponents.value = [...createdComponents.value, { id: component.id, name: component.name }]
   }
   if (!form.value.component.includes(component.name)) {
     form.value.component = [...form.value.component, component.name]
   }
+  await qc.invalidateQueries({ queryKey: ['object-types', 'snapshot'] })
 }
 
 const filteredRows = computed(() => {
