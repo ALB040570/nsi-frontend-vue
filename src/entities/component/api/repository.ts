@@ -7,6 +7,32 @@ import { extractRecords, firstRecord } from '@shared/lib/rpc'
 import { toOptionalString } from '@shared/lib/text'
 import type { Component } from '../model/types'
 
+export interface CreatedComponentPayload {
+  id: number
+  cls: number
+  name: string
+}
+
+async function callCreateComponent(name: string): Promise<CreatedComponentPayload> {
+  const response = await rpc('data/saveComponents', [
+    'ins',
+    {
+      accessLevel: 1,
+      cls: 1027,
+      name,
+    },
+  ])
+  const record = firstRecord<any>(response)
+  const id = Number(record?.id ?? record?.ID ?? record?.number)
+  if (!Number.isFinite(id)) throw new Error('Нет идентификатора созданного компонента')
+  const cls = Number(record?.cls ?? record?.CLS ?? 1027)
+  return {
+    id,
+    cls,
+    name: toOptionalString(record?.name ?? record?.NAME) ?? name,
+  }
+}
+
 export async function listComponents(): Promise<Component[]> {
   const response = await rpc('data/loadComponents', [0])
   const raw = extractRecords<any>(response)
@@ -22,19 +48,13 @@ export async function listComponents(): Promise<Component[]> {
 }
 
 export async function createComponent(name: string): Promise<Component> {
-  const response = await rpc('data/saveComponents', [
-    'ins',
-    {
-      accessLevel: 1,
-      cls: 1027,
-      name,
-    },
-  ])
-  const record = firstRecord<any>(response)
-  const id = toOptionalString(record?.id ?? record?.ID ?? record?.number)
-  if (!id) throw new Error('Нет идентификатора созданного компонента')
+  const created = await callCreateComponent(name)
   return {
-    id,
-    name: toOptionalString(record?.name ?? record?.NAME) ?? name,
+    id: String(created.id),
+    name: created.name,
   }
+}
+
+export async function createComponentIfMissing(name: string): Promise<CreatedComponentPayload> {
+  return await callCreateComponent(name)
 }
