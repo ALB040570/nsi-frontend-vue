@@ -3,7 +3,7 @@
      Использование: подключать в формах (ObjectTypeForm) через v-model:value для списка названий. -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { NButton, NSelect } from 'naive-ui'
+import { NSelect } from 'naive-ui'
 import type { SelectOption } from 'naive-ui'
 import { useComponentsOptions } from '../model/useComponentsOptions'
 import type { Component } from '@entities/component/model/types'
@@ -91,19 +91,6 @@ const inputProps = computed(() => ({
     @search="handleSearch"
     @blur="handleBlur"
   >
-    <template #action>
-      <div class="select-action">
-        <NButton
-          text
-          type="primary"
-          :loading="creating"
-          :disabled="!canCreate || creating"
-          @click="createFromQuery"
-        >
-          Создать «{{ trimmedQuery || '…' }}»
-        </NButton>
-      </div>
-    </template>
     <template #empty>
       <div class="select-empty">Нет совпадений</div>
     </template>
@@ -111,11 +98,6 @@ const inputProps = computed(() => ({
 </template>
 
 <style scoped>
-.select-action {
-  padding: 6px 12px;
-  border-top: 1px solid var(--n-border-color);
-}
-
 .select-empty {
   padding: 8px 12px;
   color: var(--n-text-color-3);
