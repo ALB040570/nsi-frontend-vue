@@ -182,7 +182,7 @@ import {
 
 import type { PropType, VNodeChild } from 'vue'
 
-import { useQuery, useQueryClient } from '@tanstack/vue-query'
+import { useQueryClient } from '@tanstack/vue-query'
 
 import {
   NButton,
@@ -209,20 +209,16 @@ import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/i
 import { debounce } from 'lodash-es'
 
 import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations } from '@features/object-type-crud'
+import { useObjectTypeMutations, useObjectTypesQuery } from '@features/object-type-crud'
 import {
-  fetchObjectTypesSnapshot,
-  createComponentIfMissing,
   type GeometryKind,
   type GeometryPair,
   type LoadedObjectType,
   type ObjectType,
-  type ObjectTypesSnapshot,
 } from '@entities/object-type'
-import { listComponents, type Component, type ComponentOption } from '@entities/component'
+import { createComponentIfMissing, type Component, type ComponentOption } from '@entities/component'
 import { getErrorMessage } from '@shared/lib/rpc'
 import { normalizeText } from '@shared/lib/text'
-import { toNumericOrUndefined, toRpcId, toRpcValue } from '@shared/lib/numbers'
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
@@ -289,12 +285,6 @@ const geometryLabels: Record<GeometryKind, string> = {
 const geometryLabel = (geometry: GeometryKind | string) =>
   geometryLabels[geometry as GeometryKind] ?? String(geometry)
 
-function getLinkIdFromResp(resp: any): number | null {
-  const r = firstRecord(resp)
-  const v = r?.id ?? r?.number ?? r?.idRel ?? r?.idrel
-  return v != null ? Number(v) : null
-}
-
 interface ConfirmDialogOptions {
   title?: string
   content: string
@@ -337,12 +327,6 @@ const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
   })
 }
 
-/* ---------- загрузка данных ---------- */
-
-async function fetchObjectTypes(): Promise<ObjectTypesSnapshot> {
-  return await fetchObjectTypesSnapshot()
-}
-
 /* ---------- таблица/поиск/пагинация ---------- */
 
 const qc = useQueryClient()
@@ -356,15 +340,7 @@ let mediaQueryList: MediaQueryList | null = null
 const handleMediaQueryChange = (e: MediaQueryList | MediaQueryListEvent) => {
   isMobile.value = 'matches' in e ? e.matches : false
 }
-const {
-  data: snapshot,
-  isLoading,
-  isFetching,
-  error,
-} = useQuery({
-  queryKey: ['object-types'],
-  queryFn: fetchObjectTypes,
-})
+const { data: snapshot, isLoading, isFetching, error } = useObjectTypesQuery()
 
 const fetchState = computed<FetchState>(() => ({
   isLoading: isLoading.value,
@@ -425,17 +401,26 @@ async function ensureComponentObjects(names: string[]): Promise<Component[]> {
   const uniqueNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)))
   if (!uniqueNames.length) return []
 
-  const existing = await listComponents()
-  const byName = new Map(existing.map((item) => [normalizeText(item.name), item]))
+  const byName = new Map<string, Component>()
+  for (const option of allComponentOptions.value) {
+    byName.set(normalizeText(option.name), { id: option.id, name: option.name })
+  }
+
   const result: Component[] = []
 
   for (const rawName of uniqueNames) {
-    const normalized = normalizeText(rawName)
-    let component = byName.get(normalized)
+    const key = normalizeText(rawName)
+    let component = byName.get(key)
     if (!component) {
       const created = await createComponentIfMissing(rawName)
       component = { id: String(created.id), name: created.name }
-      byName.set(normalized, component)
+      byName.set(key, component)
+      if (!createdComponents.value.some((item) => item.id === String(created.id))) {
+        createdComponents.value = [
+          ...createdComponents.value,
+          { id: String(created.id), name: created.name },
+        ]
+      }
     }
     result.push(component)
   }
@@ -470,7 +455,7 @@ const handleComponentCreated = async (component: { id: string; cls: number; name
   if (!form.value.component.includes(component.name)) {
     form.value.component = [...form.value.component, component.name]
   }
-  await qc.invalidateQueries({ queryKey: ['object-types', 'snapshot'] })
+  await qc.invalidateQueries({ queryKey: ['object-types'] })
 }
 
 const filteredRows = computed(() => {
