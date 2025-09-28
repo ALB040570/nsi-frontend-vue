@@ -21,10 +21,8 @@ import type {
   ObjectType,
   ObjectTypesSnapshot,
 } from '../model/types'
-import { useQuery } from '@tanstack/vue-query'
-
-const COMPONENT_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
-type ComponentRelCode = typeof COMPONENT_REL_ARGS[0] // 'RT_Components'
+export const COMPONENT_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
+export type ComponentRelCode = typeof COMPONENT_REL_ARGS[0] // 'RT_Components'
 
 
 function buildGeometryOptions(raw: RawGeometryRecord[]): Array<{
@@ -330,13 +328,5 @@ export async function createComponentIfMissing(name: string): Promise<{ id: numb
     name: record?.name ?? name,
   }
 }
-export function useObjectTypesQuery() {
-  return useQuery({ queryKey: ['object-types'], queryFn: listObjectTypes })
-}
-
-export function useObjectTypesSnapshotQuery() {
-  return useQuery({
-    queryKey: ['object-types', 'snapshot'],
-    queryFn: fetchObjectTypesSnapshot,
-  })
-}
+/** @deprecated Используйте updateTypeGeometry */
+export const updateTypeGeomUpd = updateTypeGeometry
