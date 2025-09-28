@@ -1,5 +1,9 @@
+/** Файл: src/composables/useCrud.ts
+ *  Назначение: универсальные CRUD-хуки поверх REST-интерфейсов.
+ *  Использование: создавайте экземпляр с ключом и базовым путем, чтобы получить list/create/update/remove.
+ */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
-import { api } from '@/lib/api'
+import { get, post, put, del } from '@shared/api/httpClient'
 
 type ID = string | number
 
@@ -17,24 +21,24 @@ export function useCrud<TList = any, TItem = any>(opts: CrudOptions<TList, TItem
   const list = useQuery({
     queryKey: opts.key,
     queryFn: async () => {
-      const { data } = await api.get(opts.basePath)
+      const data = await get<unknown>(opts.basePath)
       return (opts.mapList ? opts.mapList(data) : data) as TList[]
     },
   })
 
   const create = useMutation({
-    mutationFn: async (payload: Partial<TItem>) => api.post(opts.basePath, payload),
+    mutationFn: async (payload: Partial<TItem>) => post(opts.basePath, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: opts.key }),
   })
 
   const update = useMutation({
     mutationFn: async ({ id, payload }: { id: ID; payload: Partial<TItem> }) =>
-      api.put(`${opts.basePath}/${id}`, payload),
+      put(`${opts.basePath}/${id}`, payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: opts.key }),
   })
 
   const remove = useMutation({
-    mutationFn: async (id: ID) => api.delete(`${opts.basePath}/${id}`),
+    mutationFn: async (id: ID) => del(`${opts.basePath}/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: opts.key }),
   })
 

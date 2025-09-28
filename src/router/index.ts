@@ -1,9 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
-const Home = () => import('../components/HelloWorld.vue')
-const ObjectTypesPage = () => import('../pages/nsi/ObjectTypesPage.vue')
-const LoginPage = () => import('../pages/auth/LoginPage.vue')
+const Home = () => import('@/components/HelloWorld.vue')
+const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
+const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
   history: createWebHistory(),
