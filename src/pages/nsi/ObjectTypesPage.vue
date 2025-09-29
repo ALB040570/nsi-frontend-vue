@@ -20,7 +20,9 @@
             </template>
           </NButton>
         </h2>
-        <div class="subtext">Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты</div>
+        <div class="subtext">
+          Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты
+        </div>
       </div>
 
       <div class="toolbar__controls">
@@ -62,7 +64,10 @@
           </header>
 
           <dl class="card__grid">
-            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -153,7 +158,18 @@
       title="О справочнике"
       style="max-width: 640px; width: 92vw"
     >
-      <p>Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать, планировать и учитывать работы.</p> <p>Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или полигон) и добавьте компоненты.</p> <p>Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и работ. В этом случае вы можете менять название, форму на карте и состав компонентов.</p>
+      <p>
+        Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать,
+        планировать и учитывать работы.
+      </p>
+      <p>
+        Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или
+        полигон) и добавьте компоненты.
+      </p>
+      <p>
+        Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и
+        работ. В этом случае вы можете менять название, форму на карте и состав компонентов.
+      </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
       </template>
@@ -202,7 +218,13 @@ import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/i
 import { debounce } from 'lodash-es'
 
 import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations, useObjectTypesQuery, ensureComponentObjects, resolveRemoveLinkIds, type LinkEntry } from '@features/object-type-crud'
+import {
+  useObjectTypeMutations,
+  useObjectTypesQuery,
+  ensureComponentObjects,
+  resolveRemoveLinkIds,
+  type LinkEntry,
+} from '@features/object-type-crud'
 import {
   type GeometryKind,
   type GeometryPair,
@@ -386,18 +408,16 @@ const componentMapByName = computed(() => {
 const getGeometryPair = (kind: GeometryKind): GeometryPair =>
   geometryPairByKind.value[kind] ?? { fv: null, pv: null }
 
-
-
-
-
-
 const handleUpdateComponentValue = (nextNames: string[]) => {
   form.value.component = nextNames
 }
 
 const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {
   if (!createdComponents.value.some((item) => item.id === component.id)) {
-    createdComponents.value = [...createdComponents.value, { id: component.id, name: component.name }]
+    createdComponents.value = [
+      ...createdComponents.value,
+      { id: component.id, name: component.name },
+    ]
   }
   if (!form.value.component.includes(component.name)) {
     form.value.component = [...form.value.component, component.name]
@@ -465,7 +485,13 @@ function renderComponents(row: ObjectType): VNodeChild {
 const renderActions = (row: ObjectType): VNodeChild => {
   const editBtn = h(
     NButton,
-    { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить тип' },
+    {
+      quaternary: true,
+      circle: true,
+      size: 'small',
+      onClick: () => openEdit(row),
+      'aria-label': 'Изменить тип',
+    },
     { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
   )
 
@@ -480,7 +506,13 @@ const renderActions = (row: ObjectType): VNodeChild => {
       trigger: () =>
         h(
           NButton,
-          { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить тип' },
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            'aria-label': 'Удалить тип',
+          },
           { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
       default: () => 'Удалить тип и все связи?',
@@ -870,7 +902,10 @@ async function save() {
           const existingIds = new Set(allComponentOptions.value.map((option) => String(option.id)))
           const createdOptions = addComponents
             .filter((component) => !existingIds.has(String(component.id)))
-            .map<ComponentOption>((component) => ({ id: String(component.id), name: component.name }))
+            .map<ComponentOption>((component) => ({
+              id: String(component.id),
+              name: component.name,
+            }))
           if (createdOptions.length) {
             createdComponents.value = [...createdComponents.value, ...createdOptions]
           }
@@ -1002,7 +1037,6 @@ const removeRow = async (id: string | number) => {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
-
 :deep(.n-pagination) {
   font-size: 14px;
 }
@@ -1061,7 +1095,9 @@ const removeRow = async (id: string | number) => {
   border: none;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .page-title__info :deep(.n-button__content) {
@@ -1152,7 +1188,6 @@ const removeRow = async (id: string | number) => {
   justify-content: space-between;
   gap: 12px;
 }
-
 
 .cards {
   display: grid;
@@ -1248,7 +1283,6 @@ const removeRow = async (id: string | number) => {
     grid-template-columns: 96px 1fr;
   }
 }
-
 
 .modal-footer {
   display: flex;
