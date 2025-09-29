@@ -1,8 +1,16 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[[...path]].ts" },
-    { "source": "/auth/(.*)", "destination": "/api/[[...path]].ts" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/auth/:path*",
+      "destination": "https://45.8.116.32/dtj/nsi/api/auth/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://45.8.116.32/dtj/nsi/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }
-
