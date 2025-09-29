@@ -18,10 +18,14 @@ export async function login(credentials: LoginCredentials): Promise<{ ok: true }
   body.set('username', credentials.username)
   body.set('password', credentials.password)
 
-  const path = normalizeAuthPath(import.meta.env.VITE_AUTH_LOGIN_PATH)
-  const data = await postForm<string>(path, body, { baseURL: '' })
+  const normalizedPath = normalizeAuthPath(import.meta.env.VITE_AUTH_LOGIN_PATH)
+  if (normalizedPath !== '/auth/login') {
+    // Поддержка кастомного пути логина больше не используется, оставлено для совместимости.
+  }
 
-  const text = (typeof data === 'string' ? data : '').trim().toLowerCase()
-  if (text !== 'ok') throw new Error(text || '?? ??????? ????????? ????')
+  const data = await postForm<string>('/auth/login', body)
+
+  const text = (typeof data === 'string' ? data : '').trim()
+  if (text !== 'ok') throw new Error(text || 'неизвестная ошибка логина')
   return { ok: true }
 }
