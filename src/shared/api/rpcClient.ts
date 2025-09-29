@@ -1,12 +1,7 @@
-/** Файл: src/shared/api/rpcClient.ts
- *  Назначение: централизованный клиент RPC-запросов поверх httpClient.
- *  Использование: вызывайте rpc() вместо прямого доступа к axios-инстансу.
- *  Дополнительно: безопасно ходит на сервер (поддержка, повтор, обработка URL), оставляет контроль на стороне axios-инстанса.
- */
 import { api } from './httpClient'
 
-const rawRpcPath = (import.meta.env.VITE_RPC_PATH || '/rpc').trim()
-export const rpcPath = rawRpcPath || '/rpc'
+const RAW_RPC_PATH = (import.meta.env.VITE_RPC_PATH || '/api').trim()
+const RPC_URL = RAW_RPC_PATH ? (RAW_RPC_PATH.startsWith('/') ? RAW_RPC_PATH : `/${RAW_RPC_PATH}`) : '/api'
 
 interface RpcPayload<TParams> {
   method: string
@@ -20,21 +15,22 @@ type RpcEnvelope<TResult> =
   | { result?: undefined; error: RpcError }
   | TResult
 
+function extractErrorMessage(error: RpcError, method: string): string {
+  if (!error) return `RPC ${method} failed`
+  if (typeof error === 'string') return error
+  return error.message || `RPC ${method} failed`
+}
+
 export async function rpc<T = unknown, TParams = unknown>(
   method: string,
   params?: TParams,
 ): Promise<T> {
   const payload: RpcPayload<TParams> = { method, params }
-  const path = rpcPath.startsWith('/') ? rpcPath : `/${rpcPath}`
-  const { data } = await api.post<RpcEnvelope<T>>(path, payload)
+  const { data } = await api.post<RpcEnvelope<T>>(RPC_URL, payload)
 
   if (data && typeof data === 'object') {
     if ('error' in data && data.error) {
-      const message =
-        typeof data.error === 'string'
-          ? data.error
-          : (data.error?.message ?? `RPC ${method} failed`)
-      throw new Error(message)
+      throw new Error(extractErrorMessage(data.error, method))
     }
 
     if ('result' in data) {
