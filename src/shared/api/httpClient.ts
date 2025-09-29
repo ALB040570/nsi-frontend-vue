@@ -64,7 +64,6 @@ function resolveBaseURL(): string {
 }
 
 const baseURL = resolveBaseURL()
-export const rpcPath = import.meta.env.VITE_RPC_PATH ?? ''
 
 export const api: AxiosInstance = axios.create({
   baseURL,

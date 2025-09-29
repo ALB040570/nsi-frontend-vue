@@ -1,81 +1,71 @@
-/** Файл: vite.config.ts
- *  Назначение: конфигурация Vite с dev-прокси и алиасами слоёв приложения.
- *  Использование: считывается сборщиком при запуске dev/production серверов.
- */
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-const ABSOLUTE_URL_PATTERN = /^([a-z][a-z\d+\-.]*:)?\/\//i
+function stripTrailingSlashes(value: string): string {
+  return value.replace(/\/+$/, '')
+}
+
+function ensureLeadingSlash(value: string): string {
+  return value.startsWith('/') ? value : `/${value}`
+}
+
+function normalizeProxyBase(value: string | undefined): string {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return '/api'
+  }
+
+  const withLeading = ensureLeadingSlash(trimmed)
+  const withoutTrailing = stripTrailingSlashes(withLeading)
+  return withoutTrailing || '/'
+}
+
+function normalizeUpstreamBase(value: string | undefined): string {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  return stripTrailingSlashes(ensureLeadingSlash(trimmed))
+}
 
 function escapeForRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function normalizeProxyBase(value: string | undefined): string {
-  if (!value) {
-    return '/api'
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return '/api'
-  }
-
-  const withLeading = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-  const withoutTrailing = withLeading.replace(/\/+$/, '')
-  return withoutTrailing || '/'
-}
-
-function normalizeRewriteBase(pathname: string): string {
-  if (!pathname) {
-    return '/'
-  }
-
-  const withoutTrailing = pathname.replace(/\/+$/, '')
-  return withoutTrailing || '/'
-}
-
-function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
-  const proxyBase = normalizeProxyBase(env.VITE_API_DEV_PROXY_BASE)
-  const rawApiBase = env.VITE_API_BASE?.trim()
-  const proxies: Record<string, ProxyOptions> = {}
-
-  if (rawApiBase && ABSOLUTE_URL_PATTERN.test(rawApiBase)) {
-    try {
-      const apiURL = new URL(rawApiBase)
-      const target = `${apiURL.protocol}//${apiURL.host}`
-      const rewriteBase = normalizeRewriteBase(apiURL.pathname)
-      const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
-
-      proxies[proxyBase] = {
-        target,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(pattern, rewriteBase),
-      }
-    } catch {
-      // Ignore parse failures and fall back to the default proxy below
-    }
-  }
-
-  if (!proxies[proxyBase]) {
-    const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
-    proxies[proxyBase] = {
-      target: 'http://45.8.116.32',
-      changeOrigin: true,
-      rewrite: (path) => path.replace(pattern, '/dtj/nsi/api'),
-    }
-  }
-
-  return proxies
-}
-
-// https://vite.dev/config/
-
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const rawTarget = env.VITE_DEV_BACKEND || 'http://localhost:8080'
+  const proxyBase = normalizeProxyBase(env.VITE_API_DEV_PROXY_BASE)
+
+  let target = rawTarget
+  let upstreamPath = ''
+
+  try {
+    const parsed = new URL(rawTarget)
+    target = `${parsed.protocol}//${parsed.host}`
+    upstreamPath = stripTrailingSlashes(parsed.pathname)
+  } catch {
+    // rawTarget could be a proxy string; leave as provided
+  }
+
+  if (!upstreamPath || upstreamPath === '/') {
+    upstreamPath = normalizeUpstreamBase(env.VITE_DEV_BACKEND_PATH)
+  }
+
+  let rewrite: ((path: string) => string) | undefined
+
+  if (upstreamPath && upstreamPath !== proxyBase) {
+    const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
+    const replacement = upstreamPath || '/'
+    rewrite = (path: string) => path.replace(pattern, replacement)
+  } else if (!upstreamPath && proxyBase !== '/api') {
+    const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
+    rewrite = (path: string) => path.replace(pattern, '/')
+  }
 
   return {
     plugins: [vue(), vueDevTools()],
@@ -92,7 +82,14 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      proxy: createProxyConfig(env),
+      proxy: {
+        [proxyBase]: {
+          target,
+          changeOrigin: true,
+          secure: false,
+          ...(rewrite ? { rewrite } : {}),
+        },
+      },
     },
   }
 })

@@ -1,9 +1,12 @@
 /** Файл: src/shared/api/rpcClient.ts
- *  Назначение: единая точка вызова RPC-методов поверх httpClient.
- *  Использование: репозитории сущностей импортируют rpc() и вызывают методы бэкенда.
- *  Плюсы: общий клиент (интерсепторы, заголовки, базовый URL), отсутствие дублирования axios-кода.
+ *  Назначение: централизованный клиент RPC-запросов поверх httpClient.
+ *  Использование: вызывайте rpc() вместо прямого доступа к axios-инстансу.
+ *  Дополнительно: безопасно ходит на сервер (поддержка, повтор, обработка URL), оставляет контроль на стороне axios-инстанса.
  */
-import { api, rpcPath } from './httpClient'
+import { api } from './httpClient'
+
+const rawRpcPath = (import.meta.env.VITE_RPC_PATH || '/rpc').trim()
+export const rpcPath = rawRpcPath || '/rpc'
 
 interface RpcPayload<TParams> {
   method: string
@@ -22,7 +25,8 @@ export async function rpc<T = unknown, TParams = unknown>(
   params?: TParams,
 ): Promise<T> {
   const payload: RpcPayload<TParams> = { method, params }
-  const { data } = await api.post<RpcEnvelope<T>>(rpcPath, payload)
+  const path = rpcPath.startsWith('/') ? rpcPath : `/${rpcPath}`
+  const { data } = await api.post<RpcEnvelope<T>>(path, payload)
 
   if (data && typeof data === 'object') {
     if ('error' in data && data.error) {
