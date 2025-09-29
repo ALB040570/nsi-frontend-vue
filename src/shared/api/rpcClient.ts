@@ -1,17 +1,28 @@
 import { api } from './httpClient'
 
+const DEFAULT_RPC_PATH = '/api/rpc'
+
+function ensureApiPrefix(path: string): string {
+  if (path === '/api') {
+    return path
+  }
+
+  if (path.startsWith('/api/')) {
+    return path
+  }
+
+  const withoutLeading = path.replace(/^\/+/, '')
+  return `/api/${withoutLeading}`
+}
+
 function resolveRpcUrl(raw: string | undefined): string {
   const trimmed = raw?.trim()
   if (!trimmed) {
-    return ''
+    return DEFAULT_RPC_PATH
   }
 
-  const lower = trimmed.toLowerCase()
-  if (lower === '/api' || lower === 'api') {
-    return ''
-  }
-
-  return trimmed.startsWith('/') ? trimmed : '/' + trimmed
+  const normalized = trimmed.startsWith('/') ? trimmed : '/' + trimmed
+  return ensureApiPrefix(normalized)
 }
 
 const RPC_URL = resolveRpcUrl(import.meta.env.VITE_RPC_PATH)
@@ -39,7 +50,7 @@ export async function rpc<T = unknown, TParams = unknown>(
   params?: TParams,
 ): Promise<T> {
   const payload: RpcPayload<TParams> = { method, params }
-  const endpoint = RPC_URL || ''
+  const endpoint = RPC_URL
   const { data } = await api.post<RpcEnvelope<T>>(endpoint, payload)
 
   if (data && typeof data === 'object') {
