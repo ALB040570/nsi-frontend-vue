@@ -45,9 +45,10 @@ export default async function handler(req: Request) {
   let resp: Response
   try {
     resp = await fetch(backendReq)
-  } catch (e: any) {
+  } catch (e: unknown) {
+    const detail = e instanceof Error ? e.message : String(e)
     return new Response(
-      JSON.stringify({ message: 'Bad Gateway', detail: String(e?.message || e) }),
+      JSON.stringify({ message: 'Bad Gateway', detail }),
       { status: 502, headers: { 'content-type': 'application/json' } },
     )
   }
