@@ -1,7 +1,20 @@
 import { api } from './httpClient'
 
-const RAW_RPC_PATH = (import.meta.env.VITE_RPC_PATH || '/api').trim()
-const RPC_URL = RAW_RPC_PATH ? (RAW_RPC_PATH.startsWith('/') ? RAW_RPC_PATH : `/${RAW_RPC_PATH}`) : '/api'
+function resolveRpcUrl(raw: string | undefined): string {
+  const trimmed = raw?.trim()
+  if (!trimmed) {
+    return ''
+  }
+
+  const lower = trimmed.toLowerCase()
+  if (lower === '/api' || lower === 'api') {
+    return ''
+  }
+
+  return trimmed.startsWith('/') ? trimmed : '/' + trimmed
+}
+
+const RPC_URL = resolveRpcUrl(import.meta.env.VITE_RPC_PATH)
 
 interface RpcPayload<TParams> {
   method: string
@@ -16,9 +29,9 @@ type RpcEnvelope<TResult> =
   | TResult
 
 function extractErrorMessage(error: RpcError, method: string): string {
-  if (!error) return `RPC ${method} failed`
+  if (!error) return 'RPC ' + method + ' failed'
   if (typeof error === 'string') return error
-  return error.message || `RPC ${method} failed`
+  return error.message || 'RPC ' + method + ' failed'
 }
 
 export async function rpc<T = unknown, TParams = unknown>(
@@ -26,7 +39,8 @@ export async function rpc<T = unknown, TParams = unknown>(
   params?: TParams,
 ): Promise<T> {
   const payload: RpcPayload<TParams> = { method, params }
-  const { data } = await api.post<RpcEnvelope<T>>(RPC_URL, payload)
+  const endpoint = RPC_URL || ''
+  const { data } = await api.post<RpcEnvelope<T>>(endpoint, payload)
 
   if (data && typeof data === 'object') {
     if ('error' in data && data.error) {
