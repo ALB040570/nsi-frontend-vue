@@ -1,3 +1,7 @@
+/** Файл: src/shared/lib/permissions.ts
+ *  Назначение: утилиты проверки полномочий и парсинга таргетов.
+ *  Использование: импортируйте в сторах или фичах при проверке прав.
+ */
 export type Permission = string
 
 export function parseTargets(target?: string | null): Set<Permission> {

@@ -1,8 +1,8 @@
-/** Файл: src/lib/auth.ts
+/** Файл: src/shared/api/auth.ts
  *  Назначение: функции аутентификации пользователя на REST-endpoint бекенда.
  *  Использование: импортируйте login() для выполнения входа по логину и паролю.
  */
-import { postForm } from '@shared/api/httpClient'
+import { postForm } from './httpClient'
 
 export interface LoginCredentials {
   username: string

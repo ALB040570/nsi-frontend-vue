@@ -1,3 +1,6 @@
+<!-- Файл: src/components/icons/IconEcosystem.vue
+     Назначение: демонстрационный UI-компонент стартового шаблона.
+     Использование: подключается в приветственном интерфейсе приложения. -->
 <template>
   <svg xmlns="http://www.w3.org/2000/svg" width="18" height="20" fill="currentColor">
     <path

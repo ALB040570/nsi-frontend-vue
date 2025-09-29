@@ -45,6 +45,16 @@ export type RawComponentRecord = {
   NAME?: string | null
 }
 
+export interface SaveObjectTypeRecord {
+  id?: string | number | null
+  ID?: string | number | null
+  number?: string | number | null
+  cls?: string | number | null
+  CLS?: string | number | null
+  name?: string | null
+  NAME?: string | null
+}
+
 const GEOMETRY_ALIASES: Record<GeometryKind, string[]> = {
   точка: ['точка', 'point', 'pt', 'p', '1', 'g1', 'point_z', 'pointz'],
   линия: ['линия', 'line', 'linestring', 'polyline', '2', 'g2'],

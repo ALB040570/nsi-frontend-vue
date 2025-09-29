@@ -1,7 +1,11 @@
+/** Файл: src/stores/auth.ts
+ *  Назначение: Pinia-стор приложения (аутентификация/пример).
+ *  Использование: импортируйте через фичевые фасады или напрямую при инициализации.
+ */
 import { defineStore } from 'pinia'
-import { login as apiLogin, type LoginCredentials } from '@/lib/auth'
-import { getCurUserInfo, type CurUser } from '@/lib/rpc'
-import { parseTargets, can as canUtil, canAny as canAnyUtil } from '@/lib/permissions'
+import { login as apiLogin, type LoginCredentials } from '@shared/api'
+import { getCurUserInfo, type CurUser } from '@shared/api'
+import { parseTargets, can as canUtil, canAny as canAnyUtil } from '@shared/lib'
 
 function sanitizeRedirect(path: unknown): string | null {
   if (typeof path !== 'string') return null
@@ -52,9 +56,9 @@ export const useAuthStore = defineStore('auth', {
         await apiLogin(payload)
         await this.fetchMe()
         return { ok: true as const }
-      } catch (e: any) {
-        this.error = e?.message ?? '?????? ?????'
-        throw e
+      } catch (error: unknown) {
+        this.error = error instanceof Error ? error.message : 'Не удалось выполнить вход'
+        throw error
       } finally {
         this.isAuthenticating = false
       }

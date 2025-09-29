@@ -2,7 +2,7 @@
  *  Назначение: доменные типы и мапперы для сущности «Тип обслуживаемого объекта».
  *  Использование: применять в репозиториях, фичах и виджетах при работе с типами.
  */
-import type { ComponentOption } from '@entities/component/model/types'
+import type { ComponentOption } from '@entities/component'
 
 export type GeometryKind = 'точка' | 'линия' | 'полигон'
 

@@ -25,7 +25,7 @@
 
       <div class="toolbar__controls">
         <NInput v-model:value="q" placeholder="Поиск…" clearable round style="width: 340px" />
-        <NRadioGroup v-model:value="geomFilter" class="geom-filter" size="small">
+        <NRadioGroup v-model:value="shapeFilter" class="geom-filter" size="small">
           <NRadioButton :value="'*'">Все</NRadioButton>
           <NRadioButton :value="'точка'">Точка</NRadioButton>
           <NRadioButton :value="'линия'">Линия</NRadioButton>
@@ -49,7 +49,7 @@
       <div v-else class="cards">
         <article
           v-for="item in rows"
-          :key="item.id || item._id || item.key"
+          :key="item.id"
           class="card"
           role="group"
           :aria-label="primaryTitle(item)"
@@ -62,14 +62,7 @@
           </header>
 
           <dl class="card__grid">
-            <template
-              v-for="field in infoFields"
-              :key="
-                (item.id || item._id || item.key || item.uuid || '') +
-                ':' +
-                (field.key || field.label)
-              "
-            >
+            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -202,23 +195,23 @@ import {
   useDialog,
   useMessage,
 } from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import type { DataTableColumn } from 'naive-ui'
 
 import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/ionicons5'
 
 import { debounce } from 'lodash-es'
 
 import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations, useObjectTypesQuery } from '@features/object-type-crud'
+import { useObjectTypeMutations, useObjectTypesQuery, ensureComponentObjects, resolveRemoveLinkIds, type LinkEntry } from '@features/object-type-crud'
 import {
   type GeometryKind,
   type GeometryPair,
   type LoadedObjectType,
   type ObjectType,
+  type ObjectTypesSnapshot,
 } from '@entities/object-type'
-import { createComponentIfMissing, type Component, type ComponentOption } from '@entities/component'
-import { getErrorMessage } from '@shared/lib/rpc'
-import { normalizeText } from '@shared/lib/text'
+import { createComponentIfMissing, type ComponentOption } from '@entities/component'
+import { getErrorMessage, normalizeText } from '@shared/lib'
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
@@ -259,8 +252,6 @@ interface FetchState {
 
   errorMessage: string
 }
-
-type LinkEntry = { compId: string; linkId: string }
 
 interface FormState {
   name: string
@@ -333,7 +324,7 @@ const qc = useQueryClient()
 const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
-const geomFilter = ref<'*' | GeometryKind>('*')
+const shapeFilter = ref<'*' | GeometryKind>('*')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
 let mediaQueryList: MediaQueryList | null = null
@@ -341,6 +332,7 @@ const handleMediaQueryChange = (e: MediaQueryList | MediaQueryListEvent) => {
   isMobile.value = 'matches' in e ? e.matches : false
 }
 const { data: snapshot, isLoading, isFetching, error } = useObjectTypesQuery()
+const snapshotData = computed<ObjectTypesSnapshot | undefined>(() => snapshot.value ?? undefined)
 
 const fetchState = computed<FetchState>(() => ({
   isLoading: isLoading.value,
@@ -365,9 +357,9 @@ watch(
   },
 )
 
-const objectTypes = computed(() => snapshot.value?.items ?? [])
-const componentsByType = computed(() => snapshot.value?.componentsByType ?? {})
-const allComponents = computed(() => snapshot.value?.allComponents ?? [])
+const objectTypes = computed(() => snapshotData.value?.items ?? [])
+const componentsByType = computed(() => snapshotData.value?.componentsByType ?? {})
+const allComponents = computed(() => snapshotData.value?.allComponents ?? [])
 const createdComponents = ref<ComponentOption[]>([])
 const removingId = ref<string | null>(null)
 const allComponentOptions = computed<ComponentOption[]>(() => {
@@ -381,10 +373,9 @@ const componentSelectOptions = computed(() =>
   allComponentOptions.value.map((option) => ({ label: option.name, value: option.name })),
 )
 
-const geometryOptions = computed(() => snapshot.value?.geometryOptions ?? [])
-const geometryPairByKind = computed(() => snapshot.value?.geometryPairByKind ?? {})
+const geometryPairByKind = computed(() => snapshotData.value?.geometryPairByKind ?? {})
 const linksByType = computed<Record<string, LinkEntry[]>>(
-  () => snapshot.value?.linksByType ?? {},
+  () => snapshotData.value?.linksByType ?? {},
 )
 const componentMapByName = computed(() => {
   const map = new Map<string, ComponentOption>()
@@ -395,54 +386,10 @@ const componentMapByName = computed(() => {
 const getGeometryPair = (kind: GeometryKind): GeometryPair =>
   geometryPairByKind.value[kind] ?? { fv: null, pv: null }
 
-const relName = (typeName: string, compName: string) => `${typeName} <=> ${compName}`
 
-async function ensureComponentObjects(names: string[]): Promise<Component[]> {
-  const uniqueNames = Array.from(new Set(names.map((name) => name.trim()).filter(Boolean)))
-  if (!uniqueNames.length) return []
 
-  const byName = new Map<string, Component>()
-  for (const option of allComponentOptions.value) {
-    byName.set(normalizeText(option.name), { id: option.id, name: option.name })
-  }
 
-  const result: Component[] = []
 
-  for (const rawName of uniqueNames) {
-    const key = normalizeText(rawName)
-    let component = byName.get(key)
-    if (!component) {
-      const created = await createComponentIfMissing(rawName)
-      component = { id: String(created.id), name: created.name }
-      byName.set(key, component)
-      if (!createdComponents.value.some((item) => item.id === String(created.id))) {
-        createdComponents.value = [
-          ...createdComponents.value,
-          { id: String(created.id), name: created.name },
-        ]
-      }
-    }
-    result.push(component)
-  }
-
-  return result
-}
-
-function resolveRemoveLinkIds(typeId: string, componentNames: string[]): number[] {
-  const links = linksByType.value[typeId] ?? []
-  const ids: number[] = []
-
-  for (const name of componentNames) {
-    const option = componentMapByName.value.get(normalizeText(name))
-    if (!option) continue
-    const link = links.find((entry) => String(entry.compId) === String(option.id))
-    if (!link) continue
-    const numeric = Number(link.linkId)
-    if (Number.isFinite(numeric)) ids.push(numeric)
-  }
-
-  return ids
-}
 
 const handleUpdateComponentValue = (nextNames: string[]) => {
   form.value.component = nextNames
@@ -460,7 +407,7 @@ const handleComponentCreated = async (component: { id: string; cls: number; name
 
 const filteredRows = computed(() => {
   const search = q.value.trim().toLowerCase()
-  const gf = geomFilter.value
+  const gf = shapeFilter.value
   return objectTypes.value.filter((item) => {
     const geometryOk = gf === '*' ? true : item.geometry === gf
     if (!search) return geometryOk
@@ -481,7 +428,7 @@ const rowKey = (row: ObjectType) => row.id
 
 const MAX_CHIPS = 4
 
-function renderComponents(row: ObjectType) {
+function renderComponents(row: ObjectType): VNodeChild {
   const list = Array.isArray(row.component) ? row.component : []
   const chips = list.slice(0, MAX_CHIPS)
   const rest = Math.max(0, list.length - MAX_CHIPS)
@@ -515,7 +462,7 @@ function renderComponents(row: ObjectType) {
   return h('div', { class: 'chips-row' }, more ? [...chipsNodes, more] : chipsNodes)
 }
 
-const renderActions = (row: ObjectType) => {
+const renderActions = (row: ObjectType): VNodeChild => {
   const editBtn = h(
     NButton,
     { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить тип' },
@@ -527,7 +474,7 @@ const renderActions = (row: ObjectType) => {
     {
       positiveText: 'Удалить',
       negativeText: 'Отмена',
-      onPositiveClick: () => removeRow(row.id as any),
+      onPositiveClick: () => removeRow(row.id),
     },
     {
       trigger: () =>
@@ -543,7 +490,7 @@ const renderActions = (row: ObjectType) => {
   return h('div', { class: 'table-actions' }, [editBtn, delBtn])
 }
 
-const columns = computed<DataTableColumns<ObjectType>>(() => [
+const columns = computed<DataTableColumn<ObjectType>[]>(() => [
   {
     title: 'Типы объектов',
     key: 'name',
@@ -591,45 +538,31 @@ interface CardField {
   isActions?: boolean
 }
 
-const createFieldRenderer = (column: DataTableColumns<ObjectType>[number]) => {
-  if (typeof column.render === 'function') {
-    return (row: ObjectType) => column.render!(row as any)
-  }
-
-  const key = column.key as keyof ObjectType | undefined
-  return (row: ObjectType) => {
-    if (!key) return ''
-    const value = row[key]
-    return value == null ? '' : value
-  }
-}
-
-const cardFields = computed<CardField[]>(() =>
-  columns.value.map((column, index) => {
-    const columnKey =
-      (typeof column.key === 'string' && column.key) ||
-      (typeof column.key === 'number' ? String(column.key) : undefined) ||
-      (typeof column.title === 'string' ? column.title : `field-${index}`)
-
-    const label = typeof column.title === 'string' ? column.title : columnKey
-
-    const renderFn =
-      column.key === 'geometry'
-        ? (row: ObjectType) => geometryLabel(row.geometry)
-        : column.key === 'actions'
-          ? renderActions
-          : createFieldRenderer(column)
-
-    return {
-      key: columnKey,
-      label,
-      render: renderFn,
-      isPrimary: column.key === 'name',
-      isStatus: column.key === 'geometry',
-      isActions: column.key === 'actions',
-    }
-  }),
-)
+const cardFields = computed<CardField[]>(() => [
+  {
+    key: 'name',
+    label: 'Типы объектов',
+    render: (row) => row.name,
+    isPrimary: true,
+  },
+  {
+    key: 'geometry',
+    label: 'Форма на карте',
+    render: (row) => geometryLabel(row.geometry),
+    isStatus: true,
+  },
+  {
+    key: 'component',
+    label: 'Компоненты',
+    render: renderComponents,
+  },
+  {
+    key: 'actions',
+    label: 'Действия',
+    render: renderActions,
+    isActions: true,
+  },
+])
 
 const primaryField = computed(
   () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
@@ -640,16 +573,23 @@ const infoFields = computed(() =>
   cardFields.value.filter((field) => !field.isPrimary && !field.isStatus && !field.isActions),
 )
 
-const toPlainText = (value: VNodeChild): string => {
+const toPlainText = (value: VNodeChild | VNodeChild[]): string => {
   if (value == null || typeof value === 'boolean') return ''
   if (Array.isArray(value))
     return value
-      .map((item) => toPlainText(item as VNodeChild))
+      .map((item) => toPlainText(item as VNodeChild | VNodeChild[]))
       .filter(Boolean)
       .join(' ')
-  if (typeof value === 'object') {
-    const children = (value as any).children
-    return children != null ? toPlainText(children as VNodeChild) : ''
+  if (typeof value === 'object' && value !== null) {
+    const childContainer = value as { children?: unknown }
+    const { children } = childContainer
+    if (Array.isArray(children)) {
+      return toPlainText(children as VNodeChild[])
+    }
+    if (children != null) {
+      return toPlainText(children as VNodeChild)
+    }
+    return ''
   }
   return String(value)
 }
@@ -923,8 +863,24 @@ async function save() {
       const added = compNames.filter((name) => !prevSet.has(normalizeText(name)))
 
       if (removed.length || added.length) {
-        const addComponents = added.length ? await ensureComponentObjects(added) : []
-        const removeLinkIds = resolveRemoveLinkIds(String(current!.id), removed)
+        const addComponents = added.length
+          ? await ensureComponentObjects(added, createComponentIfMissing)
+          : []
+        if (addComponents.length) {
+          const existingIds = new Set(allComponentOptions.value.map((option) => String(option.id)))
+          const createdOptions = addComponents
+            .filter((component) => !existingIds.has(String(component.id)))
+            .map<ComponentOption>((component) => ({ id: String(component.id), name: component.name }))
+          if (createdOptions.length) {
+            createdComponents.value = [...createdComponents.value, ...createdOptions]
+          }
+        }
+        const removeLinkIds = resolveRemoveLinkIds(
+          String(current!.id),
+          linksByType.value,
+          allComponentOptions.value,
+          removed,
+        )
         await updateComponentsDiffMutation.mutateAsync({
           typeId: Number(current!.id),
           typeCls: Number(current!.cls),

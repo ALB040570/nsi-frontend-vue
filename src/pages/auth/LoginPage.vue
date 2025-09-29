@@ -1,3 +1,6 @@
+<!-- Файл: src/pages/auth/LoginPage.vue
+     Назначение: страница авторизации с формой логина.
+     Использование: подключается в маршрутизаторе по пути /login. -->
 <template>
   <section class="login-page">
     <NCard class="login-card">
@@ -63,16 +66,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
 import { NAlert, NButton, NCard, NForm, NFormItem, NInput } from 'naive-ui'
 
-import { useAuthStore } from '@/stores/auth'
-import type { LoginCredentials } from '@/lib/auth'
+import { useAuth } from '@features/auth'
+import type { LoginCredentials } from '@features/auth'
 
 const router = useRouter()
 const route = useRoute()
-const auth = useAuthStore()
-const { isAuthenticating, error: authError } = storeToRefs(auth)
+const auth = useAuth()
+const isAuthenticating = auth.isAuthenticating
+const authError = auth.error
 
 const form = reactive<LoginCredentials>({ username: '', password: '' })
 
@@ -126,7 +129,7 @@ const handleSubmit = async () => {
     const res = await auth.login({ ...form })
     if (res?.ok) {
       form.password = ''
-      const target = auth.consumeRedirectPath?.() ?? (route.query.redirect as string) ?? '/'
+      const target = auth.consumeRedirectPath() ?? (route.query.redirect as string) ?? '/'
       await router.replace(target)
     }
   } catch (err) {

@@ -1,5 +1,9 @@
+/** Файл: src/router/index.ts
+ *  Назначение: конфигурация маршрутизатора приложения и guard-аутентификации.
+ *  Использование: импортируйте router или installAppRouter из @app/router.
+ */
 import { createRouter, createWebHistory } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
+import { useAuth } from '@features/auth'
 
 const Home = () => import('@/components/HelloWorld.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
@@ -29,7 +33,7 @@ function normalizeRedirect(value: unknown): string | null {
 }
 
 router.beforeEach((to) => {
-  const auth = useAuthStore()
+  const auth = useAuth()
 
   if (to.name === 'login') {
     const fromQuery = normalizeRedirect(to.query?.redirect)
@@ -37,7 +41,7 @@ router.beforeEach((to) => {
       auth.setRedirectPath(fromQuery)
     }
 
-    if (auth.isAuthenticated) {
+    if (auth.isAuthenticated.value) {
       const target = auth.consumeRedirectPath() ?? '/'
       return { path: target }
     }
@@ -45,7 +49,7 @@ router.beforeEach((to) => {
     return true
   }
 
-  if (to.meta.requiresAuth && !auth.isAuthenticated) {
+  if (to.meta.requiresAuth && !auth.isAuthenticated.value) {
     // const target = normalizeRedirect(to.fullPath) ?? '/'
     // auth.setRedirectPath(target)
 

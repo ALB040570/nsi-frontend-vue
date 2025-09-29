@@ -2,16 +2,16 @@
  *  Назначение: инкапсулировать RPC-вызовы и маппинг для типов объектов и их связей.
  *  Использование: вызывать из фич и страниц для загрузки списков и выполнения CRUD.
  */
-import { rpc } from '@shared/api/rpcClient'
-import { extractRecords, firstRecord } from '@shared/lib/rpc'
-import { normalizeText, trimmedString, toOptionalString } from '@shared/lib/text'
-import type { ComponentOption } from '@entities/component/model/types'
+import { rpc } from '@shared/api'
+import { extractRecords, firstRecord, normalizeText, trimmedString, toOptionalString } from '@shared/lib'
+import type { ComponentOption } from '@entities/component'
 import {
   normalizeGeometry,
   type RawComponentRecord,
   type RawGeometryRecord,
   type RawObjectTypeRecord,
   type RawRelRecord,
+  type SaveObjectTypeRecord,
 } from '../model/dto'
 import type {
   ComponentLink,
@@ -251,7 +251,7 @@ export async function createTypeIns(payload: {
   fvShape: number | string | null
   pvShape: number | string | null
 }): Promise<{ id: number; cls: number }> {
-  const response = await rpc('data/saveTypesObjects', [
+  const response = await rpc<SaveObjectTypeRecord | { result?: SaveObjectTypeRecord }>('data/saveTypesObjects', [
     'ins',
     {
       accessLevel: 1,
@@ -261,10 +261,14 @@ export async function createTypeIns(payload: {
       pvShape: payload.pvShape,
     },
   ])
-  const record = firstRecord<any>(response)
+  const record = firstRecord<SaveObjectTypeRecord>(response)
+  if (!record) throw new Error('Пустой ответ при создании типа объекта')
+  const idValue = toOptionalString(record.id ?? record.ID ?? record.number)
+  const clsValue = toOptionalString(record.cls ?? record.CLS)
+  if (!idValue || !clsValue) throw new Error('Нет идентификаторов созданного типа объекта')
   return {
-    id: Number(record?.id ?? record?.ID ?? record?.number),
-    cls: Number(record?.cls ?? record?.CLS),
+    id: Number(idValue),
+    cls: Number(clsValue),
   }
 }
 
@@ -312,21 +316,5 @@ export async function unlinkRelationByIdro(idro: number | string): Promise<void>
   await rpc('data/deleteOwnerWithProperties', [idro, 0])
 }
 
-export async function createComponentIfMissing(name: string): Promise<{ id: number; cls: number; name: string }> {
-  const response = await rpc('data/saveComponents', [
-    'ins',
-    {
-      accessLevel: 1,
-      cls: 1027,
-      name,
-    },
-  ])
-  const record = firstRecord<any>(response)
-  return {
-    id: Number(record?.id ?? record?.ID ?? record?.number),
-    cls: Number(record?.cls ?? record?.CLS ?? 1027),
-    name: record?.name ?? name,
-  }
-}
 /** @deprecated Используйте updateTypeGeometry */
 export const updateTypeGeomUpd = updateTypeGeometry

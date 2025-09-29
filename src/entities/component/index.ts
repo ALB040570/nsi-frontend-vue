@@ -1,6 +1,4 @@
-/** Файл: src/entities/component/index.ts
- *  Назначение: единая точка доступа к моделям и репозиторию сущности «Компонент».
- *  Использование: импортируйте типы и API через @entities/component для повторного использования.
- */
-export * from './model/types'
+/** Публичный API сущности "компонент" */
 export * from './api/repository'
+export type { Component, ComponentOption } from './model/types'
+export type { ComponentRecord, ComponentSaveRecord } from './model/dto'

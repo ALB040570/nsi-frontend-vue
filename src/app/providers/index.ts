@@ -4,6 +4,7 @@
  */
 import type { App } from 'vue'
 
-export function setupAppProviders(_: App): void {
+export function setupAppProviders(app: App): void {
+  void app
   // Заглушка: добавьте регистрацию провайдеров (pinia, vue-query, i18n) по мере необходимости.
 }

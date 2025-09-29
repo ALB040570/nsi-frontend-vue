@@ -1,3 +1,6 @@
+<!-- Файл: src/components/TheWelcome.vue
+     Назначение: демонстрационный UI-компонент стартового шаблона.
+     Использование: подключается в приветственном интерфейсе приложения. -->
 <script setup lang="ts">
 import WelcomeItem from './WelcomeItem.vue'
 import DocumentationIcon from './icons/IconDocumentation.vue'

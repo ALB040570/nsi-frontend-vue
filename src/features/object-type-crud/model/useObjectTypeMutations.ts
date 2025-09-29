@@ -3,12 +3,11 @@
  *  Использование: подключать в формах/страницах для вызова готовых мутаций и инвалидации кэша.
  */
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { normalizeText } from '@shared/lib/text'
-import { toNumericOrUndefined } from '@shared/lib/numbers'
-import type { GeometryPair, GeometryKind } from '@entities/object-type/model/types'
-import * as objectTypeRepo from '@entities/object-type/api/repository'
-import * as componentRepo from '@entities/component/api/repository'
-import type { Component } from '@entities/component/model/types'
+import { normalizeText, toNumericOrUndefined } from '@shared/lib'
+import type { GeometryPair, GeometryKind } from '@entities/object-type'
+import * as objectTypeRepo from '@entities/object-type'
+import * as componentRepo from '@entities/component'
+import type { Component } from '@entities/component'
 
 async function ensureComponents(names: string[]): Promise<Component[]> {
   if (!names.length) return []
@@ -25,7 +24,7 @@ async function ensureComponents(names: string[]): Promise<Component[]> {
       result.push(found)
       continue
     }
-    const created = await objectTypeRepo.createComponentIfMissing(rawName)
+    const created = await componentRepo.createComponentIfMissing(rawName)
     const normalizedComponent: Component = {
       id: String(created.id),
       name: created.name,

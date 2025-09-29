@@ -1,3 +1,7 @@
+/** Файл: src/types/nsi-remote.ts
+ *  Назначение: общие типы данных NSI для фронтенда.
+ *  Использование: импортируйте при описании DTO и контрактов.
+ */
 import type { GeometryKind } from './nsi'
 
 export interface RemoteObjectType {

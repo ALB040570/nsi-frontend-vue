@@ -1,3 +1,6 @@
+<!-- Файл: src/layouts/S360Layout.vue
+     Назначение: основной макет интерфейса Service 360 (хедер, навигация, слот контента).
+     Использование: импортируйте через @layouts/S360Layout и оборачивайте страницы. -->
 <template>
   <div class="s360-layout">
     <header class="s360-top-bar">
@@ -71,10 +74,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, ref, watch, type Component as VueComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { storeToRefs } from 'pinia'
-import type { DropdownDividerOption, DropdownMixedOption, MenuOption } from 'naive-ui'
+import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
 import {
   ChevronDown,
@@ -88,7 +90,7 @@ import {
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
-import { useAuthStore } from '@/stores/auth'
+import { useAuth } from '@features/auth'
 
 interface LanguageOption {
   label: string
@@ -101,15 +103,15 @@ const languages: LanguageOption[] = [
 ]
 
 const currentLanguage = ref<LanguageOption>(languages[0])
-const languageOptions = computed<DropdownMixedOption[]>(() =>
+const languageOptions = computed<DropdownOption[]>(() =>
   languages.map((item) => ({ label: item.label, key: item.code })),
 )
 
-const auth = useAuthStore()
+const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
 
-const renderIcon = (icon: any) => () => h(NIcon, null, { default: () => h(icon) })
+const renderIcon = (icon: VueComponent) => () => h(NIcon, null, { default: () => h(icon) })
 
 const withTooltip = (text: string) => () =>
   h(
@@ -151,7 +153,12 @@ const initialSiderWidth = clamp(
 )
 const siderWidth = ref<number>(initialSiderWidth)
 
-function onMove(e: MouseEvent | TouchEvent) {
+const handleMouseMove = (event: MouseEvent) => onPointerMove(event)
+const handleTouchMove = (event: TouchEvent) => onPointerMove(event)
+const handleMouseUp = () => stopResizeTracking()
+const handleTouchEnd = () => stopResizeTracking()
+
+function onPointerMove(e: MouseEvent | TouchEvent) {
   const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
   if ('touches' in e && e.cancelable) {
     e.preventDefault()
@@ -159,11 +166,11 @@ function onMove(e: MouseEvent | TouchEvent) {
   siderWidth.value = clamp(startW.value + (clientX - startX.value))
 }
 
-function onUp() {
-  document.removeEventListener('mousemove', onMove as any)
-  document.removeEventListener('mouseup', onUp as any)
-  document.removeEventListener('touchmove', onMove as any)
-  document.removeEventListener('touchend', onUp as any)
+function stopResizeTracking() {
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', handleMouseUp)
+  document.removeEventListener('touchmove', handleTouchMove)
+  document.removeEventListener('touchend', handleTouchEnd)
   if (typeof window !== 'undefined') {
     localStorage.setItem(KEY, String(siderWidth.value))
   }
@@ -175,10 +182,10 @@ function startResize(e: MouseEvent | TouchEvent) {
   if (e.cancelable) {
     e.preventDefault()
   }
-  document.addEventListener('mousemove', onMove as any)
-  document.addEventListener('mouseup', onUp as any)
-  document.addEventListener('touchmove', onMove as any, { passive: false })
-  document.addEventListener('touchend', onUp as any)
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', handleMouseUp)
+  document.addEventListener('touchmove', handleTouchMove, { passive: false })
+  document.addEventListener('touchend', handleTouchEnd)
 }
 
 const menuValue = ref<string | null>(null)
@@ -207,7 +214,8 @@ watch(
   { immediate: true },
 )
 
-const { isAuthenticated, user } = storeToRefs(auth)
+const isAuthenticated = auth.isAuthenticated
+const user = auth.user
 
 const isAsideCollapsed = ref(false)
 
@@ -298,7 +306,7 @@ const profileInitials = computed(() => {
 const PROFILE_NAME_KEY = 'profile-name'
 const PROFILE_DIVIDER_KEY = 'profile-divider'
 
-const profileOptions = computed<DropdownMixedOption[]>(() => {
+const profileOptions = computed<Array<DropdownOption | DropdownDividerOption>>(() => {
   if (!isAuthenticated.value) {
     return [{ label: 'Войти', key: 'login' }]
   }
@@ -324,7 +332,7 @@ const handleProfileSelect = async (key: string | number | null) => {
     case PROFILE_DIVIDER_KEY:
       return
     case 'logout':
-      auth.logout()
+      await auth.logout()
       isAsideCollapsed.value = true
       await router.push({ name: 'login' })
       break
@@ -345,10 +353,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onMove as any)
-  document.removeEventListener('mouseup', onUp as any)
-  document.removeEventListener('touchmove', onMove as any)
-  document.removeEventListener('touchend', onUp as any)
+  stopResizeTracking()
 })
 </script>
 

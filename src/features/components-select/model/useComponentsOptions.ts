@@ -5,9 +5,9 @@
 import { computed, ref } from 'vue'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/vue-query'
 import { useDialog, useMessage } from 'naive-ui'
-import { normalizeText } from '@shared/lib/text'
-import type { Component } from '@entities/component/model/types'
-import * as componentRepo from '@entities/component/api/repository'
+import { normalizeText } from '@shared/lib'
+import type { Component } from '@entities/component'
+import * as componentRepo from '@entities/component'
 
 export interface ComponentsOption {
   label: string

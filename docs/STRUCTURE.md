@@ -31,3 +31,12 @@ import { fetchObjectTypesSnapshot } from '@entities/object-type'
 2. Создайте структуру `model/`, `api/`, `ui/` и barrel `index.ts`.
 3. Добавьте шапку-комментарий (назначение, использование).
 4. Подключите модуль через алиасы.
+
+## Правила импортов (линт)
+- ESLint (`eslint.config.ts`) запрещает глубокие импорты (`@entities/*/api/*`, `@features/*/model/*`, `@shared/api/*`) — используйте barrel-файлы.
+- Для страниц запрещены зависимости от `@app`, `@pages`, `@widgets`, `@/stores` — они работают только с `@features`, `@entities`, `@shared`, `@layouts`.
+- Для фич запрещены импорты слоёв `app/pages/layouts/widgets`; для сущностей — любые импорты кроме `@shared`.
+
+## Где лежат общие стили и токены
+- Базовые CSS и токены: `src/shared/styles/globals.css`, `src/shared/styles/tokens.css`.
+- Глобальные стили приложения Service 360: `src/assets/styles/service360.css`.

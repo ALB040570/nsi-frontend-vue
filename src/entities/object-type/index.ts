@@ -1,7 +1,16 @@
-/** Файл: src/entities/object-type/index.ts
- *  Назначение: единый вход в модель и репозитории сущности «Тип обслуживаемого объекта».
- *  Использование: импортируйте типы и функции через @entities/object-type в фичах и страницах.
- */
-export * from './model/types'
-export * from './model/dto'
+/** Публичный API сущности "тип объекта" */
 export * from './api/repository'
+export type {
+  ObjectType,
+  LoadedObjectType,
+  GeometryKind,
+  GeometryPair,
+  ObjectTypesSnapshot,
+} from './model/types'
+export type {
+  RawObjectTypeRecord,
+  RawRelRecord,
+  RawGeometryRecord,
+  RawComponentRecord,
+  SaveObjectTypeRecord,
+} from './model/dto'

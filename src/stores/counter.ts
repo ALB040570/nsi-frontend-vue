@@ -1,3 +1,7 @@
+/** Файл: src/stores/counter.ts
+ *  Назначение: Pinia-стор приложения (аутентификация/пример).
+ *  Использование: импортируйте через фичевые фасады или напрямую при инициализации.
+ */
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 

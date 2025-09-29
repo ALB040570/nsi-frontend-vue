@@ -1,6 +1,4 @@
-/** Файл: src/features/object-type-crud/index.ts
- *  Назначение: собрать сценарии и запросы CRUD для типов обслуживаемых объектов.
- *  Использование: импортируйте мутации и хуки через @features/object-type-crud в страницах/виджетах.
- */
+/** Публичный API фичи CRUD типов объектов */
 export * from './model/useObjectTypeMutations'
 export * from './model/useObjectTypesQuery'
+export * from './model/componentSync'

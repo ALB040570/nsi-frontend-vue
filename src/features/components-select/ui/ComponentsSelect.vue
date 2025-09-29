@@ -5,8 +5,8 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { NButton, NSelect, useDialog, useMessage } from 'naive-ui'
 import type { SelectOption } from 'naive-ui'
-import { normalizeText } from '@shared/lib/text'
-import { createComponentIfMissing } from '@entities/component/api/repository'
+import { normalizeText } from '@shared/lib'
+import { createComponentIfMissing } from '@entities/component'
 
 interface ComponentCreatedPayload {
   id: string
@@ -23,7 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (event: 'update:value', value: string[]): void
-  (event: 'blur', event: FocusEvent): void
+  (event: 'blur', payload: FocusEvent): void
   (event: 'created', component: ComponentCreatedPayload): void
 }>()
 
@@ -96,8 +96,8 @@ const handleUpdateValue = (value: string[]) => {
   emitValue(value)
 }
 
-const handleBlur = (event: FocusEvent) => {
-  emit('blur', event)
+const handleBlur = (payload: FocusEvent) => {
+  emit('blur', payload)
 }
 
 const keepFocus = async () => {
