@@ -3,15 +3,20 @@ import { api } from './httpClient'
 function resolveRpcUrl(raw: string | undefined): string {
   const trimmed = raw?.trim()
   if (!trimmed) {
-    return ''
+    return '/api'
   }
 
-  const lower = trimmed.toLowerCase()
-  if (lower === '/api' || lower === 'api') {
-    return ''
+  const normalized = trimmed.startsWith('/') ? trimmed : '/' + trimmed
+  const lower = normalized.toLowerCase()
+  if (lower === '/api') {
+    return '/api'
   }
 
-  return trimmed.startsWith('/') ? trimmed : '/' + trimmed
+  if (lower.startsWith('/api/')) {
+    return '/api' + normalized.slice(4)
+  }
+
+  return normalized
 }
 
 const RPC_URL = resolveRpcUrl(import.meta.env.VITE_RPC_PATH)
@@ -39,7 +44,7 @@ export async function rpc<T = unknown, TParams = unknown>(
   params?: TParams,
 ): Promise<T> {
   const payload: RpcPayload<TParams> = { method, params }
-  const endpoint = RPC_URL || ''
+  const endpoint = RPC_URL.startsWith('/api') ? RPC_URL : `/api${RPC_URL}`
   const { data } = await api.post<RpcEnvelope<T>>(endpoint, payload)
 
   if (data && typeof data === 'object') {
