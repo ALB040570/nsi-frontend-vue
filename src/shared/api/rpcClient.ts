@@ -29,9 +29,9 @@ type RpcEnvelope<TResult> =
   | TResult
 
 function extractErrorMessage(error: RpcError, method: string): string {
-  if (!error) return 'RPC ' + method + ' failed'
+  if (!error) return 'RPC  failed'
   if (typeof error === 'string') return error
-  return error.message || 'RPC ' + method + ' failed'
+  return error.message || 'RPC  failed'
 }
 
 export async function rpc<T = unknown, TParams = unknown>(
