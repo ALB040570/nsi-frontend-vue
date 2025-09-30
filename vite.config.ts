@@ -1,81 +1,29 @@
-/** Файл: vite.config.ts
- *  Назначение: конфигурация Vite с dev-прокси и алиасами слоёв приложения.
- *  Использование: считывается сборщиком при запуске dev/production серверов.
- */
+// vite.config.ts
 import { fileURLToPath, URL } from 'node:url'
-
-import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
-const ABSOLUTE_URL_PATTERN = /^([a-z][a-z\d+\-.]*:)?\/\//i
-
-function escapeForRegex(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+function joinTarget(origin?: string, basePath?: string): string {
+  const trimmedOrigin = (origin ?? '').replace(/\/+$/, '')
+  const trimmedPath = (basePath ?? '').replace(/^\/+/, '').replace(/\/+$/, '')
+  if (!trimmedOrigin) return trimmedPath ? `/${trimmedPath}` : ''
+  if (!trimmedPath) return trimmedOrigin
+  return `${trimmedOrigin}/${trimmedPath}`
 }
-
-function normalizeProxyBase(value: string | undefined): string {
-  if (!value) {
-    return '/api'
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return '/api'
-  }
-
-  const withLeading = trimmed.startsWith('/') ? trimmed : `/${trimmed}`
-  const withoutTrailing = withLeading.replace(/\/+$/, '')
-  return withoutTrailing || '/'
-}
-
-function normalizeRewriteBase(pathname: string): string {
-  if (!pathname) {
-    return '/'
-  }
-
-  const withoutTrailing = pathname.replace(/\/+$/, '')
-  return withoutTrailing || '/'
-}
-
-function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
-  const proxyBase = normalizeProxyBase(env.VITE_API_DEV_PROXY_BASE)
-  const rawApiBase = env.VITE_API_BASE?.trim()
-  const proxies: Record<string, ProxyOptions> = {}
-
-  if (rawApiBase && ABSOLUTE_URL_PATTERN.test(rawApiBase)) {
-    try {
-      const apiURL = new URL(rawApiBase)
-      const target = `${apiURL.protocol}//${apiURL.host}`
-      const rewriteBase = normalizeRewriteBase(apiURL.pathname)
-      const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
-
-      proxies[proxyBase] = {
-        target,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(pattern, rewriteBase),
-      }
-    } catch {
-      // Ignore parse failures and fall back to the default proxy below
-    }
-  }
-
-  if (!proxies[proxyBase]) {
-    const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
-    proxies[proxyBase] = {
-      target: 'http://45.8.116.32',
-      changeOrigin: true,
-      rewrite: (path) => path.replace(pattern, '/dtj/nsi/api'),
-    }
-  }
-
-  return proxies
-}
-
-// https://vite.dev/config/
 
 export default defineConfig(({ mode }) => {
+  // читаем все переменные из .env*
   const env = loadEnv(mode, process.cwd(), '')
+
+  // Один раз формируем целевой URL бэкенда для dev-прокси
+  // Приоритет:
+  // 1) VITE_DEV_BACKEND + VITE_DEV_BACKEND_PATH (рекомендуется)
+  // 2) VITE_API_BASE (если содержит полный путь вплоть до /dtj/nsi/api)
+  const backendOrigin = env.VITE_DEV_BACKEND || ''
+  const backendPath = env.VITE_DEV_BACKEND_PATH || ''
+  const fallback = env.VITE_API_BASE || 'http://localhost:8000/dtj/nsi/api'
+  const target = backendOrigin || backendPath ? joinTarget(backendOrigin, backendPath) : fallback
 
   return {
     plugins: [vue(), vueDevTools()],
@@ -92,7 +40,36 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      proxy: createProxyConfig(env),
+      proxy: {
+        // /auth/* -> <target>/auth/*
+        '/auth': {
+          target,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (p) => p, // оставляем /auth как есть
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyReq) => {
+              const o = new URL(target).origin
+              proxyReq.setHeader('origin', o)
+              proxyReq.setHeader('referer', o + '/')
+            })
+          },
+        },
+        // /api/* -> <target>/*  (снимаем префикс /api)
+        '/api': {
+          target,
+          changeOrigin: true,
+          secure: false,
+          rewrite: (p) => p.replace(/^\/api/, ''), // /api/x -> /x
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyReq) => {
+              const o = new URL(target).origin
+              proxyReq.setHeader('origin', o)
+              proxyReq.setHeader('referer', o + '/')
+            })
+          },
+        },
+      },
     },
   }
 })

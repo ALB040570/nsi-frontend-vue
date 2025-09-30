@@ -68,15 +68,17 @@ async function linkComponents(params: {
   )
 }
 
-async function fetchLinksByType(typeId: number): Promise<
-  Array<{ compId: string; linkId: string; componentName: string }>
-> {
+async function fetchLinksByType(
+  typeId: number,
+): Promise<Array<{ compId: string; linkId: string; componentName: string }>> {
   const links = await objectTypeRepo.listComponentLinks()
-  return links.filter((link) => Number(link.typeId) === Number(typeId)).map((link) => ({
-    compId: String(link.componentId),
-    linkId: String(link.idro),
-    componentName: link.componentName,
-  }))
+  return links
+    .filter((link) => Number(link.typeId) === Number(typeId))
+    .map((link) => ({
+      compId: String(link.componentId),
+      linkId: String(link.idro),
+      componentName: link.componentName,
+    }))
 }
 
 export interface CreateTypePayload {
