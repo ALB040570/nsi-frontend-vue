@@ -18,7 +18,6 @@ import type {
   GeometryKind,
   GeometryPair,
   LoadedObjectType,
-  ObjectType,
   ObjectTypesSnapshot,
 } from '../model/types'
 export const COMPONENT_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
@@ -211,16 +210,6 @@ export async function fetchObjectTypesSnapshot(): Promise<ObjectTypesSnapshot> {
   }
 }
 
-export async function listObjectTypes(): Promise<ObjectType[]> {
-  const snapshot = await fetchObjectTypesSnapshot()
-  return snapshot.items.map(({ id, name, geometry, component }) => ({
-    id,
-    name,
-    geometry,
-    component,
-  }))
-}
-
 export async function listComponentLinks(): Promise<ComponentLink[]> {
   const response = await rpc('data/loadComponentsObject2', COMPONENT_REL_ARGS)
   const rawRelations = extractRecords<RawRelRecord>(response)
@@ -315,6 +304,3 @@ export async function linkComponent(payload: {
 export async function unlinkRelationByIdro(idro: number | string): Promise<void> {
   await rpc('data/deleteOwnerWithProperties', [idro, 0])
 }
-
-/** @deprecated Используйте updateTypeGeometry */
-export const updateTypeGeomUpd = updateTypeGeometry
