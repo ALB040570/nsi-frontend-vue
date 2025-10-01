@@ -1,8 +1,8 @@
 <!-- Файл: src/pages/nsi/ObjectDefectsPage.vue
-     Назначение: страница CRUD для дефектов обслуживаемых объектов с управлением компонентами и геометрией.
+     Назначение: страница CRUD для дефектов обслуживаемых объектов с управлением компонентами и категориями.
      Использование: подключается в маршрутизаторе по пути /nsi/object-defects. -->
 <template>
-  <section class="object-types-page">
+  <section class="object-defects-page">
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
@@ -21,18 +21,30 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Ведите перечень дефектов обслуживаемых объектов, описывая их характеристики и связанные компоненты
+          Ведите перечень дефектов обслуживаемых объектов с указанием категории, компонента, индекса и статуса
         </div>
       </div>
 
       <div class="toolbar__controls">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable round style="width: 340px" />
-        <NRadioGroup v-model:value="shapeFilter" class="geom-filter" size="small">
-          <NRadioButton :value="'*'">Все</NRadioButton>
-          <NRadioButton :value="'точка'">Точка</NRadioButton>
-          <NRadioButton :value="'линия'">Линия</NRadioButton>
-          <NRadioButton :value="'полигон'">Полигон</NRadioButton>
-        </NRadioGroup>
+        <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <div class="toolbar__filters">
+          <NSelect
+            v-model:value="categoryFilter"
+            :options="categoryFilterOptions"
+            placeholder="Категория"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+          <NSelect
+            v-model:value="statusFilter"
+            :options="statusFilterOptions"
+            placeholder="Статус"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+        </div>
         <NButton type="primary" @click="openCreate">+ Добавить дефект</NButton>
       </div>
     </NCard>
@@ -101,41 +113,51 @@
       :title="editing ? 'Изменить дефект' : 'Создать дефект'"
       style="width: 560px"
     >
-      <NForm :model="form" label-width="120px">
+      <NForm :model="form" label-width="140px">
         <NFormItem
-          label="Дефект обслуживаемого объекта"
+          label="Название"
           :feedback="errors.name ?? undefined"
           :validation-status="errors.name ? 'error' : undefined"
         >
-          <NInput v-model:value="form.name" />
+          <NInput v-model:value="form.name" placeholder="Введите название дефекта" />
           <div v-if="nameWarning" class="warning-text" style="margin-top: 4px">
             {{ nameWarning }}
           </div>
         </NFormItem>
 
-        <NFormItem label="Форма на карте">
-          <NRadioGroup v-model:value="form.geometry">
-            <NRadioButton value="точка">Точка</NRadioButton>
-            <NRadioButton value="линия">Линия</NRadioButton>
-            <NRadioButton value="полигон">Полигон</NRadioButton>
-          </NRadioGroup>
+        <NFormItem label="Категория">
+          <NSelect
+            v-model:value="form.categoryFvId"
+            :options="categorySelectOptions"
+            placeholder="Выберите категорию"
+            clearable
+            filterable
+            @update:value="handleCategoryChange"
+          />
         </NFormItem>
 
-        <NFormItem label="Компоненты">
-          <div class="field-stack">
-            <ComponentsSelect
-              :value="form.component"
-              :options="componentSelectOptions"
-              :placeholder="'Начните вводить, чтобы найти компонент'"
-              @update:value="handleUpdateComponentValue"
-              @blur="handleComponentBlur"
-              @created="handleComponentCreated"
-            />
-            <p class="text-small">
-              Выбирайте компоненты из списка. Если нужного нет, введите название (минимум 2 символа)
-              и нажмите Enter для создания нового варианта.
-            </p>
-          </div>
+        <NFormItem label="Компонент">
+          <NSelect
+            v-model:value="form.componentId"
+            :options="componentSelectOptions"
+            placeholder="Выберите компонент"
+            clearable
+            filterable
+            @update:value="handleComponentChange"
+          />
+        </NFormItem>
+
+        <NFormItem label="Индекс">
+          <NInput v-model:value="form.index" placeholder="Например, D-01" />
+        </NFormItem>
+
+        <NFormItem label="Комментарий / статус">
+          <NInput
+            v-model:value="form.note"
+            type="textarea"
+            placeholder="Уточните статус или важные примечания"
+            :autosize="{ minRows: 2, maxRows: 5 }"
+          />
         </NFormItem>
       </NForm>
 
@@ -155,15 +177,25 @@
       title="О справочнике"
       style="max-width: 640px; width: 92vw"
     >
-      <p>Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние объектов, планировать обслуживание и учитывать работы.</p>
-      <p>Чтобы добавить дефект: укажите название, выберите форму на карте (точка, линия или полигон) и добавьте связанные компоненты.</p>
-      <p>Редактировать можно только те дефекты, на которые ещё нет ссылок в описаниях объектов и работ. В этом случае можно менять название, форму на карте и набор компонентов.</p>
+      <p>
+        Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние, планировать обслуживание и вести
+        аналитику по категориям и компонентам.
+      </p>
+      <p>
+        Чтобы добавить дефект: укажите название, выберите категорию и компонент (при необходимости), задайте индекс и опишите
+        статус в комментарии.
+      </p>
+      <p>
+        Редактировать можно только те дефекты, с которыми нет ограничений на стороне подсистем. Вносите изменения внимательно,
+        чтобы не потерять связь с категориями и компонентами.
+      </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
       </template>
     </NModal>
   </section>
 </template>
+
 <script setup lang="ts">
 import {
   computed,
@@ -179,8 +211,6 @@ import {
 
 import type { PropType, VNodeChild } from 'vue'
 
-import { useQueryClient } from '@tanstack/vue-query'
-
 import {
   NButton,
   NCard,
@@ -191,10 +221,8 @@ import {
   NInput,
   NModal,
   NPagination,
-  NPopover,
   NPopconfirm,
-  NRadioButton,
-  NRadioGroup,
+  NSelect,
   NTag,
   useDialog,
   useMessage,
@@ -203,25 +231,22 @@ import type { DataTableColumn } from 'naive-ui'
 
 import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/ionicons5'
 
-import { debounce } from 'lodash-es'
-
-import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations, useObjectTypesQuery, ensureComponentObjects, resolveRemoveLinkIds, type LinkEntry } from '@features/object-type-crud'
 import {
-  type GeometryKind,
-  type GeometryPair,
-  type LoadedObjectType,
-  type ObjectType,
-  type ObjectTypesSnapshot,
-} from '@entities/object-type'
-import { createComponentIfMissing, type ComponentOption } from '@entities/component'
+  useObjectDefectsQuery,
+  useObjectDefectMutations,
+} from '@features/object-defect-crud'
+import type {
+  DefectCategoryOption,
+  DefectComponentOption,
+  LoadedObjectDefect,
+  ObjectDefectsSnapshot,
+} from '@entities/object-defect'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
   isMobile.value = window.matchMedia('(max-width: 768px)').matches
 }
-// аккуратные массовые пересчёты
 
 onMounted(() => {
   if (typeof window === 'undefined') return
@@ -230,8 +255,6 @@ onMounted(() => {
   mediaQueryList.addEventListener('change', handleMediaQueryChange)
 })
 
-// при уходе со страницы выключим всё
-
 onBeforeUnmount(() => {
   if (mediaQueryList) {
     mediaQueryList.removeEventListener('change', handleMediaQueryChange)
@@ -239,46 +262,40 @@ onBeforeUnmount(() => {
   }
 })
 
-/* ---------- дефекты и утилиты ---------- */
-
 interface PaginationState {
   page: number
-
   pageSize: number
 }
 
 interface FetchState {
   isLoading: boolean
-
   isFetching: boolean
-
   isError: boolean
-
   errorMessage: string
 }
 
 interface FormState {
   name: string
-
-  geometry: GeometryKind
-
-  component: string[]
+  componentId: string | null
+  componentPvId: string | null
+  categoryFvId: string | null
+  categoryPvId: string | null
+  index: string
+  note: string
 }
 
 interface FormErrors {
   name?: string
 }
 
-const DEFAULT_GEOMETRY: GeometryKind = 'точка'
-
-const geometryLabels: Record<GeometryKind, string> = {
-  точка: 'Точка',
-  линия: 'Линия',
-  полигон: 'Полигон',
+interface CardField {
+  key: string
+  label: string
+  render: (row: LoadedObjectDefect) => VNodeChild
+  isPrimary?: boolean
+  isStatus?: boolean
+  isActions?: boolean
 }
-
-const geometryLabel = (geometry: GeometryKind | string) =>
-  geometryLabels[geometry as GeometryKind] ?? String(geometry)
 
 interface ConfirmDialogOptions {
   title?: string
@@ -288,55 +305,20 @@ interface ConfirmDialogOptions {
   html?: boolean
 }
 
-const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
-  return new Promise((resolve) => {
-    let resolved = false
-
-    const finish = (result: boolean) => {
-      if (resolved) return
-
-      resolved = true
-
-      resolve(result)
-    }
-
-    discreteDialog.warning({
-      title: options.title ?? 'Подтверждение',
-      content: options.html ? () => h('div', { innerHTML: options.content }) : options.content,
-      positiveText: options.positiveText ?? 'Подтвердить',
-      negativeText: options.negativeText ?? 'Отмена',
-      maskClosable: false,
-
-      onPositiveClick: () => {
-        finish(true)
-      },
-
-      onNegativeClick: () => {
-        finish(false)
-      },
-
-      onClose: () => {
-        finish(false)
-      },
-    })
-  })
-}
-
-/* ---------- таблица/поиск/пагинация ---------- */
-
-const qc = useQueryClient()
 const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
-const shapeFilter = ref<'*' | GeometryKind>('*')
+const categoryFilter = ref<string | null>(null)
+const statusFilter = ref<string | null>(null)
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
 let mediaQueryList: MediaQueryList | null = null
 const handleMediaQueryChange = (e: MediaQueryList | MediaQueryListEvent) => {
   isMobile.value = 'matches' in e ? e.matches : false
 }
-const { data: snapshot, isLoading, isFetching, error } = useObjectTypesQuery()
-const snapshotData = computed<ObjectTypesSnapshot | undefined>(() => snapshot.value ?? undefined)
+
+const { data: snapshot, isLoading, isFetching, error } = useObjectDefectsQuery()
+const snapshotData = computed<ObjectDefectsSnapshot | undefined>(() => snapshot.value ?? undefined)
 
 const fetchState = computed<FetchState>(() => ({
   isLoading: isLoading.value,
@@ -347,78 +329,82 @@ const fetchState = computed<FetchState>(() => ({
 
 const tableLoading = computed(() => fetchState.value.isLoading || fetchState.value.isFetching)
 
-const mutations = useObjectTypeMutations()
-const createTypeMutation = mutations.create
-const updateGeometryMutation = mutations.updateGeometry
-const renameWithMigrationMutation = mutations.renameWithMigration
-const updateComponentsDiffMutation = mutations.updateComponentsDiff
-const removeCascadeMutation = mutations.removeCascade
+const mutations = useObjectDefectMutations()
 
 watch(
   () => fetchState.value.errorMessage,
-  (m, p) => {
-    if (m && m !== p) message.error(m)
+  (next, prev) => {
+    if (next && next !== prev) message.error(next)
   },
 )
 
-const objectTypes = computed(() => snapshotData.value?.items ?? [])
-const componentsByType = computed(() => snapshotData.value?.componentsByType ?? {})
-const allComponents = computed(() => snapshotData.value?.allComponents ?? [])
-const createdComponents = ref<ComponentOption[]>([])
-const removingId = ref<string | null>(null)
-const allComponentOptions = computed<ComponentOption[]>(() => {
-  const byKey = new Map<string, ComponentOption>()
-  for (const option of allComponents.value) byKey.set(normalizeText(option.name), option)
-  for (const option of createdComponents.value) byKey.set(normalizeText(option.name), option)
-  return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-})
+const defects = computed(() => snapshotData.value?.items ?? [])
+const categoryOptions = computed<DefectCategoryOption[]>(() => snapshotData.value?.categories ?? [])
+const componentOptions = computed<DefectComponentOption[]>(() => snapshotData.value?.components ?? [])
 
-const componentSelectOptions = computed(() =>
-  allComponentOptions.value.map((option) => ({ label: option.name, value: option.name })),
-)
-
-const geometryPairByKind = computed(() => snapshotData.value?.geometryPairByKind ?? {})
-const linksByType = computed<Record<string, LinkEntry[]>>(
-  () => snapshotData.value?.linksByType ?? {},
-)
-const componentMapByName = computed(() => {
-  const map = new Map<string, ComponentOption>()
-  for (const option of allComponentOptions.value) map.set(normalizeText(option.name), option)
+const categoryOptionByFv = computed(() => {
+  const map = new Map<string, DefectCategoryOption>()
+  for (const option of categoryOptions.value) {
+    map.set(option.fvId, option)
+  }
   return map
 })
 
-const getGeometryPair = (kind: GeometryKind): GeometryPair =>
-  geometryPairByKind.value[kind] ?? { fv: null, pv: null }
-
-
-
-
-
-
-const handleUpdateComponentValue = (nextNames: string[]) => {
-  form.value.component = nextNames
-}
-
-const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {
-  if (!createdComponents.value.some((item) => item.id === component.id)) {
-    createdComponents.value = [...createdComponents.value, { id: component.id, name: component.name }]
+const componentOptionById = computed(() => {
+  const map = new Map<string, DefectComponentOption>()
+  for (const option of componentOptions.value) {
+    map.set(option.id, option)
   }
-  if (!form.value.component.includes(component.name)) {
-    form.value.component = [...form.value.component, component.name]
+  return map
+})
+
+const categoryFilterOptions = computed(() =>
+  categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
+)
+
+const statusFilterOptions = computed(() => {
+  const values = new Map<string, string>()
+  for (const defect of defects.value) {
+    const note = defect.note?.trim()
+    if (!note || note.length > 60) continue
+    const key = normalizeText(note)
+    if (!key || values.has(key)) continue
+    values.set(key, note)
   }
-  await qc.invalidateQueries({ queryKey: ['object-types'] })
-}
+  return Array.from(values.values()).map((label) => ({ label, value: label }))
+})
+
+const componentSelectOptions = computed(() =>
+  componentOptions.value.map((option) => ({ label: option.name, value: option.id })),
+)
+
+const categorySelectOptions = computed(() =>
+  categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
+)
 
 const filteredRows = computed(() => {
-  const search = q.value.trim().toLowerCase()
-  const gf = shapeFilter.value
-  return objectTypes.value.filter((item) => {
-    const geometryOk = gf === '*' ? true : item.geometry === gf
-    if (!search) return geometryOk
-    const hit = Object.values(item).some(
-      (v) => v != null && String(v).toLowerCase().includes(search),
-    )
-    return geometryOk && hit
+  const search = normalizeText(q.value)
+  const selectedCategory = categoryFilter.value
+  const selectedStatus = statusFilter.value ? normalizeText(statusFilter.value) : ''
+
+  return defects.value.filter((item) => {
+    if (selectedCategory) {
+      if (item.categoryFvId !== selectedCategory && item.categoryPvId !== selectedCategory) {
+        return false
+      }
+    }
+
+    if (selectedStatus) {
+      const note = normalizeText(item.note ?? '')
+      if (!note || note !== selectedStatus) {
+        return false
+      }
+    }
+
+    if (!search) return true
+
+    const fields = [item.name, item.categoryName, item.componentName, item.index, item.note]
+    return fields.some((field) => normalizeText(field ?? '').includes(search))
   })
 })
 
@@ -428,45 +414,37 @@ const paginatedRows = computed(() => {
   return filteredRows.value.slice(start, start + pagination.pageSize)
 })
 const rows = computed(() => paginatedRows.value || [])
-const rowKey = (row: ObjectType) => row.id
+const rowKey = (row: LoadedObjectDefect) => row.id
 
-const MAX_CHIPS = 4
-
-function renderComponents(row: ObjectType): VNodeChild {
-  const list = Array.isArray(row.component) ? row.component : []
-  const chips = list.slice(0, MAX_CHIPS)
-  const rest = Math.max(0, list.length - MAX_CHIPS)
-
-  const chipsNodes = chips.map((name) =>
-    h(
-      NTag,
-      { size: 'small', bordered: true, round: true, class: 'chip', key: name },
-      { default: () => name },
-    ),
+function renderCategory(row: LoadedObjectDefect): VNodeChild {
+  if (!row.categoryName) return '—'
+  return h(
+    NTag,
+    { size: 'small', bordered: false, round: true, type: 'info', class: 'tag-category' },
+    { default: () => row.categoryName },
   )
-
-  const more =
-    rest > 0
-      ? h(
-          NPopover,
-          { trigger: 'hover' },
-          {
-            trigger: () =>
-              h(NTag, { size: 'small', round: true, class: 'chip' }, { default: () => `+${rest}` }),
-            default: () =>
-              h(
-                'div',
-                { class: 'popover-list' },
-                list.map((n) => h('div', { class: 'popover-item', key: n }, n)),
-              ),
-          },
-        )
-      : null
-
-  return h('div', { class: 'chips-row' }, more ? [...chipsNodes, more] : chipsNodes)
 }
 
-const renderActions = (row: ObjectType): VNodeChild => {
+function renderComponent(row: LoadedObjectDefect): VNodeChild {
+  if (!row.componentName) return '—'
+  return h(
+    NTag,
+    { size: 'small', bordered: true, round: true, class: 'tag-component' },
+    { default: () => row.componentName },
+  )
+}
+
+function renderIndex(row: LoadedObjectDefect): VNodeChild {
+  return row.index && row.index.trim() ? row.index : '—'
+}
+
+function renderNote(row: LoadedObjectDefect): VNodeChild {
+  if (!row.note) return '—'
+  const lines = row.note.split(/\n+/).map((line, idx) => h('div', { key: `${row.id}-note-${idx}` }, line))
+  return h('div', { class: 'note-text' }, lines)
+}
+
+const renderActions = (row: LoadedObjectDefect): VNodeChild => {
   const editBtn = h(
     NButton,
     { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить дефект' },
@@ -487,42 +465,51 @@ const renderActions = (row: ObjectType): VNodeChild => {
           { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить дефект' },
           { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
-      default: () => 'Удалить дефект и все связи?',
+      default: () => 'Удалить дефект?',
     },
   )
 
   return h('div', { class: 'table-actions' }, [editBtn, delBtn])
 }
 
-const columns = computed<DataTableColumn<ObjectType>[]>(() => [
+const columns = computed<DataTableColumn<LoadedObjectDefect>[]>(() => [
   {
-    title: 'Дефекты объектов',
+    title: 'Название дефекта',
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    width: 400,
+    minWidth: 240,
     ellipsis: { tooltip: true },
     className: 'col-name',
     render: (row) => row.name,
   },
   {
-    title: 'Форма на карте',
-    key: 'geometry',
-    width: 150,
+    title: 'Категория',
+    key: 'categoryName',
+    minWidth: 180,
     align: 'center',
-    render: (row) =>
-      h(
-        NTag,
-        { size: 'small', bordered: false, type: 'info' },
-        { default: () => geometryLabel(row.geometry) },
-      ),
+    className: 'col-category',
+    render: renderCategory,
   },
   {
-    title: 'Компоненты',
-    key: 'component',
-    className: 'col-components',
-    minWidth: 420,
-    align: 'left',
-    render: renderComponents,
+    title: 'Компонент',
+    key: 'componentName',
+    minWidth: 220,
+    className: 'col-component',
+    render: renderComponent,
+  },
+  {
+    title: 'Индекс',
+    key: 'index',
+    minWidth: 120,
+    align: 'center',
+    render: renderIndex,
+  },
+  {
+    title: 'Комментарий / статус',
+    key: 'note',
+    minWidth: 240,
+    className: 'col-note',
+    render: renderNote,
   },
   {
     title: 'Действия',
@@ -533,32 +520,33 @@ const columns = computed<DataTableColumn<ObjectType>[]>(() => [
   },
 ])
 
-interface CardField {
-  key: string
-  label: string
-  render: (row: ObjectType) => VNodeChild
-  isPrimary?: boolean
-  isStatus?: boolean
-  isActions?: boolean
-}
-
 const cardFields = computed<CardField[]>(() => [
   {
     key: 'name',
-    label: 'Дефекты объектов',
+    label: 'Название дефекта',
     render: (row) => row.name,
     isPrimary: true,
   },
   {
-    key: 'geometry',
-    label: 'Форма на карте',
-    render: (row) => geometryLabel(row.geometry),
+    key: 'category',
+    label: 'Категория',
+    render: renderCategory,
     isStatus: true,
   },
   {
     key: 'component',
-    label: 'Компоненты',
-    render: renderComponents,
+    label: 'Компонент',
+    render: renderComponent,
+  },
+  {
+    key: 'index',
+    label: 'Индекс',
+    render: renderIndex,
+  },
+  {
+    key: 'note',
+    label: 'Комментарий / статус',
+    render: renderNote,
   },
   {
     key: 'actions',
@@ -568,9 +556,7 @@ const cardFields = computed<CardField[]>(() => [
   },
 ])
 
-const primaryField = computed(
-  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
-)
+const primaryField = computed(() => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0])
 const statusField = computed(() => cardFields.value.find((field) => field.isStatus))
 const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
 const infoFields = computed(() =>
@@ -598,16 +584,15 @@ const toPlainText = (value: VNodeChild | VNodeChild[]): string => {
   return String(value)
 }
 
-const primaryTitle = (row: ObjectType) =>
+const primaryTitle = (row: LoadedObjectDefect) =>
   toPlainText(primaryField.value ? primaryField.value.render(row) : '')
-const statusText = (row: ObjectType) =>
+const statusText = (row: LoadedObjectDefect) =>
   toPlainText(statusField.value ? statusField.value.render(row) : '')
-const statusClass = (row: ObjectType) => {
+const statusClass = (row: LoadedObjectDefect) => {
   const text = statusText(row).toLowerCase()
   if (!text) return ''
-  if (text.includes('точ')) return 'ok'
-  if (text.includes('полиг')) return 'ok'
-  if (text.includes('лин')) return 'warn'
+  if (text.includes('устран')) return 'ok'
+  if (text.includes('крит') || text.includes('авар')) return 'warn'
   return ''
 }
 
@@ -615,7 +600,7 @@ const FieldRenderer = defineComponent({
   name: 'FieldRenderer',
   props: {
     field: { type: Object as PropType<CardField>, required: true },
-    row: { type: Object as PropType<ObjectType>, required: true },
+    row: { type: Object as PropType<LoadedObjectDefect>, required: true },
   },
   setup(props) {
     return () => props.field.render(props.row)
@@ -625,22 +610,19 @@ const FieldRenderer = defineComponent({
 const ActionsRenderer = defineComponent({
   name: 'ActionsRenderer',
   props: {
-    row: { type: Object as PropType<ObjectType>, required: true },
+    row: { type: Object as PropType<LoadedObjectDefect>, required: true },
   },
   setup(props) {
     return () => renderActions(props.row)
   },
 })
 
-// TODO: подключить виртуализацию (VirtualList), если потребуется отображать более 100 карточек на мобильных устройствах
-
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
 
-watch([q, objectTypes], () => (pagination.page = 1))
+watch([q, categoryFilter, statusFilter, defects], () => (pagination.page = 1))
 
 watch(
   () => pagination.pageSize,
-
   () => (pagination.page = 1),
 )
 
@@ -648,104 +630,128 @@ watchEffect(() => {
   if (pagination.page > maxPage.value) pagination.page = maxPage.value
 })
 
-/* ---------- CRUD формы ---------- */
-
 const dialog = ref(false)
 const infoOpen = ref(false)
 
-const editing = ref<LoadedObjectType | null>(null)
+const editing = ref<LoadedObjectDefect | null>(null)
 
-const form = ref<FormState>({ name: '', geometry: DEFAULT_GEOMETRY, component: [] })
+const form = ref<FormState>({
+  name: '',
+  componentId: null,
+  componentPvId: null,
+  categoryFvId: null,
+  categoryPvId: null,
+  index: '',
+  note: '',
+})
 
 const errors = ref<FormErrors>({})
 
 const saving = ref(false)
 
-const checkExistingTypeName = (name: string, excludeId?: string): ObjectType | null => {
+const checkExistingDefectName = (name: string, excludeId?: string): LoadedObjectDefect | null => {
   const normalizedName = normalizeText(name)
-
+  if (!normalizedName) return null
   return (
-    objectTypes.value.find((t) => normalizeText(t.name) === normalizedName && t.id !== excludeId) ??
-    null
-  )
-}
-
-const checkExistingComponentName = (
-  name: string,
-): { component: ComponentOption; usedInTypes: ObjectType[] } | null => {
-  const n = normalizeText(name)
-
-  if (!n) return null
-
-  const existing = componentMapByName.value.get(n)
-
-  if (!existing) return null
-
-  const usedInTypes = objectTypes.value.filter((t) =>
-    (componentsByType.value[t.id] ?? []).some((c) => normalizeText(c.name) === n),
-  )
-
-  return { component: existing, usedInTypes }
-}
-
-const isTypeCompletelyIdentical = (
-  next: { name: string; geometry: GeometryKind; component: string[] },
-
-  prev: ObjectType,
-) => {
-  const a = [...next.component].sort()
-
-  const b = [...prev.component].sort()
-
-  return (
-    normalizeText(next.name) === normalizeText(prev.name) &&
-    next.geometry === prev.geometry &&
-    a.length === b.length &&
-    a.every((v, i) => normalizeText(v) === normalizeText(b[i]))
+    defects.value.find(
+      (defect) => normalizeText(defect.name) === normalizedName && String(defect.id) !== String(excludeId ?? ''),
+    ) ?? null
   )
 }
 
 const nameWarning = computed(() => {
   if (!form.value.name.trim()) return ''
 
-  const existing = checkExistingTypeName(form.value.name, editing.value?.id)
+  const existing = checkExistingDefectName(form.value.name, editing.value?.id)
 
-  return existing
-    ? `Предупреждение: дефект с таким названием уже существует (${existing.geometry})`
-    : ''
+  if (!existing) return ''
+
+  const category = existing.categoryName ? `, категория: ${existing.categoryName}` : ''
+  return `Предупреждение: дефект с таким названием уже существует${category}`
 })
 
-const checkComponent = (componentName: string) => {
-  const info = checkExistingComponentName(componentName)
-
-  if (info && info.usedInTypes.length > 0)
-    message.warning(`Компонент "${componentName}" уже используется в других дефектах объектов`)
+const handleComponentChange = (nextId: string | null) => {
+  form.value.componentId = nextId
+  if (!nextId) {
+    form.value.componentPvId = null
+    return
+  }
+  const option = componentOptionById.value.get(nextId)
+  form.value.componentPvId = option?.pvId ?? null
 }
 
-const debouncedCheckComponent = debounce(checkComponent, 500)
+const handleCategoryChange = (nextFvId: string | null) => {
+  form.value.categoryFvId = nextFvId
+  if (!nextFvId) {
+    form.value.categoryPvId = null
+    return
+  }
+  const option = categoryOptionByFv.value.get(nextFvId)
+  form.value.categoryPvId = option?.pvId ?? null
+}
 
-const handleComponentBlur = (e: FocusEvent) => {
-  const target = e.target as HTMLInputElement | null
+const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
+  return new Promise((resolve) => {
+    let resolved = false
 
-  if (target) debouncedCheckComponent(target.value)
+    const finish = (result: boolean) => {
+      if (resolved) return
+      resolved = true
+      resolve(result)
+    }
+
+    discreteDialog.warning({
+      title: options.title ?? 'Подтверждение',
+      content: options.html ? () => h('div', { innerHTML: options.content }) : options.content,
+      positiveText: options.positiveText ?? 'Подтвердить',
+      negativeText: options.negativeText ?? 'Отмена',
+      maskClosable: false,
+
+      onPositiveClick: () => {
+        finish(true)
+      },
+
+      onNegativeClick: () => {
+        finish(false)
+      },
+
+      onClose: () => {
+        finish(false)
+      },
+    })
+  })
 }
 
 function openCreate() {
   editing.value = null
 
-  form.value = { name: '', geometry: DEFAULT_GEOMETRY, component: [] }
-  createdComponents.value = []
+  form.value = {
+    name: '',
+    componentId: null,
+    componentPvId: null,
+    categoryFvId: null,
+    categoryPvId: null,
+    index: '',
+    note: '',
+  }
 
   errors.value = {}
 
   dialog.value = true
 }
 
-function openEdit(row: ObjectType) {
+function openEdit(row: LoadedObjectDefect) {
   editing.value = row
 
-  form.value = { name: row.name, geometry: row.geometry, component: [...row.component] }
-  createdComponents.value = []
+  form.value = {
+    name: row.name,
+    componentId: row.componentId ?? null,
+    componentPvId: row.componentPvId ?? null,
+    categoryFvId: row.categoryFvId ?? null,
+    categoryPvId: row.categoryPvId ?? null,
+    index: row.index ?? '',
+    note: row.note ?? '',
+  }
 
   errors.value = {}
 
@@ -761,177 +767,56 @@ async function save() {
     return
   }
 
-  const compNames = Array.from(new Set(form.value.component.map((v) => v.trim()).filter(Boolean)))
-  const isEditing = Boolean(editing.value)
-  const current = editing.value
-  const nameChanged = isEditing && normalizeText(current!.name) !== normalizeText(nameTrimmed)
-  const geometryChanged = isEditing && current!.geometry !== form.value.geometry
-
-  if (!isEditing || nameChanged) {
-    const existingType = checkExistingTypeName(nameTrimmed, current?.id)
-    if (existingType) {
-      const next = { name: nameTrimmed, geometry: form.value.geometry, component: compNames }
-      if (isTypeCompletelyIdentical(next, existingType)) {
-        message.error('Нельзя создать полностью идентичный дефект')
-        return
-      }
-
-      const ok = await confirmDialog({
-        title: 'Дефект с таким названием уже есть',
-        content:
-          `Дефект "${nameTrimmed}" уже существует:<br><br>` +
-          `- Форма на карте: ${existingType.geometry}<br>` +
-          `- Компоненты: ${existingType.component.join(', ') || 'нет'}<br><br>` +
-          'Вы уверены, что хотите продолжить?',
-        positiveText: 'Продолжить',
-        negativeText: 'Отмена',
-        html: true,
-      })
-
-      if (!ok) return
-    }
-  }
-
-  for (const cn of compNames) {
-    const info = checkExistingComponentName(cn)
-    if (info && info.usedInTypes.length > 0) {
-      const typeNames = info.usedInTypes.map((t) => t.name).join(', ')
-      const ok = await confirmDialog({
-        title: 'Компонент уже используется',
-        content: `Компонент "${cn}" уже используется в: ${typeNames}.<br>Продолжить?`,
-        positiveText: 'Продолжить',
-        negativeText: 'Отмена',
-        html: true,
-      })
-      if (!ok) return
-    }
-  }
-
-  const missing = compNames.filter((n) => !componentMapByName.value.has(normalizeText(n)))
-  if (missing.length > 0) {
-    message.warning(`Некоторые компоненты будут созданы автоматически: ${missing.join(', ')}`)
-  }
-
-  const geometryPair = getGeometryPair(form.value.geometry)
-  if (geometryPair.fv == null && geometryPair.pv == null) {
-    message.error('Не найдены идентификаторы Формы на карте')
-    return
+  const payload = {
+    name: nameTrimmed,
+    componentId: form.value.componentId,
+    componentPvId: form.value.componentPvId,
+    categoryFvId: form.value.categoryFvId,
+    categoryPvId: form.value.categoryPvId,
+    index: form.value.index.trim() ? form.value.index.trim() : null,
+    note: form.value.note.trim() ? form.value.note.trim() : null,
   }
 
   saving.value = true
   try {
-    if (!isEditing) {
-      await createTypeMutation.mutateAsync({
-        name: nameTrimmed,
-        geometry: form.value.geometry,
-        geometryPair,
-        componentNames: compNames,
-      })
+    if (!editing.value) {
+      await mutations.create.mutateAsync(payload)
       message.success('Создано')
-    } else if (nameChanged) {
-      const typeId = Number(current!.id)
-      const typeCls = Number(current!.cls)
-      if (!Number.isFinite(typeId) || !Number.isFinite(typeCls)) {
-        throw new Error('Некорректные идентификаторы текущего дефекта')
-      }
-      const links = linksByType.value[String(current!.id)] ?? []
-      const oldComponentIds = links
-        .map((link) => Number(link.compId))
-        .filter((id): id is number => Number.isFinite(id))
-
-      await renameWithMigrationMutation.mutateAsync({
-        oldId: typeId,
-        oldCls: typeCls,
-        oldName: current!.name,
-        oldComponentIds,
-        newName: nameTrimmed,
-        geometryPair,
-        componentNames: compNames,
-      })
-      message.success('Переименовано')
     } else {
-      if (geometryChanged) {
-        await updateGeometryMutation.mutateAsync({
-          id: Number(current!.id),
-          cls: Number(current!.cls),
-          name: current!.name,
-          geometryPair,
-          idShape: current!.idShape,
-          number: current!.number,
-        })
-      }
-
-      const prevSet = new Set((current!.component ?? []).map(normalizeText))
-      const nextSet = new Set(compNames.map(normalizeText))
-      const removed = (current!.component ?? []).filter((name) => !nextSet.has(normalizeText(name)))
-      const added = compNames.filter((name) => !prevSet.has(normalizeText(name)))
-
-      if (removed.length || added.length) {
-        const addComponents = added.length
-          ? await ensureComponentObjects(added, createComponentIfMissing)
-          : []
-        if (addComponents.length) {
-          const existingIds = new Set(allComponentOptions.value.map((option) => String(option.id)))
-          const createdOptions = addComponents
-            .filter((component) => !existingIds.has(String(component.id)))
-            .map<ComponentOption>((component) => ({ id: String(component.id), name: component.name }))
-          if (createdOptions.length) {
-            createdComponents.value = [...createdComponents.value, ...createdOptions]
-          }
-        }
-        const removeLinkIds = resolveRemoveLinkIds(
-          String(current!.id),
-          linksByType.value,
-          allComponentOptions.value,
-          removed,
-        )
-        await updateComponentsDiffMutation.mutateAsync({
-          typeId: Number(current!.id),
-          typeCls: Number(current!.cls),
-          typeName: current!.name,
-          add: addComponents,
-          removeLinkIds,
-        })
-      }
-
-      if (!geometryChanged && !removed.length && !added.length) {
-        message.info('Изменений не выявлено')
-      } else {
-        message.success('Изменено')
-      }
+      await mutations.update.mutateAsync({ id: editing.value.id, ...payload })
+      message.success('Изменено')
     }
 
-    await qc.invalidateQueries({ queryKey: ['object-types'] })
     dialog.value = false
-  } catch (error) {
-    console.error(error)
+  } catch (err) {
+    console.error(err)
     message.error('Не удалось сохранить')
   } finally {
     saving.value = false
   }
 }
 
+const removingId = ref<string | null>(null)
+
 const removeRow = async (id: string | number) => {
-  const typeIdStr = String(id)
+  const defectId = String(id)
   if (removingId.value) return
 
   const confirmed = await confirmDialog({
     title: 'Подтверждение',
-    content: 'Удалить дефект и все его связи с компонентами?',
+    content: 'Удалить дефект?',
     positiveText: 'Удалить',
     negativeText: 'Отмена',
   })
   if (!confirmed) return
 
-  removingId.value = typeIdStr
+  removingId.value = defectId
 
   try {
-    const typeIdNum = Number(typeIdStr)
-    if (!Number.isFinite(typeIdNum)) throw new Error('Некорректный идентификатор дефекта')
-      await removeCascadeMutation.mutateAsync({ typeId: typeIdNum })
-      message.success('Дефект удалён')
-  } catch (e) {
-    console.error(e)
+    await mutations.remove.mutateAsync({ id })
+    message.success('Дефект удалён')
+  } catch (err) {
+    console.error(err)
     message.error('Не удалось удалить дефект')
   } finally {
     removingId.value = null
@@ -949,7 +834,7 @@ const removeRow = async (id: string | number) => {
   word-break: break-word;
 }
 
-.object-types-page {
+.object-defects-page {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -991,13 +876,6 @@ const removeRow = async (id: string | number) => {
   vertical-align: middle;
 }
 
-:deep(.n-data-table .n-data-table-td.col-components) {
-  height: auto; /* снимаем глобальный height:24px */
-  line-height: normal;
-  padding-top: 0; /* при желании подправьте отступы */
-  padding-bottom: 0;
-}
-
 :deep(.n-data-table thead th) {
   position: sticky;
   top: 0;
@@ -1005,7 +883,6 @@ const removeRow = async (id: string | number) => {
   background: var(--n-table-header-color, var(--n-card-color, #fff));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
-
 
 :deep(.n-pagination) {
   font-size: 14px;
@@ -1017,63 +894,27 @@ const removeRow = async (id: string | number) => {
   color: var(--n-text-color-3);
 }
 
-/* Toolbar */
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-radius: 12px;
-  gap: 16px;
-}
-
-:deep(.n-card.toolbar) {
-  max-width: 100%;
-  box-sizing: border-box;
+  gap: 12px;
 }
 
 .toolbar__left {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.toolbar__controls {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
 }
 
 .page-title {
-  margin: 0;
-  font-weight: 600;
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-}
-
-.page-title__info {
-  padding: 0;
-  background: #f5f7fa;
-  color: var(--n-text-color);
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
-}
-
-.page-title__info :deep(.n-button__content) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .page-title__info :deep(.n-icon) {
@@ -1095,35 +936,46 @@ const removeRow = async (id: string | number) => {
   color: var(--n-text-color-3);
 }
 
-.geom-filter :deep(.n-radio-button) {
-  min-width: 64px;
-}
-
-/* Компоненты — чипсы */
-.chips-row {
+.toolbar__controls {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-  overflow: hidden;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.chip {
+.toolbar__filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar__search {
+  width: 280px;
+  max-width: 100%;
+}
+
+.toolbar__select {
+  min-width: 160px;
+}
+
+.tag-category {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.tag-component {
   background: #fff;
 }
 
-.popover-list {
-  max-width: 280px;
-  max-height: 240px;
-  overflow: auto;
-  padding: 4px 0;
+.note-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  word-break: break-word;
 }
 
-.popover-item {
-  padding: 2px 8px;
-}
-
-/* Действия — показывать по hover */
 .table-actions {
   display: flex;
   gap: 8px;
@@ -1136,27 +988,12 @@ const removeRow = async (id: string | number) => {
   opacity: 1;
 }
 
-/* Toolbar адаптив */
-@media (max-width: 900px) {
-  .toolbar {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .toolbar__controls {
-    justify-content: flex-start;
-  }
-}
-
-/* Pagination layout */
 .pagination-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
-
 
 .cards {
   display: grid;
@@ -1195,7 +1032,7 @@ const removeRow = async (id: string | number) => {
 
 .card__grid {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: 6px 10px;
   margin: 10px 0;
 }
@@ -1222,16 +1059,6 @@ const removeRow = async (id: string | number) => {
   justify-content: flex-start;
 }
 
-.cards .chips-row {
-  flex-wrap: wrap;
-  min-width: 0;
-  overflow: visible;
-}
-
-.cards .chip {
-  max-width: 100%;
-}
-
 .badge {
   font-size: 12px;
   padding: 2px 8px;
@@ -1247,12 +1074,26 @@ const removeRow = async (id: string | number) => {
   background: #fff7ed;
 }
 
-@media (max-width: 360px) {
-  .card__grid {
-    grid-template-columns: 96px 1fr;
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar__controls {
+    justify-content: flex-start;
+  }
+
+  .toolbar__search {
+    width: 100%;
   }
 }
 
+@media (max-width: 360px) {
+  .card__grid {
+    grid-template-columns: 100px 1fr;
+  }
+}
 
 .modal-footer {
   display: flex;
@@ -1264,11 +1105,5 @@ const removeRow = async (id: string | number) => {
   color: #e6a23c;
   font-size: 12px;
   font-style: italic;
-}
-.field-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
 }
 </style>
