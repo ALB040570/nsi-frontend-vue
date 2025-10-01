@@ -1,3 +1,7 @@
+/** Файл: src/features/object-defect-crud/model/useObjectDefectMutations.ts
+ *  Назначение: Настраивает vue-query мутации для создания, обновления и удаления дефектов объекта.
+ *  Использование: Подключайте хук в компонентах для управления дефектами и инвалидации кэша.
+ */
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
 import {
   createDefect,

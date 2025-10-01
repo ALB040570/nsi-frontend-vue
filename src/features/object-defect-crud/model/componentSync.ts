@@ -1,3 +1,7 @@
+/** Файл: src/features/object-defect-crud/model/componentSync.ts
+ *  Назначение: Содержит утилиты для построения справочников компонентов и категорий дефектов и расчёта удалённых связей.
+ *  Использование: Используйте функции при синхронизации данных дефектов с выбором пользователя.
+ */
 import { normalizeText } from '@shared/lib'
 import type {
   DefectCategoryOption,
