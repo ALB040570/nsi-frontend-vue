@@ -7,6 +7,7 @@ import { useAuth } from '@features/auth'
 
 const Home = () => import('@/components/HelloWorld.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
+const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
@@ -19,6 +20,12 @@ const router = createRouter({
       path: '/nsi/object-types',
       name: 'object-types',
       component: ObjectTypesPage,
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/nsi/object-defects',
+      name: 'object-defects',
+      component: ObjectDefectsPage,
       // meta: { requiresAuth: true },
     },
   ],
