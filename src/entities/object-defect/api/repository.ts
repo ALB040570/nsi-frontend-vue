@@ -1,188 +1,325 @@
 /** Файл: src/entities/object-defect/api/repository.ts
- *  Назначение: REST-доступ к справочнику дефектов объектов и сопутствующим словарям.
+ *  Назначение: RPC-доступ к справочнику дефектов объектов и сопутствующим словарям.
  *  Использование: вызывать из фич и страниц для загрузки списков, форм и выполнения CRUD.
  */
-import { del, get, post, put } from '@shared/api'
-import { trimmedString, toOptionalString } from '@shared/lib'
+import { rpc } from '@shared/api'
 import {
-  normalizeDefectCode,
-  normalizeMultilineText,
-  type ObjectDefectSnapshotResponse,
-  type RawDirectoryRecord,
-  type RawObjectDefectRecord,
+  extractRecords,
+  firstRecord,
+  normalizeText,
+  trimmedString,
+  toOptionalString,
+} from '@shared/lib'
+import {
+  normalizeDefectIndex,
+  normalizeDefectName,
+  normalizeDefectNote,
+  normalizeOptionName,
+  type RawDefectCategoryRecord,
+  type RawDefectComponentRecord,
+  type RawDefectRecord,
+  type SaveDefectRecord,
 } from '../model/dto'
 import type {
   CreateObjectDefectPayload,
-  DefectDirectoryOption,
+  DefectCategoryOption,
+  DefectComponentOption,
   LoadedObjectDefect,
   ObjectDefect,
   ObjectDefectsSnapshot,
   UpdateObjectDefectPayload,
 } from '../model/types'
 
-const OBJECT_DEFECTS_BASE_PATH = '/object-defects'
-const OBJECT_DEFECTS_SNAPSHOT_PATH = `${OBJECT_DEFECTS_BASE_PATH}/snapshot`
-const DEFECT_CATEGORIES_PATH = '/object-defect-categories'
-const DEFECT_STATUSES_PATH = '/object-defect-statuses'
-const DEFECT_SEVERITIES_PATH = '/object-defect-severities'
+const LOAD_DEFECTS_METHOD = 'data/loadDefects'
+const LOAD_COMPONENT_DEFECT_METHOD = 'data/loadComponentDefect'
+const LOAD_CATEGORIES_METHOD = 'data/loadFvForSelect'
+const SAVE_DEFECTS_METHOD = 'data/saveDefects'
+const DELETE_DEFECTS_METHOD = 'data/deleteDefects'
+
+const COMPONENT_DEFECT_ARGS = ['Typ_Components', 'Prop_DefectsComponent'] as const
+const FACTOR_DEFECTS = ['Factor_Defects'] as const
 
 type DirectoryMaps = {
-  categories: Map<string, DefectDirectoryOption>
-  statuses: Map<string, DefectDirectoryOption>
-  severities: Map<string, DefectDirectoryOption>
+  categoriesByFv: Map<string, DefectCategoryOption>
+  categoriesByPv: Map<string, DefectCategoryOption>
+  componentsById: Map<string, DefectComponentOption>
+  componentsByPv: Map<string, DefectComponentOption>
 }
 
-function mapDirectoryRecord(record: RawDirectoryRecord): DefectDirectoryOption | null {
-  const id = toOptionalString(record.id ?? record.code)
-  const name = trimmedString(record.name)
-  if (!id) return null
-  return {
-    id,
-    name: name || id,
-    code: toOptionalString(record.code),
-    description: trimmedString(record.description) || null,
+function buildCategoryOptions(
+  raw: RawDefectCategoryRecord[],
+): {
+  options: DefectCategoryOption[]
+  categoriesByFv: Map<string, DefectCategoryOption>
+  categoriesByPv: Map<string, DefectCategoryOption>
+} {
+  const unique = new Map<string, DefectCategoryOption>()
+  const categoriesByFv = new Map<string, DefectCategoryOption>()
+  const categoriesByPv = new Map<string, DefectCategoryOption>()
+
+  for (const record of raw) {
+    const fvId =
+      toOptionalString(record.fv ?? record.FV ?? record.id ?? record.ID) ?? undefined
+    const pvId = toOptionalString(record.pv ?? record.PV) ?? undefined
+    if (!fvId || !pvId) continue
+
+    const name =
+      normalizeOptionName(record.name ?? record.value ?? record.code, pvId, fvId) ||
+      pvId ||
+      fvId
+
+    const option: DefectCategoryOption = { fvId, pvId, name }
+
+    const nameKey = normalizeText(name) || pvId || fvId
+    const canonical = unique.get(nameKey)
+    if (!canonical) {
+      unique.set(nameKey, option)
+      categoriesByFv.set(fvId, option)
+      categoriesByPv.set(pvId, option)
+      continue
+    }
+
+    categoriesByFv.set(fvId, canonical)
+    categoriesByPv.set(pvId, canonical)
   }
+
+  const options = Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+  const categoriesByFvSorted = new Map<string, DefectCategoryOption>()
+  const categoriesByPvSorted = new Map<string, DefectCategoryOption>()
+
+  for (const [fv, option] of categoriesByFv.entries()) {
+    const key = normalizeText(option.name) || option.pvId || option.fvId
+    const canonical = unique.get(key) ?? option
+    categoriesByFvSorted.set(fv, canonical)
+  }
+
+  for (const [pv, option] of categoriesByPv.entries()) {
+    const key = normalizeText(option.name) || option.pvId || option.fvId
+    const canonical = unique.get(key) ?? option
+    categoriesByPvSorted.set(pv, canonical)
+  }
+
+  return { options, categoriesByFv: categoriesByFvSorted, categoriesByPv: categoriesByPvSorted }
 }
 
-function ensureDirectoryMaps(
-  categories: DefectDirectoryOption[],
-  statuses: DefectDirectoryOption[],
-  severities: DefectDirectoryOption[],
-): DirectoryMaps {
-  const categoriesMap = new Map<string, DefectDirectoryOption>()
-  const statusesMap = new Map<string, DefectDirectoryOption>()
-  const severitiesMap = new Map<string, DefectDirectoryOption>()
+function buildComponentOptions(
+  raw: RawDefectComponentRecord[],
+): {
+  options: DefectComponentOption[]
+  componentsById: Map<string, DefectComponentOption>
+  componentsByPv: Map<string, DefectComponentOption>
+} {
+  const unique = new Map<string, DefectComponentOption>()
+  const componentsById = new Map<string, DefectComponentOption>()
+  const componentsByPv = new Map<string, DefectComponentOption>()
 
-  for (const option of categories) categoriesMap.set(option.id, option)
-  for (const option of statuses) statusesMap.set(option.id, option)
-  for (const option of severities) severitiesMap.set(option.id, option)
+  for (const record of raw) {
+    const id =
+      toOptionalString(
+        record.objDefectsComponent ?? record.id ?? record.ID ?? record.number,
+      ) ?? undefined
+    if (!id) continue
 
-  return { categories: categoriesMap, statuses: statusesMap, severities: severitiesMap }
+    const pvId = toOptionalString(record.pvDefectsComponent)
+    const name =
+      normalizeOptionName(
+        record.nameDefectsComponent ?? record.name ?? record.NAME,
+        pvId ?? undefined,
+        id,
+      ) || id
+
+    const option: DefectComponentOption = { id, name, pvId: pvId ?? null }
+
+    const nameKey = normalizeText(name) || id
+    const canonical = unique.get(nameKey)
+    if (!canonical) {
+      unique.set(nameKey, option)
+      componentsById.set(id, option)
+      if (pvId) componentsByPv.set(pvId, option)
+      continue
+    }
+
+    componentsById.set(id, canonical)
+    if (pvId) componentsByPv.set(pvId, canonical)
+  }
+
+  const options = Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+  const componentsByIdSorted = new Map<string, DefectComponentOption>()
+  const componentsByPvSorted = new Map<string, DefectComponentOption>()
+
+  for (const [idValue, option] of componentsById.entries()) {
+    const key = normalizeText(option.name) || option.id
+    const canonical = unique.get(key) ?? option
+    componentsByIdSorted.set(idValue, canonical)
+  }
+
+  for (const [pvValue, option] of componentsByPv.entries()) {
+    const key = normalizeText(option.name) || option.id
+    const canonical = unique.get(key) ?? option
+    componentsByPvSorted.set(pvValue, canonical)
+  }
+
+  return { options, componentsById: componentsByIdSorted, componentsByPv: componentsByPvSorted }
 }
 
 function mapLoadedDefect(
-  record: RawObjectDefectRecord | null | undefined,
+  record: RawDefectRecord | SaveDefectRecord | null | undefined,
   directories?: Partial<DirectoryMaps>,
 ): LoadedObjectDefect | null {
   if (!record) return null
 
-  const id = toOptionalString(record.id)
+  const id = toOptionalString(record.idDefects ?? record.ID ?? record.id ?? record.number)
   if (!id) return null
 
-  const code = normalizeDefectCode(record.code ?? id) || id
-  const name = trimmedString(record.name) || code
+  const componentIdRaw = toOptionalString(record.objDefectsComponent)
+  const componentPvRaw = toOptionalString(record.pvDefectsComponent)
+  const categoryFvRaw = toOptionalString(record.fvDefectsCategory)
+  const categoryPvRaw = toOptionalString(record.pvDefectsCategory)
 
-  const categoryId = toOptionalString(record.categoryId)
-  const statusId = toOptionalString(record.statusId)
-  const severityId = toOptionalString(record.severityId)
+  const categoryOption =
+    (categoryFvRaw && directories?.categoriesByFv?.get(categoryFvRaw)) ||
+    (categoryPvRaw && directories?.categoriesByPv?.get(categoryPvRaw)) ||
+    null
+
+  const componentOption =
+    (componentIdRaw && directories?.componentsById?.get(componentIdRaw)) ||
+    (componentPvRaw && directories?.componentsByPv?.get(componentPvRaw)) ||
+    null
+
+  const resolvedComponentId = componentIdRaw ?? componentOption?.id ?? null
+  const resolvedComponentPvId = componentPvRaw ?? componentOption?.pvId ?? null
+  const resolvedCategoryFvId = categoryFvRaw ?? categoryOption?.fvId ?? null
+  const resolvedCategoryPvId = categoryPvRaw ?? categoryOption?.pvId ?? null
+
+  const name =
+    normalizeDefectName(
+      record.DefectsName ?? record.nameDefects ?? record.name,
+      toOptionalString(record.DefectsIndex),
+      id,
+    ) || id
+
+  const indexValue = normalizeDefectIndex(record.DefectsIndex)
+  const noteValue = normalizeDefectNote(record.DefectsNote)
+
+  const componentName =
+    normalizeOptionName(
+      record.nameDefectsComponent,
+      componentOption?.name,
+      resolvedComponentId ?? resolvedComponentPvId ?? undefined,
+    ) || null
 
   const categoryName =
-    trimmedString(record.categoryName) ||
-    (categoryId ? (directories?.categories?.get(categoryId)?.name ?? null) : null)
-  const statusName =
-    trimmedString(record.statusName) ||
-    (statusId ? (directories?.statuses?.get(statusId)?.name ?? null) : null)
-  const severityName =
-    trimmedString(record.severityName) ||
-    (severityId ? (directories?.severities?.get(severityId)?.name ?? null) : null)
+    normalizeOptionName(
+      record.nameDefectsCategory,
+      categoryOption?.name,
+      resolvedCategoryPvId ?? resolvedCategoryFvId ?? undefined,
+    ) || null
 
   return {
     id,
-    code,
     name,
-    categoryId,
-    statusId,
-    severityId,
-    categoryName: categoryName || null,
-    statusName: statusName || null,
-    severityName: severityName || null,
-    description: normalizeMultilineText(record.description) || null,
-    createdAt: trimmedString(record.createdAt) || null,
-    updatedAt: trimmedString(record.updatedAt) || null,
+    componentId: resolvedComponentId,
+    componentPvId: resolvedComponentPvId,
+    categoryFvId: resolvedCategoryFvId,
+    categoryPvId: resolvedCategoryPvId,
+    index: indexValue ? indexValue : null,
+    note: noteValue ? noteValue : null,
+    componentName,
+    categoryName,
   }
 }
 
-function mapDefect(record: RawObjectDefectRecord | null | undefined): ObjectDefect | null {
-  const loaded = mapLoadedDefect(record)
+function mapDefect(
+  record: RawDefectRecord | SaveDefectRecord | null | undefined,
+  directories?: Partial<DirectoryMaps>,
+): ObjectDefect | null {
+  const loaded = mapLoadedDefect(record, directories)
   if (!loaded) return null
   return {
     id: loaded.id,
-    code: loaded.code,
     name: loaded.name,
-    categoryId: loaded.categoryId,
-    statusId: loaded.statusId,
-    severityId: loaded.severityId,
+    componentId: loaded.componentId,
+    componentPvId: loaded.componentPvId,
+    categoryFvId: loaded.categoryFvId,
+    categoryPvId: loaded.categoryPvId,
+    index: loaded.index,
+    note: loaded.note,
   }
 }
 
-async function loadSnapshotResponse(): Promise<ObjectDefectSnapshotResponse | null> {
-  try {
-    return await get<ObjectDefectSnapshotResponse>(OBJECT_DEFECTS_SNAPSHOT_PATH)
-  } catch {
-    return null
+function buildDefectPayload(payload: CreateObjectDefectPayload) {
+  return {
+    accessLevel: 1,
+    DefectsName: trimmedString(payload.name) || null,
+    objDefectsComponent: payload.componentId ?? 0,
+    pvDefectsComponent: payload.componentPvId ?? 0,
+    fvDefectsCategory: payload.categoryFvId ?? 0,
+    pvDefectsCategory: payload.categoryPvId ?? 0,
+    DefectsIndex: payload.index ?? null,
+    DefectsNote: payload.note ?? null,
   }
-}
-
-function toPromise<T>(value: T | undefined | null, fallback: () => Promise<T>): Promise<T> {
-  return value != null ? Promise.resolve(value) : fallback()
 }
 
 export async function fetchObjectDefectsSnapshot(): Promise<ObjectDefectsSnapshot> {
-  const snapshot = await loadSnapshotResponse()
-
-  const [rawDefects, rawCategories, rawStatuses, rawSeverities] = await Promise.all([
-    toPromise<RawObjectDefectRecord[]>(snapshot?.defects, () =>
-      get<RawObjectDefectRecord[]>(OBJECT_DEFECTS_BASE_PATH),
-    ),
-    toPromise<RawDirectoryRecord[]>(snapshot?.categories, () =>
-      get<RawDirectoryRecord[]>(DEFECT_CATEGORIES_PATH),
-    ),
-    toPromise<RawDirectoryRecord[]>(snapshot?.statuses, () =>
-      get<RawDirectoryRecord[]>(DEFECT_STATUSES_PATH),
-    ),
-    toPromise<RawDirectoryRecord[]>(snapshot?.severities, () =>
-      get<RawDirectoryRecord[]>(DEFECT_SEVERITIES_PATH),
-    ),
+  const [defectsResp, componentsResp, categoriesResp] = await Promise.all([
+    rpc(LOAD_DEFECTS_METHOD, [0]),
+    rpc(LOAD_COMPONENT_DEFECT_METHOD, COMPONENT_DEFECT_ARGS),
+    rpc(LOAD_CATEGORIES_METHOD, FACTOR_DEFECTS),
   ])
 
-  const categories = rawCategories
-    .map(mapDirectoryRecord)
-    .filter((item): item is DefectDirectoryOption => item != null)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  const statuses = rawStatuses
-    .map(mapDirectoryRecord)
-    .filter((item): item is DefectDirectoryOption => item != null)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  const severities = rawSeverities
-    .map(mapDirectoryRecord)
-    .filter((item): item is DefectDirectoryOption => item != null)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  const rawDefects = extractRecords<RawDefectRecord>(defectsResp)
+  const rawComponents = extractRecords<RawDefectComponentRecord>(componentsResp)
+  const rawCategories = extractRecords<RawDefectCategoryRecord>(categoriesResp)
 
-  const directories = ensureDirectoryMaps(categories, statuses, severities)
+  const { options: categoryOptions, categoriesByFv, categoriesByPv } =
+    buildCategoryOptions(rawCategories)
+  const { options: componentOptions, componentsById, componentsByPv } =
+    buildComponentOptions(rawComponents)
+
+  const directories: DirectoryMaps = {
+    categoriesByFv,
+    categoriesByPv,
+    componentsById,
+    componentsByPv,
+  }
 
   const items = rawDefects
     .map((record) => mapLoadedDefect(record, directories))
     .filter((item): item is LoadedObjectDefect => item != null)
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 
-  return { items, categories, statuses, severities }
+  return {
+    items,
+    categories: categoryOptions,
+    components: componentOptions,
+  }
 }
 
 export async function listObjectDefects(): Promise<ObjectDefect[]> {
-  const records = await get<RawObjectDefectRecord[]>(OBJECT_DEFECTS_BASE_PATH)
-  return records.map(mapDefect).filter((item): item is ObjectDefect => item != null)
+  const response = await rpc(LOAD_DEFECTS_METHOD, [0])
+  const rawDefects = extractRecords<RawDefectRecord>(response)
+  return rawDefects
+    .map((record) => mapDefect(record))
+    .filter((item): item is ObjectDefect => item != null)
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 }
 
 export async function createDefect(
   payload: CreateObjectDefectPayload,
 ): Promise<LoadedObjectDefect> {
-  const record = await post<RawObjectDefectRecord, CreateObjectDefectPayload>(
-    OBJECT_DEFECTS_BASE_PATH,
-    payload,
+  const response = await rpc<SaveDefectRecord | { result?: SaveDefectRecord }>(
+    SAVE_DEFECTS_METHOD,
+    ['ins', buildDefectPayload(payload)],
   )
+  const record = firstRecord<SaveDefectRecord>(response)
+  if (!record) {
+    throw new Error('Не удалось прочитать созданный дефект')
+  }
   const mapped = mapLoadedDefect(record)
   if (!mapped) {
-    throw new Error('Не удалось прочитать созданный дефект')
+    throw new Error('Не удалось интерпретировать созданный дефект')
   }
   return mapped
 }
@@ -190,18 +327,27 @@ export async function createDefect(
 export async function updateDefect(
   payload: UpdateObjectDefectPayload,
 ): Promise<LoadedObjectDefect> {
-  const { id, ...rest } = payload
-  const record = await put<RawObjectDefectRecord, Partial<CreateObjectDefectPayload>>(
-    `${OBJECT_DEFECTS_BASE_PATH}/${id}`,
-    rest,
+  const response = await rpc<SaveDefectRecord | { result?: SaveDefectRecord }>(
+    SAVE_DEFECTS_METHOD,
+    [
+      'upd',
+      {
+        ...buildDefectPayload(payload),
+        id: payload.id,
+      },
+    ],
   )
+  const record = firstRecord<SaveDefectRecord>(response)
+  if (!record) {
+    throw new Error('Не удалось прочитать обновлённый дефект')
+  }
   const mapped = mapLoadedDefect(record)
   if (!mapped) {
-    throw new Error('Не удалось прочитать обновлённый дефект')
+    throw new Error('Не удалось интерпретировать обновлённый дефект')
   }
   return mapped
 }
 
 export async function deleteDefect(id: string | number): Promise<void> {
-  await del(`${OBJECT_DEFECTS_BASE_PATH}/${id}`)
+  await rpc(DELETE_DEFECTS_METHOD, [id])
 }
