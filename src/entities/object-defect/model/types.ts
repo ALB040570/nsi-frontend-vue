@@ -3,49 +3,50 @@
  *  Использование: импортируйте в репозитории, фичах и страницах при работе со справочником дефектов.
  */
 
-export interface DefectDirectoryOption {
-  id: string
+export interface DefectCategoryOption {
+  fvId: string
+  pvId: string
   name: string
-  code?: string | null
-  description?: string | null
 }
 
-export interface ObjectDefectForm {
-  code: string
+export interface DefectComponentOption {
+  id: string
   name: string
-  categoryId: string | null
-  statusId: string | null
-  severityId: string | null
-  description: string | null
+  pvId: string | null
 }
 
 export interface ObjectDefect {
   id: string
-  code: string
   name: string
-  categoryId: string | null
-  statusId: string | null
-  severityId: string | null
+  componentId: string | null
+  componentPvId: string | null
+  categoryFvId: string | null
+  categoryPvId: string | null
+  index: string | null
+  note: string | null
 }
 
 export interface LoadedObjectDefect extends ObjectDefect {
+  componentName: string | null
   categoryName: string | null
-  statusName: string | null
-  severityName: string | null
-  description: string | null
-  createdAt: string | null
-  updatedAt: string | null
 }
 
 export interface ObjectDefectsSnapshot {
   items: LoadedObjectDefect[]
-  categories: DefectDirectoryOption[]
-  statuses: DefectDirectoryOption[]
-  severities: DefectDirectoryOption[]
+  categories: DefectCategoryOption[]
+  components: DefectComponentOption[]
 }
 
-export type CreateObjectDefectPayload = ObjectDefectForm
+export interface CreateObjectDefectPayload {
+  name: string
+  componentId: string | null
+  componentPvId: string | null
+  categoryFvId: string | null
+  categoryPvId: string | null
+  index: string | null
+  note: string | null
+}
 
-export interface UpdateObjectDefectPayload extends Partial<ObjectDefectForm> {
+export interface UpdateObjectDefectPayload extends CreateObjectDefectPayload {
   id: string
 }
