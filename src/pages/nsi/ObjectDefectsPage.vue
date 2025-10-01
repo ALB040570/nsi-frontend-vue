@@ -134,6 +134,9 @@
             filterable
             @update:value="handleCategoryChange"
           />
+          <div v-if="categoryWarning" class="warning-text" style="margin-top: 4px">
+            {{ categoryWarning }}
+          </div>
         </NFormItem>
 
         <NFormItem label="Компонент">
@@ -145,6 +148,9 @@
             filterable
             @update:value="handleComponentChange"
           />
+          <div v-if="componentWarning" class="warning-text" style="margin-top: 4px">
+            {{ componentWarning }}
+          </div>
         </NFormItem>
 
         <NFormItem label="Индекс">
@@ -234,6 +240,8 @@ import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/i
 import {
   useObjectDefectsQuery,
   useObjectDefectMutations,
+  createDefectComponentLookup,
+  createDefectCategoryLookup,
 } from '@features/object-defect-crud'
 import type {
   DefectCategoryOption,
@@ -329,7 +337,7 @@ const fetchState = computed<FetchState>(() => ({
 
 const tableLoading = computed(() => fetchState.value.isLoading || fetchState.value.isFetching)
 
-const mutations = useObjectDefectMutations()
+const { create, update, remove } = useObjectDefectMutations()
 
 watch(
   () => fetchState.value.errorMessage,
@@ -342,21 +350,13 @@ const defects = computed(() => snapshotData.value?.items ?? [])
 const categoryOptions = computed<DefectCategoryOption[]>(() => snapshotData.value?.categories ?? [])
 const componentOptions = computed<DefectComponentOption[]>(() => snapshotData.value?.components ?? [])
 
-const categoryOptionByFv = computed(() => {
-  const map = new Map<string, DefectCategoryOption>()
-  for (const option of categoryOptions.value) {
-    map.set(option.fvId, option)
-  }
-  return map
-})
+const componentLookup = computed(() =>
+  createDefectComponentLookup(defects.value, componentOptions.value),
+)
 
-const componentOptionById = computed(() => {
-  const map = new Map<string, DefectComponentOption>()
-  for (const option of componentOptions.value) {
-    map.set(option.id, option)
-  }
-  return map
-})
+const categoryLookup = computed(() =>
+  createDefectCategoryLookup(defects.value, categoryOptions.value),
+)
 
 const categoryFilterOptions = computed(() =>
   categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
@@ -670,13 +670,84 @@ const nameWarning = computed(() => {
   return `Предупреждение: дефект с таким названием уже существует${category}`
 })
 
+const filterOtherDefects = (items: LoadedObjectDefect[]): LoadedObjectDefect[] => {
+  if (!editing.value) return items
+  const currentId = String(editing.value.id)
+  return items.filter((item) => String(item.id) !== currentId)
+}
+
+const dedupeDefects = (items: LoadedObjectDefect[]): LoadedObjectDefect[] => {
+  const map = new Map<string, LoadedObjectDefect>()
+  for (const item of items) {
+    map.set(String(item.id), item)
+  }
+  return Array.from(map.values())
+}
+
+const formatUsageList = (items: LoadedObjectDefect[]): string => {
+  if (!items.length) return ''
+  const names = items
+    .slice(0, 3)
+    .map((item) => (item.name ? `«${item.name}»` : 'без названия'))
+    .join(', ')
+  if (!names) return ''
+  if (items.length > 3) {
+    return `${names} и ещё ${items.length - 3}`
+  }
+  return names
+}
+
+const componentWarning = computed(() => {
+  const componentId = form.value.componentId
+  if (!componentId) return ''
+
+  const option = componentLookup.value.byId.get(componentId)
+  if (!option) return ''
+
+  const usageById = componentLookup.value.usageById.get(componentId) ?? []
+  const nameKey = normalizeText(option.name)
+  const usageByName = nameKey ? componentLookup.value.usageByName.get(nameKey) ?? [] : []
+
+  const related = dedupeDefects(filterOtherDefects([...usageById, ...usageByName]))
+  if (!related.length) return ''
+
+  const usageText = formatUsageList(related)
+  if (!usageText) return ''
+
+  return `Предупреждение: выбранный компонент уже используется в дефектах ${usageText}.`
+})
+
+const categoryWarning = computed(() => {
+  const categoryFvId = form.value.categoryFvId
+  const categoryPvId = form.value.categoryPvId
+  if (!categoryFvId && !categoryPvId) return ''
+
+  const usageByFvId = categoryFvId ? categoryLookup.value.usageByFvId.get(categoryFvId) ?? [] : []
+  const usageByPvId = categoryPvId ? categoryLookup.value.usageByPvId.get(categoryPvId) ?? [] : []
+
+  let nameUsage: LoadedObjectDefect[] = []
+  if (categoryFvId) {
+    const option = categoryLookup.value.byFvId.get(categoryFvId)
+    const nameKey = option ? normalizeText(option.name) : ''
+    nameUsage = nameKey ? categoryLookup.value.usageByName.get(nameKey) ?? [] : []
+  }
+
+  const related = dedupeDefects(filterOtherDefects([...usageByFvId, ...usageByPvId, ...nameUsage]))
+  if (!related.length) return ''
+
+  const usageText = formatUsageList(related)
+  if (!usageText) return ''
+
+  return `Предупреждение: выбранная категория уже привязана к дефектам ${usageText}.`
+})
+
 const handleComponentChange = (nextId: string | null) => {
   form.value.componentId = nextId
   if (!nextId) {
     form.value.componentPvId = null
     return
   }
-  const option = componentOptionById.value.get(nextId)
+  const option = componentLookup.value.byId.get(nextId)
   form.value.componentPvId = option?.pvId ?? null
 }
 
@@ -686,7 +757,7 @@ const handleCategoryChange = (nextFvId: string | null) => {
     form.value.categoryPvId = null
     return
   }
-  const option = categoryOptionByFv.value.get(nextFvId)
+  const option = categoryLookup.value.byFvId.get(nextFvId)
   form.value.categoryPvId = option?.pvId ?? null
 }
 
@@ -741,17 +812,23 @@ function openCreate() {
 }
 
 function openEdit(row: LoadedObjectDefect) {
-  editing.value = row
+  const actual =
+    defects.value.find((item) => String(item.id) === String(row.id)) ?? row
+
+  editing.value = actual
 
   form.value = {
-    name: row.name,
-    componentId: row.componentId ?? null,
-    componentPvId: row.componentPvId ?? null,
-    categoryFvId: row.categoryFvId ?? null,
-    categoryPvId: row.categoryPvId ?? null,
-    index: row.index ?? '',
-    note: row.note ?? '',
+    name: actual.name,
+    componentId: actual.componentId ?? null,
+    componentPvId: actual.componentPvId ?? null,
+    categoryFvId: actual.categoryFvId ?? null,
+    categoryPvId: actual.categoryPvId ?? null,
+    index: actual.index ?? '',
+    note: actual.note ?? '',
   }
+
+  if (form.value.componentId) handleComponentChange(form.value.componentId)
+  if (form.value.categoryFvId) handleCategoryChange(form.value.categoryFvId)
 
   errors.value = {}
 
@@ -767,30 +844,39 @@ async function save() {
     return
   }
 
+  const duplicate = checkExistingDefectName(nameTrimmed, editing.value?.id)
+  if (duplicate) {
+    errors.value = { name: 'Дефект с таким названием уже существует' }
+    return
+  }
+
+  const trimmedIndex = form.value.index?.trim() ?? ''
+  const trimmedNote = form.value.note?.trim() ?? ''
+
   const payload = {
     name: nameTrimmed,
     componentId: form.value.componentId,
     componentPvId: form.value.componentPvId,
     categoryFvId: form.value.categoryFvId,
     categoryPvId: form.value.categoryPvId,
-    index: form.value.index.trim() ? form.value.index.trim() : null,
-    note: form.value.note.trim() ? form.value.note.trim() : null,
+    index: trimmedIndex ? trimmedIndex : null,
+    note: trimmedNote ? trimmedNote : null,
   }
 
   saving.value = true
   try {
     if (!editing.value) {
-      await mutations.create.mutateAsync(payload)
-      message.success('Создано')
+      await create.mutateAsync(payload)
+      message.success('Дефект создан')
     } else {
-      await mutations.update.mutateAsync({ id: editing.value.id, ...payload })
-      message.success('Изменено')
+      await update.mutateAsync({ id: editing.value.id, ...payload })
+      message.success('Дефект обновлён')
     }
 
     dialog.value = false
   } catch (err) {
-    console.error(err)
-    message.error('Не удалось сохранить')
+    const errorText = getErrorMessage(err)
+    message.error(errorText || 'Не удалось сохранить дефект')
   } finally {
     saving.value = false
   }
@@ -813,11 +899,11 @@ const removeRow = async (id: string | number) => {
   removingId.value = defectId
 
   try {
-    await mutations.remove.mutateAsync({ id })
+    await remove.mutateAsync({ id })
     message.success('Дефект удалён')
   } catch (err) {
-    console.error(err)
-    message.error('Не удалось удалить дефект')
+    const errorText = getErrorMessage(err)
+    message.error(errorText || 'Не удалось удалить дефект')
   } finally {
     removingId.value = null
   }
