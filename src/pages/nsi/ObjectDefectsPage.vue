@@ -37,9 +37,9 @@
             class="toolbar__select"
           />
           <NSelect
-            v-model:value="statusFilter"
-            :options="statusFilterOptions"
-            placeholder="Статус"
+            v-model:value="componentFilter"
+            :options="componentFilterOptions"
+            placeholder="Компонент объекта"
             clearable
             size="small"
             class="toolbar__select"
@@ -317,7 +317,7 @@ const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
 const categoryFilter = ref<string | null>(null)
-const statusFilter = ref<string | null>(null)
+const componentFilter = ref<string | null>(null)
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
 let mediaQueryList: MediaQueryList | null = null
@@ -362,14 +362,14 @@ const categoryFilterOptions = computed(() =>
   categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
 )
 
-const statusFilterOptions = computed(() => {
+const componentFilterOptions = computed(() => {
   const values = new Map<string, string>()
   for (const defect of defects.value) {
-    const note = defect.note?.trim()
-    if (!note || note.length > 60) continue
-    const key = normalizeText(note)
+    const component = defect.componentId?.trim()
+    if (!component || component.length > 60) continue
+    const key = normalizeText(component)
     if (!key || values.has(key)) continue
-    values.set(key, note)
+    values.set(key, component)
   }
   return Array.from(values.values()).map((label) => ({ label, value: label }))
 })
@@ -385,7 +385,7 @@ const categorySelectOptions = computed(() =>
 const filteredRows = computed(() => {
   const search = normalizeText(q.value)
   const selectedCategory = categoryFilter.value
-  const selectedStatus = statusFilter.value ? normalizeText(statusFilter.value) : ''
+  const selectedComponent = componentFilter.value ? normalizeText(componentFilter.value) : ''
 
   return defects.value.filter((item) => {
     if (selectedCategory) {
@@ -394,9 +394,9 @@ const filteredRows = computed(() => {
       }
     }
 
-    if (selectedStatus) {
+    if (selectedComponent) {
       const note = normalizeText(item.note ?? '')
-      if (!note || note !== selectedStatus) {
+      if (!note || note !== selectedComponent) {
         return false
       }
     }
@@ -473,11 +473,19 @@ const renderActions = (row: LoadedObjectDefect): VNodeChild => {
 }
 
 const columns = computed<DataTableColumn<LoadedObjectDefect>[]>(() => [
+    {
+    title: 'Индекс',
+    key: 'index',
+    sorter: (a, b) => a.index.localeCompare(b.index, 'ru'),
+    width:120,
+    align: 'center',
+    render: renderIndex,
+  },
   {
     title: 'Название дефекта',
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    minWidth: 240,
+    width: 500,
     ellipsis: { tooltip: true },
     className: 'col-name',
     render: (row) => row.name,
@@ -485,7 +493,7 @@ const columns = computed<DataTableColumn<LoadedObjectDefect>[]>(() => [
   {
     title: 'Категория',
     key: 'categoryName',
-    minWidth: 180,
+    minWidth: 80,
     align: 'center',
     className: 'col-category',
     render: renderCategory,
@@ -493,23 +501,18 @@ const columns = computed<DataTableColumn<LoadedObjectDefect>[]>(() => [
   {
     title: 'Компонент',
     key: 'componentName',
-    minWidth: 220,
+    minWidth: 100,
     className: 'col-component',
     render: renderComponent,
   },
   {
-    title: 'Индекс',
-    key: 'index',
-    minWidth: 120,
-    align: 'center',
-    render: renderIndex,
-  },
-  {
-    title: 'Комментарий / статус',
+    title: 'Комментарий',
     key: 'note',
-    minWidth: 240,
+    width: 300,
     className: 'col-note',
-    render: renderNote,
+
+    ellipsis: { tooltip: true },
+    render: (row) => row.note,
   },
   {
     title: 'Действия',
@@ -545,7 +548,7 @@ const cardFields = computed<CardField[]>(() => [
   },
   {
     key: 'note',
-    label: 'Комментарий / статус',
+    label: 'Комментарий',
     render: renderNote,
   },
   {
@@ -619,7 +622,7 @@ const ActionsRenderer = defineComponent({
 
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
 
-watch([q, categoryFilter, statusFilter, defects], () => (pagination.page = 1))
+watch([q, categoryFilter, componentFilter, defects], () => (pagination.page = 1))
 
 watch(
   () => pagination.pageSize,
