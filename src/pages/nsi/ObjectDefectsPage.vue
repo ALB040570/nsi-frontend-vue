@@ -365,11 +365,14 @@ const categoryFilterOptions = computed(() =>
 const componentFilterOptions = computed(() => {
   const values = new Map<string, string>()
   for (const defect of defects.value) {
-    const component = defect.componentId?.trim()
-    if (!component || component.length > 60) continue
-    const key = normalizeText(component)
+    const name = defect.componentName?.trim() ?? ''
+    const fallback = defect.componentId?.trim() ?? ''
+    const display = name || fallback
+    if (!display || display.length > 60) continue
+    const keySource = name || fallback
+    const key = normalizeText(keySource)
     if (!key || values.has(key)) continue
-    values.set(key, component)
+    values.set(key, display)
   }
   return Array.from(values.values()).map((label) => ({ label, value: label }))
 })
@@ -395,8 +398,10 @@ const filteredRows = computed(() => {
     }
 
     if (selectedComponent) {
-      const note = normalizeText(item.note ?? '')
-      if (!note || note !== selectedComponent) {
+      const componentName = normalizeText(item.componentName ?? '')
+      const componentId = normalizeText(item.componentId ?? '')
+      const componentValue = componentName || componentId
+      if (!componentValue || componentValue !== selectedComponent) {
         return false
       }
     }
