@@ -250,6 +250,7 @@ import {
   type LoadedObjectDefect,
   type ObjectDefectsSnapshot,
 } from '@entities/object-defect'
+import { useQueryClient } from '@tanstack/vue-query'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
 const isMobile = ref(false)
@@ -338,7 +339,8 @@ const fetchState = computed<FetchState>(() => ({
 
 const tableLoading = computed(() => fetchState.value.isLoading || fetchState.value.isFetching)
 
-const { create, remove } = useObjectDefectMutations()
+const { create } = useObjectDefectMutations()
+const queryClient = useQueryClient()
 
 watch(
   () => fetchState.value.errorMessage,
@@ -914,31 +916,32 @@ async function save() {
 const removingId = ref<string | null>(null)
 
 const removeRow = async (id: string | number) => {
-  const defectId = String(id)
-  if (removingId.value) return
+  if (removingId.value) return false
 
-  const confirmed = await confirmDialog({
-    title: 'Подтверждение',
-    content: 'Удалить дефект?',
-    positiveText: 'Удалить',
-    negativeText: 'Отмена',
-  })
-  if (!confirmed) return
-
-  removingId.value = defectId
+  removingId.value = String(id)
 
   try {
-    await remove.mutateAsync({ id })
+    const result = await deleteDefectOwnerWithProperties(id)
+
+    if (!result.success) {
+      const reason = result.reason || 'Не удалось удалить дефект'
+      message.error(reason)
+      return false
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['object-defects'] })
     message.success('Дефект удалён')
+    return true
   } catch (err) {
     const errorText = getErrorMessage(err)
     message.error(errorText || 'Не удалось удалить дефект')
+    return false
   } finally {
     removingId.value = null
   }
 }
 
-defineExpose({ save, editing, form, openEdit })
+defineExpose({ save, editing, form, openEdit, removeRow })
 </script>
 
 <style scoped>

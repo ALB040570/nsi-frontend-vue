@@ -37,6 +37,7 @@ const createMutateAsync = vi.hoisted(() => vi.fn())
 const updateMutateAsync = vi.hoisted(() => vi.fn())
 const removeMutateAsync = vi.hoisted(() => vi.fn())
 const deleteDefectOwnerWithPropertiesMock = vi.hoisted(() => vi.fn())
+const invalidateQueriesMock = vi.hoisted(() => vi.fn())
 
 const snapshotRef = vi.hoisted(() => ({
   value: {
@@ -71,6 +72,10 @@ vi.mock('naive-ui', () => ({
   NTag: createComponentStub('NTag'),
   useMessage: () => messageMock,
   useDialog: () => ({ warning: dialogWarningMock }),
+}))
+
+vi.mock('@tanstack/vue-query', () => ({
+  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }))
 
 vi.mock('@features/object-defect-crud', () => ({
@@ -149,6 +154,7 @@ describe('ObjectDefectsPage save flow', () => {
     updateMutateAsync.mockReset()
     removeMutateAsync.mockReset()
     deleteDefectOwnerWithPropertiesMock.mockReset()
+    invalidateQueriesMock.mockReset()
   })
 
   it('calls deleteDefectOwnerWithProperties when saving edited defect', async () => {
@@ -228,5 +234,84 @@ describe('ObjectDefectsPage save flow', () => {
     expect(messageMock.success).toHaveBeenCalledWith('Дефект обновлён')
     expect(updateMutateAsync).not.toHaveBeenCalled()
     expect(dialogWarningMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ObjectDefectsPage remove flow', () => {
+  beforeEach(() => {
+    snapshotRef.value = {
+      items: [
+        {
+          id: 1,
+          name: 'Existing defect',
+          componentId: null,
+          componentName: null,
+          componentPvId: null,
+          categoryFvId: null,
+          categoryName: null,
+          categoryPvId: null,
+          index: '',
+          note: '',
+        },
+      ],
+      categories: [],
+      components: [],
+    }
+
+    messageMock.success.mockReset()
+    messageMock.error.mockReset()
+    deleteDefectOwnerWithPropertiesMock.mockReset()
+    invalidateQueriesMock.mockReset()
+  })
+
+  it('returns true, invalidates cache and shows success message on successful removal', async () => {
+    deleteDefectOwnerWithPropertiesMock.mockResolvedValue({ success: true })
+    invalidateQueriesMock.mockResolvedValue(undefined)
+
+    const wrapper = mount(ObjectDefectsPage)
+    const vm = wrapper.vm as unknown as {
+      removeRow: (id: number | string) => Promise<boolean>
+    }
+
+    const result = await vm.removeRow(1)
+
+    expect(deleteDefectOwnerWithPropertiesMock).toHaveBeenCalledWith(1)
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({ queryKey: ['object-defects'] })
+    expect(messageMock.success).toHaveBeenCalledWith('Дефект удалён')
+    expect(result).toBe(true)
+  })
+
+  it('shows error and keeps confirmation open when removal returns reason', async () => {
+    deleteDefectOwnerWithPropertiesMock.mockResolvedValue({
+      success: false,
+      reason: 'Дефект связан с категорией',
+    })
+
+    const wrapper = mount(ObjectDefectsPage)
+    const vm = wrapper.vm as unknown as {
+      removeRow: (id: number | string) => Promise<boolean>
+    }
+
+    const result = await vm.removeRow(1)
+
+    expect(deleteDefectOwnerWithPropertiesMock).toHaveBeenCalledWith(1)
+    expect(messageMock.error).toHaveBeenCalledWith('Дефект связан с категорией')
+    expect(invalidateQueriesMock).not.toHaveBeenCalled()
+    expect(result).toBe(false)
+  })
+
+  it('shows fallback message when removal throws error', async () => {
+    deleteDefectOwnerWithPropertiesMock.mockRejectedValue(new Error('Network error'))
+
+    const wrapper = mount(ObjectDefectsPage)
+    const vm = wrapper.vm as unknown as {
+      removeRow: (id: number | string) => Promise<boolean>
+    }
+
+    const result = await vm.removeRow(1)
+
+    expect(messageMock.error).toHaveBeenCalledWith('Network error')
+    expect(invalidateQueriesMock).not.toHaveBeenCalled()
+    expect(result).toBe(false)
   })
 })
