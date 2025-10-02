@@ -243,11 +243,12 @@ import {
   createDefectComponentLookup,
   createDefectCategoryLookup,
 } from '@features/object-defect-crud'
-import type {
-  DefectCategoryOption,
-  DefectComponentOption,
-  LoadedObjectDefect,
-  ObjectDefectsSnapshot,
+import {
+  deleteDefectOwnerWithProperties,
+  type DefectCategoryOption,
+  type DefectComponentOption,
+  type LoadedObjectDefect,
+  type ObjectDefectsSnapshot,
 } from '@entities/object-defect'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
@@ -337,7 +338,7 @@ const fetchState = computed<FetchState>(() => ({
 
 const tableLoading = computed(() => fetchState.value.isLoading || fetchState.value.isFetching)
 
-const { create, update, remove } = useObjectDefectMutations()
+const { create, remove } = useObjectDefectMutations()
 
 watch(
   () => fetchState.value.errorMessage,
@@ -877,7 +878,27 @@ async function save() {
       await create.mutateAsync(payload)
       message.success('Дефект создан')
     } else {
-      await update.mutateAsync({ id: editing.value.id, ...payload })
+      const removalResult = await deleteDefectOwnerWithProperties(editing.value.id)
+      if (!removalResult.success) {
+        const reason = removalResult.reason || 'Дефект используется и не может быть изменён'
+        message.error(reason)
+
+        const switchToCreate = await confirmDialog({
+          title: 'Создание нового дефекта',
+          content: `${reason}\nСоздать новый дефект на основе текущих данных?`,
+          positiveText: 'Создать новый',
+          negativeText: 'Продолжить редактирование',
+        })
+
+        if (switchToCreate) {
+          editing.value = null
+        }
+
+        return
+      }
+
+      editing.value = null
+      await create.mutateAsync(payload)
       message.success('Дефект обновлён')
     }
 
@@ -916,6 +937,8 @@ const removeRow = async (id: string | number) => {
     removingId.value = null
   }
 }
+
+defineExpose({ save, editing, form, openEdit })
 </script>
 
 <style scoped>
