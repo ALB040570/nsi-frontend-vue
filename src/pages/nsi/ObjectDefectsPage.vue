@@ -395,8 +395,11 @@ const filteredRows = computed(() => {
     }
 
     if (selectedComponent) {
-      const note = normalizeText(item.note ?? '')
-      if (!note || note !== selectedComponent) {
+      const componentName = normalizeText(item.componentName ?? '')
+      const componentId = componentName ? '' : normalizeText(item.componentId ?? '')
+      const componentKey = componentName || componentId
+
+      if (!componentKey || componentKey !== selectedComponent) {
         return false
       }
     }
