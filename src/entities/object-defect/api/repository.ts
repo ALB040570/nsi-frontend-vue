@@ -35,6 +35,7 @@ const LOAD_COMPONENT_DEFECT_METHOD = 'data/loadComponentDefect'
 const LOAD_CATEGORIES_METHOD = 'data/loadFvForSelect'
 const SAVE_DEFECTS_METHOD = 'data/saveDefects'
 const DELETE_DEFECTS_METHOD = 'data/deleteDefects'
+const DELETE_OWNER_WITH_PROPERTIES_METHOD = 'data/deleteOwnerWithProperties'
 
 const COMPONENT_DEFECT_ARGS = ['Typ_Components', 'Prop_DefectsComponent'] as const
 const FACTOR_DEFECTS = ['Factor_Defects'] as const
@@ -357,4 +358,28 @@ export async function updateDefect(
 
 export async function deleteDefect(id: string | number): Promise<void> {
   await rpc(DELETE_DEFECTS_METHOD, [id])
+}
+
+export type DeleteDefectOwnerResult =
+  | { success: true; reason?: undefined }
+  | { success: false; reason: string }
+
+export async function deleteDefectOwnerWithProperties(
+  defectId: string | number,
+): Promise<DeleteDefectOwnerResult> {
+  try {
+    const response = await rpc<unknown>(DELETE_OWNER_WITH_PROPERTIES_METHOD, [defectId, 1])
+
+    if (typeof response === 'string') {
+      const trimmed = response.trim()
+      if (trimmed.length > 0) {
+        return { success: false, reason: trimmed }
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return { success: false, reason: message }
+  }
 }
