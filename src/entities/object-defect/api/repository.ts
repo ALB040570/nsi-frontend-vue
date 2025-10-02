@@ -249,14 +249,21 @@ function mapDefect(
   }
 }
 
+function toNumericId(value: string | number | null | undefined): number {
+  if (value == null) return 0
+
+  const numericValue = Number(value)
+  return Number.isFinite(numericValue) ? numericValue : 0
+}
+
 function buildDefectPayload(payload: CreateObjectDefectPayload) {
   return {
     accessLevel: 1,
     name: trimmedString(payload.name) || null,
-    objDefectsComponent: payload.componentId ?? 0,
-    pvDefectsComponent: payload.componentPvId ?? 0,
-    fvDefectsCategory: payload.categoryFvId ?? 0,
-    pvDefectsCategory: payload.categoryPvId ?? 0,
+    objDefectsComponent: toNumericId(payload.componentId),
+    pvDefectsComponent: toNumericId(payload.componentPvId),
+    fvDefectsCategory: toNumericId(payload.categoryFvId),
+    pvDefectsCategory: toNumericId(payload.categoryPvId),
     DefectsIndex: payload.index ?? null,
     DefectsNote: payload.note ?? null,
   }
