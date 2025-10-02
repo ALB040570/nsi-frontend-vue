@@ -252,7 +252,7 @@ function mapDefect(
 function buildDefectPayload(payload: CreateObjectDefectPayload) {
   return {
     accessLevel: 1,
-    DefectsName: trimmedString(payload.name) || null,
+    name: trimmedString(payload.name) || null,
     objDefectsComponent: payload.componentId ?? 0,
     pvDefectsComponent: payload.componentPvId ?? 0,
     fvDefectsCategory: payload.categoryFvId ?? 0,
