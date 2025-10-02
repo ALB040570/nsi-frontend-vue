@@ -134,9 +134,6 @@
             filterable
             @update:value="handleCategoryChange"
           />
-          <div v-if="categoryWarning" class="warning-text" style="margin-top: 4px">
-            {{ categoryWarning }}
-          </div>
         </NFormItem>
 
         <NFormItem label="Компонент">
@@ -148,9 +145,6 @@
             filterable
             @update:value="handleComponentChange"
           />
-          <div v-if="componentWarning" class="warning-text" style="margin-top: 4px">
-            {{ componentWarning }}
-          </div>
         </NFormItem>
 
         <NFormItem label="Индекс">
@@ -679,77 +673,6 @@ const nameWarning = computed(() => {
 
   const category = existing.categoryName ? `, категория: ${existing.categoryName}` : ''
   return `Предупреждение: дефект с таким названием уже существует${category}`
-})
-
-const filterOtherDefects = (items: LoadedObjectDefect[]): LoadedObjectDefect[] => {
-  if (!editing.value) return items
-  const currentId = String(editing.value.id)
-  return items.filter((item) => String(item.id) !== currentId)
-}
-
-const dedupeDefects = (items: LoadedObjectDefect[]): LoadedObjectDefect[] => {
-  const map = new Map<string, LoadedObjectDefect>()
-  for (const item of items) {
-    map.set(String(item.id), item)
-  }
-  return Array.from(map.values())
-}
-
-const formatUsageList = (items: LoadedObjectDefect[]): string => {
-  if (!items.length) return ''
-  const names = items
-    .slice(0, 3)
-    .map((item) => (item.name ? `«${item.name}»` : 'без названия'))
-    .join(', ')
-  if (!names) return ''
-  if (items.length > 3) {
-    return `${names} и ещё ${items.length - 3}`
-  }
-  return names
-}
-
-const componentWarning = computed(() => {
-  const componentId = form.value.componentId
-  if (!componentId) return ''
-
-  const option = componentLookup.value.byId.get(componentId)
-  if (!option) return ''
-
-  const usageById = componentLookup.value.usageById.get(componentId) ?? []
-  const nameKey = normalizeText(option.name)
-  const usageByName = nameKey ? componentLookup.value.usageByName.get(nameKey) ?? [] : []
-
-  const related = dedupeDefects(filterOtherDefects([...usageById, ...usageByName]))
-  if (!related.length) return ''
-
-  const usageText = formatUsageList(related)
-  if (!usageText) return ''
-
-  return `Предупреждение: выбранный компонент уже используется в дефектах ${usageText}.`
-})
-
-const categoryWarning = computed(() => {
-  const categoryFvId = form.value.categoryFvId
-  const categoryPvId = form.value.categoryPvId
-  if (!categoryFvId && !categoryPvId) return ''
-
-  const usageByFvId = categoryFvId ? categoryLookup.value.usageByFvId.get(categoryFvId) ?? [] : []
-  const usageByPvId = categoryPvId ? categoryLookup.value.usageByPvId.get(categoryPvId) ?? [] : []
-
-  let nameUsage: LoadedObjectDefect[] = []
-  if (categoryFvId) {
-    const option = categoryLookup.value.byFvId.get(categoryFvId)
-    const nameKey = option ? normalizeText(option.name) : ''
-    nameUsage = nameKey ? categoryLookup.value.usageByName.get(nameKey) ?? [] : []
-  }
-
-  const related = dedupeDefects(filterOtherDefects([...usageByFvId, ...usageByPvId, ...nameUsage]))
-  if (!related.length) return ''
-
-  const usageText = formatUsageList(related)
-  if (!usageText) return ''
-
-  return `Предупреждение: выбранная категория уже привязана к дефектам ${usageText}.`
 })
 
 const handleComponentChange = (nextId: string | null) => {
