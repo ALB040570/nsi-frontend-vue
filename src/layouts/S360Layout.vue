@@ -87,6 +87,7 @@ import {
   HomeOutline,
   AlbumsOutline,
   BugOutline,
+  OptionsOutline,
   ConstructOutline,
 } from '@vicons/ionicons5'
 
@@ -128,6 +129,7 @@ const menuRouteByKey: Record<string, string> = {
   dashboard: '/',
   'object-types': '/nsi/object-types',
   'object-defects': '/nsi/object-defects',
+  'object-parameters': '/nsi/object-parameters',
   components: '/nsi/components',
 }
 
@@ -142,6 +144,11 @@ const menuOptions: MenuOption[] = [
     label: withTooltip('Справочник дефектов обслуживаемых объектов'),
     key: 'object-defects',
     icon: renderIcon(BugOutline),
+  },
+  {
+    label: withTooltip('Справочник параметров обслуживаемых объектов'),
+    key: 'object-parameters',
+    icon: renderIcon(OptionsOutline),
   },
   { label: withTooltip('Компоненты объектов'), key: 'components', icon: renderIcon(ConstructOutline) },
 ]
