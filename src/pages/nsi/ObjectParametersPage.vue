@@ -120,9 +120,11 @@ import {
   reactive,
   ref,
   watch,
+  nextTick,
   type PropType,
   type VNodeChild,
 } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import {
   NButton,
@@ -159,6 +161,9 @@ interface CardField {
   isActions?: boolean
 }
 
+const router = useRouter()
+const route = useRoute()
+
 const message = useMessage()
 const formRef = ref<FormInst | null>(null)
 const infoOpen = ref(false)
@@ -191,6 +196,26 @@ onBeforeUnmount(() => {
     mediaQueryList = null
   }
 })
+
+const clearActionQuery = () => {
+  if (!route.query.action) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.action
+  void router.replace({ path: route.path, query: nextQuery, hash: route.hash })
+}
+
+watch(
+  () => route.query.action,
+  (value) => {
+    const matches = Array.isArray(value) ? value.includes('create') : value === 'create'
+    if (!matches) return
+    nextTick(() => {
+      openCreate()
+      clearActionQuery()
+    })
+  },
+  { immediate: true },
+)
 
 watch(q, () => {
   pagination.page = 1

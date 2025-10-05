@@ -169,9 +169,11 @@ import {
   watchEffect,
   onMounted,
   onBeforeUnmount,
+  nextTick,
   h,
   defineComponent,
 } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import type { PropType, VNodeChild } from 'vue'
 
@@ -213,6 +215,9 @@ import {
 import { createComponentIfMissing, type ComponentOption } from '@entities/component'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
+const router = useRouter()
+const route = useRoute()
+
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
   isMobile.value = window.matchMedia('(max-width: 768px)').matches
@@ -234,6 +239,26 @@ onBeforeUnmount(() => {
     mediaQueryList = null
   }
 })
+
+const clearActionQuery = () => {
+  if (!route.query.action) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.action
+  void router.replace({ path: route.path, query: nextQuery, hash: route.hash })
+}
+
+watch(
+  () => route.query.action,
+  (value) => {
+    const matches = Array.isArray(value) ? value.includes('create') : value === 'create'
+    if (!matches) return
+    nextTick(() => {
+      openCreate()
+      clearActionQuery()
+    })
+  },
+  { immediate: true },
+)
 
 /* ---------- типы и утилиты ---------- */
 

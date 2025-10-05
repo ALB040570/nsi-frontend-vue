@@ -5,7 +5,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@features/auth'
 
-const Home = () => import('@/components/HelloWorld.vue')
+const Home = () => import('@pages/HomePage.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
 const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
@@ -16,7 +16,7 @@ const router = createRouter({
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
     // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
-    { path: '/', name: 'home', component: Home, props: { msg: 'Service 360' } },
+    { path: '/', name: 'home', component: Home },
     {
       path: '/nsi/object-types',
       name: 'object-types',
