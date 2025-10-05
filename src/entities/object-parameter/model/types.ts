@@ -3,13 +3,17 @@
  *  Использование: импортируйте в репозитории, фичах и страницах при работе с параметрами.
  */
 
+export type DirectoryOption = { id: string; name: string }
+
+export type DirectoryLookup<Option extends DirectoryOption = DirectoryOption> = Record<string, Option>
+
 export interface ObjectParameter {
   id: string
   name: string
   code: string | null
   valueType: string
   unitId: string | null
-  groupId: string | null
+  sourceId: string | null
   minValue: number | null
   maxValue: number | null
   isRequired: boolean
@@ -18,11 +22,11 @@ export interface ObjectParameter {
 
 export interface LoadedObjectParameter extends ObjectParameter {
   unitName: string | null
-  groupName: string | null
+  sourceName: string | null
 }
 
 export interface ObjectParametersSnapshot {
   items: LoadedObjectParameter[]
-  unitOptions: Array<{ id: string; name: string }>
-  groupOptions: Array<{ id: string; name: string }>
+  unitDirectory: DirectoryLookup
+  sourceDirectory: DirectoryLookup
 }

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 
-import type { LoadedObjectParameter } from '@entities/object-parameter'
+import type { DirectoryOption, LoadedObjectParameter } from '@entities/object-parameter'
 
 type TestParameterRow = LoadedObjectParameter
 
@@ -20,10 +20,26 @@ const removeResetMock = vi.hoisted(() => vi.fn())
 const snapshotRef = vi.hoisted(() => ({
   value: {
     items: [] as TestParameterRow[],
-    unitOptions: [] as Array<{ id: string; name: string }>,
-    groupOptions: [] as Array<{ id: string; name: string }>,
+    unitDirectory: {} as Record<string, DirectoryOption>,
+    sourceDirectory: {} as Record<string, DirectoryOption>,
+    unitOptions: [] as DirectoryOption[],
+    sourceOptions: [] as DirectoryOption[],
+    unitLookup: {} as Record<string, DirectoryOption>,
+    sourceLookup: {} as Record<string, DirectoryOption>,
   },
 }))
+
+function buildSnapshot(items: TestParameterRow[] = []) {
+  return {
+    items,
+    unitDirectory: {} as Record<string, DirectoryOption>,
+    sourceDirectory: {} as Record<string, DirectoryOption>,
+    unitOptions: [] as DirectoryOption[],
+    sourceOptions: [] as DirectoryOption[],
+    unitLookup: {} as Record<string, DirectoryOption>,
+    sourceLookup: {} as Record<string, DirectoryOption>,
+  }
+}
 
 function createComponentStub(name: string) {
   return defineComponent({
@@ -80,26 +96,22 @@ describe('ObjectParametersPage actions placeholders', () => {
   })
 
   beforeEach(() => {
-    snapshotRef.value = {
-      items: [
-        {
-          id: '1',
-          name: 'Температура теплоносителя',
-          code: 'TMP-001',
-          valueType: 'float',
-          unitId: 'deg',
-          groupId: 'heating',
-          minValue: 45,
-          maxValue: 95,
-          isRequired: true,
-          note: 'Контроль подачи',
-          unitName: '°C',
-          groupName: 'Отопление',
-        },
-      ],
-      unitOptions: [],
-      groupOptions: [],
-    }
+    snapshotRef.value = buildSnapshot([
+      {
+        id: '1',
+        name: 'Температура теплоносителя',
+        code: 'TMP-001',
+        valueType: 'float',
+        unitId: 'deg',
+        sourceId: 'heating',
+        minValue: 45,
+        maxValue: 95,
+        isRequired: true,
+        note: 'Контроль подачи',
+        unitName: '°C',
+        sourceName: 'Отопление',
+      },
+    ])
 
     messageMock.success.mockReset()
     messageMock.error.mockReset()
@@ -177,26 +189,22 @@ describe('ObjectParametersPage mobile card fields', () => {
       removeEventListener: vi.fn(),
     }))
 
-    snapshotRef.value = {
-      items: [
-        {
-          id: '1',
-          name: 'Температура теплоносителя',
-          code: 'TMP-001',
-          valueType: 'float',
-          unitId: 'deg',
-          groupId: 'heating',
-          minValue: 45,
-          maxValue: 95,
-          isRequired: true,
-          note: 'Контроль подачи',
-          unitName: '°C',
-          groupName: 'Отопление',
-        },
-      ],
-      unitOptions: [],
-      groupOptions: [],
-    }
+    snapshotRef.value = buildSnapshot([
+      {
+        id: '1',
+        name: 'Температура теплоносителя',
+        code: 'TMP-001',
+        valueType: 'float',
+        unitId: 'deg',
+        sourceId: 'heating',
+        minValue: 45,
+        maxValue: 95,
+        isRequired: true,
+        note: 'Контроль подачи',
+        unitName: '°C',
+        sourceName: 'Отопление',
+      },
+    ])
   })
 
   it('renders expected list of card fields on mobile', () => {
@@ -207,7 +215,7 @@ describe('ObjectParametersPage mobile card fields', () => {
 
     expect(fieldLabels).toEqual([
       'Единица измерения',
-      'Компонент',
+      'Источник данных',
       'Диапазон',
       'Комментарии по диапазонам',
       'Источник',
@@ -218,11 +226,7 @@ describe('ObjectParametersPage mobile card fields', () => {
 
 describe('ObjectParametersPage sorting logic', () => {
   beforeEach(() => {
-    snapshotRef.value = {
-      items: [],
-      unitOptions: [],
-      groupOptions: [],
-    }
+    snapshotRef.value = buildSnapshot()
 
     createResetMock.mockReset()
     updateResetMock.mockReset()
@@ -246,13 +250,13 @@ describe('ObjectParametersPage sorting logic', () => {
       code: null,
       valueType: 'string',
       unitId: null,
-      groupId: null,
+      sourceId: null,
       minValue: null,
       maxValue: null,
       isRequired: false,
       note: null,
       unitName: null,
-      groupName: null,
+      sourceName: null,
     }
 
     const b: TestParameterRow = { ...a, id: '2', name: 'Блок' }
@@ -261,36 +265,36 @@ describe('ObjectParametersPage sorting logic', () => {
     expect(nameColumn?.sorter?.(b, a) ?? 0).toBeGreaterThan(0)
   })
 
-  it('sorts by unitName treating empty values as empty strings', () => {
+  it('sorts by sourceName treating empty values as empty strings', () => {
     const wrapper = mount(ObjectParametersPage)
     const vm = wrapper.vm as unknown as {
       columns: Array<{ key?: string; sorter?: (a: TestParameterRow, b: TestParameterRow) => number }>
     }
 
-    const unitColumn = vm.columns.find((column) => column.key === 'unitName')
-    expect(unitColumn?.sorter).toBeTypeOf('function')
+    const sourceColumn = vm.columns.find((column) => column.key === 'sourceName')
+    expect(sourceColumn?.sorter).toBeTypeOf('function')
 
-    const withUnit: TestParameterRow = {
+    const withSource: TestParameterRow = {
       id: '1',
       name: 'Параметр',
       code: null,
       valueType: 'string',
       unitId: null,
-      groupId: null,
+      sourceId: null,
       minValue: null,
       maxValue: null,
       isRequired: false,
       note: null,
       unitName: 'Ампер',
-      groupName: null,
+      sourceName: 'Альбом',
     }
 
-    const withAnotherUnit: TestParameterRow = { ...withUnit, id: '2', unitName: 'Вольт' }
-    const withoutUnit: TestParameterRow = { ...withUnit, id: '3', unitName: null }
+    const withAnotherSource: TestParameterRow = { ...withSource, id: '2', sourceName: 'База' }
+    const withoutSource: TestParameterRow = { ...withSource, id: '3', sourceName: null }
 
-    expect(unitColumn?.sorter?.(withUnit, withAnotherUnit) ?? 0).toBeLessThan(0)
-    expect(unitColumn?.sorter?.(withAnotherUnit, withUnit) ?? 0).toBeGreaterThan(0)
-    expect(unitColumn?.sorter?.(withoutUnit, withUnit) ?? 0).toBeLessThan(0)
-    expect(unitColumn?.sorter?.(withUnit, withoutUnit) ?? 0).toBeGreaterThan(0)
+    expect(sourceColumn?.sorter?.(withSource, withAnotherSource) ?? 0).toBeLessThan(0)
+    expect(sourceColumn?.sorter?.(withAnotherSource, withSource) ?? 0).toBeGreaterThan(0)
+    expect(sourceColumn?.sorter?.(withoutSource, withSource) ?? 0).toBeLessThan(0)
+    expect(sourceColumn?.sorter?.(withSource, withoutSource) ?? 0).toBeGreaterThan(0)
   })
 })
