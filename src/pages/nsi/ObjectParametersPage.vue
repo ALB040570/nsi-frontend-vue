@@ -261,12 +261,22 @@ function renderGroup(row: LoadedObjectParameter): VNodeChild {
   )
 }
 
-function renderLimit(value: number | null): VNodeChild {
+function renderLimit(value: number | null): string {
   return formatNumber(value)
 }
 
-function renderNormative(): VNodeChild {
-  return '—'
+function renderRange(row: LoadedObjectParameter): VNodeChild {
+  const createItem = (label: string, value: string) =>
+    h('div', { class: 'range-cell__item' }, [
+      h('span', { class: 'range-cell__label' }, label),
+      h('span', { class: 'range-cell__value' }, value),
+    ])
+
+  return h('div', { class: 'range-cell' }, [
+    createItem('Макс', renderLimit(row.maxValue)),
+    createItem('Мин', renderLimit(row.minValue)),
+    createItem('Норм', renderLimit(null)),
+  ])
 }
 
 function renderComments(row: LoadedObjectParameter): VNodeChild {
@@ -350,25 +360,11 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
     render: renderGroup,
   },
   {
-    title: 'Максимальное',
-    key: 'maxValue',
-    minWidth: 120,
+    title: 'Диапазон',
+    key: 'range',
+    minWidth: 160,
     align: 'center',
-    render: (row) => renderLimit(row.maxValue),
-  },
-  {
-    title: 'Минимальное',
-    key: 'minValue',
-    minWidth: 120,
-    align: 'center',
-    render: (row) => renderLimit(row.minValue),
-  },
-  {
-    title: 'Нормативное',
-    key: 'normative',
-    minWidth: 120,
-    align: 'center',
-    render: () => renderNormative(),
+    render: renderRange,
   },
   {
     title: 'Комментарии по границам',
@@ -418,19 +414,9 @@ const cardFields = computed<CardField[]>(() => [
     render: renderGroup,
   },
   {
-    key: 'max',
-    label: 'Максимальное',
-    render: (row) => renderLimit(row.maxValue),
-  },
-  {
-    key: 'min',
-    label: 'Минимальное',
-    render: (row) => renderLimit(row.minValue),
-  },
-  {
-    key: 'norm',
-    label: 'Нормативное',
-    render: () => renderNormative(),
+    key: 'range',
+    label: 'Диапазон',
+    render: renderRange,
   },
   {
     key: 'note',
@@ -661,6 +647,29 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   gap: 2px;
   white-space: normal;
   word-break: break-word;
+}
+
+.range-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.range-cell__item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.range-cell__label {
+  color: #6b7280;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.range-cell__value {
+  font-weight: 500;
 }
 
 .table-actions {
