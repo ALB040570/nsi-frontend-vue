@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 
@@ -155,6 +155,64 @@ describe('ObjectParametersPage actions placeholders', () => {
     )
     expect(createResetMock).not.toHaveBeenCalled()
     expect(updateResetMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('ObjectParametersPage mobile card fields', () => {
+  let originalMatchMedia: typeof window.matchMedia
+
+  beforeAll(() => {
+    originalMatchMedia = window.matchMedia
+  })
+
+  afterAll(() => {
+    window.matchMedia = originalMatchMedia
+  })
+
+  beforeEach(() => {
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+
+    snapshotRef.value = {
+      items: [
+        {
+          id: '1',
+          name: 'Температура теплоносителя',
+          code: 'TMP-001',
+          valueType: 'float',
+          unitId: 'deg',
+          groupId: 'heating',
+          minValue: 45,
+          maxValue: 95,
+          isRequired: true,
+          note: 'Контроль подачи',
+          unitName: '°C',
+          groupName: 'Отопление',
+        },
+      ],
+      unitOptions: [],
+      groupOptions: [],
+    }
+  })
+
+  it('renders expected list of card fields on mobile', () => {
+    const wrapper = mount(ObjectParametersPage)
+
+    const card = wrapper.find('.card')
+    const fieldLabels = card.findAll('dt').map((node) => node.text())
+
+    expect(fieldLabels).toEqual([
+      'Единица измерения',
+      'Компонент',
+      'Диапазон',
+      'Комментарии по диапазонам',
+      'Источник',
+      'Описание',
+    ])
   })
 })
 

@@ -399,6 +399,16 @@ const cardFields = computed<CardField[]>(() => [
     isPrimary: true,
   },
   {
+    key: 'unit',
+    label: 'Единица измерения',
+    render: renderUnit,
+  },
+  {
+    key: 'group',
+    label: 'Компонент',
+    render: renderGroup,
+  },
+  {
     key: 'range',
     label: 'Диапазон',
     render: renderRange,
