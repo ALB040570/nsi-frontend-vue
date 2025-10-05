@@ -66,6 +66,7 @@ vi.mock('naive-ui', () => ({
   NPagination: createComponentStub('NPagination'),
   NPopconfirm: createComponentStub('NPopconfirm'),
   NTag: createComponentStub('NTag'),
+  NTooltip: createComponentStub('NTooltip'),
   useMessage: () => messageMock,
 }))
 
@@ -104,12 +105,16 @@ describe('ObjectParametersPage actions placeholders', () => {
         valueType: 'float',
         unitId: 'deg',
         sourceId: 'heating',
+        componentId: null,
         minValue: 45,
         maxValue: 95,
+        normValue: null,
         isRequired: true,
         note: 'Контроль подачи',
+        description: 'Температура на обратке',
         unitName: '°C',
         sourceName: 'Отопление',
+        componentName: null,
       },
     ])
 
@@ -197,12 +202,16 @@ describe('ObjectParametersPage mobile card fields', () => {
         valueType: 'float',
         unitId: 'deg',
         sourceId: 'heating',
+        componentId: null,
         minValue: 45,
         maxValue: 95,
+        normValue: null,
         isRequired: true,
         note: 'Контроль подачи',
+        description: 'Температура на обратке',
         unitName: '°C',
         sourceName: 'Отопление',
+        componentName: null,
       },
     ])
   })
@@ -214,9 +223,7 @@ describe('ObjectParametersPage mobile card fields', () => {
     const fieldLabels = card.findAll('dt').map((node) => node.text())
 
     expect(fieldLabels).toEqual([
-      'Единица измерения',
-      'Источник данных',
-      'Диапазон',
+      'ЕИ и границы',
       'Комментарии по диапазонам',
       'Источник',
       'Описание',
@@ -251,12 +258,16 @@ describe('ObjectParametersPage sorting logic', () => {
       valueType: 'string',
       unitId: null,
       sourceId: null,
+      componentId: null,
       minValue: null,
       maxValue: null,
+      normValue: null,
       isRequired: false,
       note: null,
+      description: null,
       unitName: null,
       sourceName: null,
+      componentName: null,
     }
 
     const b: TestParameterRow = { ...a, id: '2', name: 'Блок' }
@@ -281,12 +292,16 @@ describe('ObjectParametersPage sorting logic', () => {
       valueType: 'string',
       unitId: null,
       sourceId: null,
+      componentId: null,
       minValue: null,
       maxValue: null,
+      normValue: null,
       isRequired: false,
       note: null,
+      description: null,
       unitName: 'Ампер',
       sourceName: 'Альбом',
+      componentName: null,
     }
 
     const withAnotherSource: TestParameterRow = { ...withSource, id: '2', sourceName: 'База' }

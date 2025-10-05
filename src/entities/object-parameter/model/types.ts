@@ -14,15 +14,19 @@ export interface ObjectParameter {
   valueType: string
   unitId: string | null
   sourceId: string | null
+  componentId: string | null
   minValue: number | null
   maxValue: number | null
+  normValue: number | null
   isRequired: boolean
   note: string | null
+  description: string | null
 }
 
 export interface LoadedObjectParameter extends ObjectParameter {
   unitName: string | null
   sourceName: string | null
+  componentName: string | null
 }
 
 export interface ObjectParametersSnapshot {

@@ -134,6 +134,7 @@ import {
   NPagination,
   NPopconfirm,
   NTag,
+  NTooltip,
   useMessage,
   type DataTableColumn,
   type FormInst,
@@ -243,32 +244,37 @@ function formatNumber(value: number | null): string {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
 }
 
-function renderUnit(row: LoadedObjectParameter): VNodeChild {
-  if (!row.unitName) return '—'
-  return h(
-    NTag,
-    { size: 'small', bordered: false, round: true, type: 'info', class: 'tag-unit' },
-    { default: () => row.unitName },
-  )
-}
-
-function renderSourceTag(row: LoadedObjectParameter): VNodeChild {
-  if (!row.sourceName) return '—'
+function renderComponentTag(row: LoadedObjectParameter): VNodeChild {
+  if (!row.componentName) return '—'
   return h(
     NTag,
     { size: 'small', bordered: true, round: true, class: 'tag-component' },
-    { default: () => row.sourceName },
+    { default: () => row.componentName },
   )
 }
 
 function renderNameWithMeta(row: LoadedObjectParameter): VNodeChild {
-  const unit = row.unitName ? renderUnit(row) : null
-  const source = row.sourceName ? renderSourceTag(row) : null
-  const metaContent = [unit, source].filter((child): child is VNodeChild => Boolean(child))
+  const component = row.componentName ? renderComponentTag(row) : null
+
+  const titleNode = h('span', { class: 'name-cell__title' }, row.name)
+  const tooltipWrapped = row.name
+    ? h(
+        NTooltip,
+        { placement: 'top', delay: 100 },
+        {
+          trigger: () => titleNode,
+          default: () => row.name,
+        },
+      )
+    : titleNode
+
+  if (!component) {
+    return h('div', { class: 'name-cell' }, [tooltipWrapped])
+  }
 
   return h('div', { class: 'name-cell' }, [
-    h('div', null, row.name),
-    metaContent.length ? h('div', { class: 'name-meta' }, metaContent) : null,
+    tooltipWrapped,
+    h('div', { class: 'name-meta' }, [component]),
   ])
 }
 
@@ -277,32 +283,87 @@ function renderLimit(value: number | null): string {
 }
 
 function renderRange(row: LoadedObjectParameter): VNodeChild {
-  const createItem = (label: string, value: string) =>
-    h('div', { class: 'range-cell__item' }, [
-      h('span', { class: 'range-cell__label' }, label),
-      h('span', { class: 'range-cell__value' }, value),
-    ])
+  const items = [
+    { label: 'ЕИ', value: row.unitName ?? '—', type: 'info' as const },
+    { label: 'Мин', value: renderLimit(row.minValue), type: 'warning' as const },
+    { label: 'Макс', value: renderLimit(row.maxValue), type: 'error' as const },
+    { label: 'Норм', value: renderLimit(row.normValue), type: 'success' as const },
+  ]
 
-  return h('div', { class: 'range-cell' }, [
-    createItem('Макс: ', renderLimit(row.maxValue)),
-    createItem('Мин: ', renderLimit(row.minValue)),
-    createItem('Норм: ', renderLimit(null)),
-  ])
+  const rows = items.map(({ label, value, type }) => {
+    const labelNode = h('span', { class: 'range-row__label' }, label)
+    const tagContent = h('span', { class: 'tag-range__value' }, value)
+    const tagNode = h(
+      NTag,
+      {
+        size: 'small',
+        bordered: true,
+        round: true,
+        type,
+        class: 'tag-range',
+      },
+      { default: () => tagContent },
+    )
+
+    const maybeTooltip = value === '—'
+      ? tagNode
+      : h(
+          NTooltip,
+          { placement: 'top', delay: 100 },
+          {
+            trigger: () => tagNode,
+            default: () => value,
+          },
+        )
+
+    return h('div', { class: 'range-row', key: `${row.id}-${label}` }, [labelNode, maybeTooltip])
+  })
+
+  return h('div', { class: 'range-cell' }, rows)
 }
 
 function renderComments(row: LoadedObjectParameter): VNodeChild {
   if (!row.note) return '—'
-  const lines = row.note.split(/\n+/).map((line, index) => h('div', { key: `${row.id}-note-${index}` }, line))
-  return h('div', { class: 'note-text' }, lines)
+  const noteLines = row.note.split(/\n+/)
+
+  return h(
+    NTooltip,
+    { placement: 'top', delay: 100 },
+    {
+      trigger: () =>
+        h('div', { class: 'note-text' }, [
+          h(
+            'span',
+            { class: 'note-text__clamped' },
+            row.note,
+          ),
+        ]),
+      default: () => noteLines.map((line, index) => h('div', { key: `${row.id}-note-${index}` }, line)),
+    },
+  )
+}
+
+const withTooltip = (value: string | null | undefined): VNodeChild => {
+  const text = value?.trim()
+  if (!text) return '—'
+
+  return h(
+    NTooltip,
+    { placement: 'top', delay: 100 },
+    {
+      trigger: () => h('span', { class: 'cell-ellipsis' }, text),
+      default: () => text,
+    },
+  )
 }
 
 function renderSourceDetails(row: LoadedObjectParameter): VNodeChild {
-  if (row.sourceName?.trim()) return row.sourceName
-  return row.code?.trim() ? row.code : '—'
+  const source = row.sourceName ?? row.code
+  return withTooltip(source)
 }
 
 function renderDescription(row: LoadedObjectParameter): VNodeChild {
-  return row.valueType?.trim() ? `Тип значения: ${row.valueType}` : '—'
+  return withTooltip(row.description)
 }
 
 const renderActions = (row: LoadedObjectParameter): VNodeChild => {
@@ -347,16 +408,16 @@ const renderActions = (row: LoadedObjectParameter): VNodeChild => {
 
 const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
   {
-    title: 'Параметр ЕИ Источник',
+    title: 'Параметр и компонент',
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    minWidth: 240,
+    minWidth: 360,
     ellipsis: { tooltip: true },
     className: 'col-name',
     render: renderNameWithMeta,
   },
   {
-    title: 'Диапазон',
+    title: 'ЕИ и границы',
     key: 'range',
     minWidth: 80,
     align: 'left',
@@ -401,18 +462,8 @@ const cardFields = computed<CardField[]>(() => [
     isPrimary: true,
   },
   {
-    key: 'unit',
-    label: 'Единица измерения',
-    render: renderUnit,
-  },
-  {
-    key: 'source-tag',
-    label: 'Источник данных',
-    render: renderSourceTag,
-  },
-  {
     key: 'range',
-    label: 'Диапазон',
+    label: 'ЕИ и границы',
     render: renderRange,
   },
   {
@@ -579,6 +630,15 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-width: 100%;
+}
+
+.name-cell__title {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .name-meta {
@@ -586,6 +646,14 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
+}
+
+.cell-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .toolbar {
@@ -652,9 +720,16 @@ const deleteParameter = (row: LoadedObjectParameter) => {
 }
 
 .note-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: block;
+  max-width: 100%;
+}
+
+.note-text__clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: normal;
   word-break: break-word;
 }
@@ -662,24 +737,58 @@ const deleteParameter = (row: LoadedObjectParameter) => {
 .range-cell {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-}
-
-.range-cell__item {
-  display: flex;
-  align-items: baseline;
   gap: 6px;
 }
 
-.range-cell__label {
-  color: #6b7280;
-  font-size: 11px;
-  line-height: 1.2;
+.range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.range-cell__value {
-  font-weight: 500;
+.range-row__label {
+  color: #6b7280;
+  font-size: 12px;
+  text-transform: uppercase;
+  width: 72px;
+  text-align: right;
+}
+
+.range-row__label::after {
+  content: ':';
+  margin-left: 2px;
+}
+
+.range-row > :nth-child(2) {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.range-row > :nth-child(2) :deep(*) {
+  max-width: 100%;
+}
+
+.tag-range {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  max-width: 100%;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.tag-range__value {
+  font-weight: 600;
+  font-size: 12px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table-actions {
@@ -763,6 +872,7 @@ const deleteParameter = (row: LoadedObjectParameter) => {
 
 .card__actions .table-actions {
   justify-content: flex-start;
+  opacity: 1;
 }
 
 .badge {
