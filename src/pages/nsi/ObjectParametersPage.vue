@@ -261,6 +261,17 @@ function renderGroup(row: LoadedObjectParameter): VNodeChild {
   )
 }
 
+function renderNameWithMeta(row: LoadedObjectParameter): VNodeChild {
+  const unit = row.unitName ? renderUnit(row) : null
+  const group = row.groupName ? renderGroup(row) : null
+  const metaContent = [unit, group].filter((child): child is VNodeChild => Boolean(child))
+
+  return h('div', { class: 'name-cell' }, [
+    h('div', null, row.name),
+    metaContent.length ? h('div', { class: 'name-meta' }, metaContent) : null,
+  ])
+}
+
 function renderLimit(value: number | null): string {
   return formatNumber(value)
 }
@@ -341,23 +352,7 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
     minWidth: 220,
     ellipsis: { tooltip: true },
     className: 'col-name',
-    render: (row) => row.name,
-  },
-  {
-    title: 'Единица измерения',
-    key: 'unitName',
-    sorter: (a, b) => (a.unitName ?? '').localeCompare(b.unitName ?? '', 'ru'),
-    minWidth: 140,
-    align: 'center',
-    className: 'col-unit',
-    render: renderUnit,
-  },
-  {
-    title: 'Компонент',
-    key: 'groupName',
-    minWidth: 140,
-    className: 'col-component',
-    render: renderGroup,
+    render: renderNameWithMeta,
   },
   {
     title: 'Диапазон',
@@ -400,18 +395,8 @@ const cardFields = computed<CardField[]>(() => [
   {
     key: 'name',
     label: 'Наименование',
-    render: (row) => row.name,
+    render: renderNameWithMeta,
     isPrimary: true,
-  },
-  {
-    key: 'unit',
-    label: 'Единица измерения',
-    render: renderUnit,
-  },
-  {
-    key: 'group',
-    label: 'Компонент',
-    render: renderGroup,
   },
   {
     key: 'range',
@@ -576,6 +561,19 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   margin-right: 12px;
   font-size: 14px;
   color: var(--n-text-color-3);
+}
+
+.name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.name-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
 }
 
 .toolbar {
