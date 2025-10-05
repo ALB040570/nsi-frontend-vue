@@ -211,7 +211,7 @@ const filteredRows = computed(() => {
   if (!search) return parameters.value
 
   return parameters.value.filter((item) => {
-    const fields = [item.name, item.unitName, item.groupName, item.code, item.note]
+    const fields = [item.name, item.unitName, item.sourceName, item.code, item.note]
     return fields.some((field) => normalizeText(field ?? '').includes(search))
   })
 })
@@ -252,19 +252,19 @@ function renderUnit(row: LoadedObjectParameter): VNodeChild {
   )
 }
 
-function renderGroup(row: LoadedObjectParameter): VNodeChild {
-  if (!row.groupName) return '—'
+function renderSourceTag(row: LoadedObjectParameter): VNodeChild {
+  if (!row.sourceName) return '—'
   return h(
     NTag,
     { size: 'small', bordered: true, round: true, class: 'tag-component' },
-    { default: () => row.groupName },
+    { default: () => row.sourceName },
   )
 }
 
 function renderNameWithMeta(row: LoadedObjectParameter): VNodeChild {
   const unit = row.unitName ? renderUnit(row) : null
-  const group = row.groupName ? renderGroup(row) : null
-  const metaContent = [unit, group].filter((child): child is VNodeChild => Boolean(child))
+  const source = row.sourceName ? renderSourceTag(row) : null
+  const metaContent = [unit, source].filter((child): child is VNodeChild => Boolean(child))
 
   return h('div', { class: 'name-cell' }, [
     h('div', null, row.name),
@@ -296,7 +296,8 @@ function renderComments(row: LoadedObjectParameter): VNodeChild {
   return h('div', { class: 'note-text' }, lines)
 }
 
-function renderSource(row: LoadedObjectParameter): VNodeChild {
+function renderSourceDetails(row: LoadedObjectParameter): VNodeChild {
+  if (row.sourceName?.trim()) return row.sourceName
   return row.code?.trim() ? row.code : '—'
 }
 
@@ -346,7 +347,7 @@ const renderActions = (row: LoadedObjectParameter): VNodeChild => {
 
 const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
   {
-    title: 'Параметр ЕИ Компонент',
+    title: 'Параметр ЕИ Источник',
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     minWidth: 240,
@@ -371,9 +372,10 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
   },
   {
     title: 'Источник',
-    key: 'code',
+    key: 'sourceName',
     minWidth: 140,
-    render: renderSource,
+    sorter: (a, b) => (a.sourceName ?? '').localeCompare(b.sourceName ?? '', 'ru'),
+    render: renderSourceDetails,
   },
   {
     title: 'Описание',
@@ -404,9 +406,9 @@ const cardFields = computed<CardField[]>(() => [
     render: renderUnit,
   },
   {
-    key: 'group',
-    label: 'Компонент',
-    render: renderGroup,
+    key: 'source-tag',
+    label: 'Источник данных',
+    render: renderSourceTag,
   },
   {
     key: 'range',
@@ -421,7 +423,7 @@ const cardFields = computed<CardField[]>(() => [
   {
     key: 'source',
     label: 'Источник',
-    render: renderSource,
+    render: renderSourceDetails,
   },
   {
     key: 'description',

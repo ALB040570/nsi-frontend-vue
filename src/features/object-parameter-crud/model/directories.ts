@@ -2,11 +2,11 @@
  *  Назначение: вспомогательные утилиты для работы с директориями параметров обслуживаемых объектов.
  *  Использование: импортируйте генераторы lookup и сортировок в хуках и компонентах фичи.
  */
-import type { LoadedObjectParameter } from '@entities/object-parameter'
-
-export type DirectoryOption = { id: string; name: string }
-
-export type DirectoryLookup<Option extends DirectoryOption = DirectoryOption> = Record<string, Option>
+import type {
+  DirectoryLookup,
+  DirectoryOption,
+  LoadedObjectParameter,
+} from '@entities/object-parameter'
 
 export function createDirectoryLookup<Option extends DirectoryOption>(
   options: Option[],
@@ -23,17 +23,17 @@ export function sortByNameRu<Option extends { name: string }>(options: Option[])
 
 export function sortParameters(
   items: LoadedObjectParameter[],
-  options?: { groupFirst?: boolean },
+  options?: { sourceFirst?: boolean },
 ): LoadedObjectParameter[] {
-  const groupFirst = options?.groupFirst ?? true
+  const sourceFirst = options?.sourceFirst ?? true
   const sorted = [...items]
 
   sorted.sort((a, b) => {
-    if (groupFirst) {
-      const groupA = a.groupName ?? ''
-      const groupB = b.groupName ?? ''
-      const groupCompare = groupA.localeCompare(groupB, 'ru')
-      if (groupCompare !== 0) return groupCompare
+    if (sourceFirst) {
+      const sourceA = a.sourceName ?? ''
+      const sourceB = b.sourceName ?? ''
+      const sourceCompare = sourceA.localeCompare(sourceB, 'ru')
+      if (sourceCompare !== 0) return sourceCompare
     }
 
     return a.name.localeCompare(b.name, 'ru')

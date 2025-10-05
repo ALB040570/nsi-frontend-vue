@@ -7,11 +7,11 @@ import {
   createParameter,
   deleteParameter,
   updateParameter,
-  type ObjectParameter,
+  type LoadedObjectParameter,
 } from '@entities/object-parameter'
 
-export type CreateObjectParameterPayload = Omit<ObjectParameter, 'id'> & { id?: string }
-export type UpdateObjectParameterPayload = ObjectParameter
+export type CreateObjectParameterPayload = Omit<LoadedObjectParameter, 'id'> & { id?: string }
+export type UpdateObjectParameterPayload = LoadedObjectParameter
 
 export interface RemoveObjectParameterPayload {
   id: string

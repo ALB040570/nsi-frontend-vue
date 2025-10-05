@@ -4,20 +4,21 @@
  */
 import { useQuery } from '@tanstack/vue-query'
 import { fetchObjectParametersSnapshot } from '@entities/object-parameter'
-import type { ObjectParametersSnapshot } from '@entities/object-parameter'
-import {
-  createDirectoryLookup,
-  sortByNameRu,
-  sortParameters,
-  type DirectoryLookup,
-} from './directories'
+import type {
+  DirectoryLookup,
+  DirectoryOption,
+  ObjectParametersSnapshot,
+} from '@entities/object-parameter'
+import { sortByNameRu, sortParameters } from './directories'
 
-type UnitOption = ObjectParametersSnapshot['unitOptions'][number]
-type GroupOption = ObjectParametersSnapshot['groupOptions'][number]
+type UnitOption = DirectoryOption
+type SourceOption = DirectoryOption
 
 export interface ObjectParametersQueryData extends ObjectParametersSnapshot {
+  unitOptions: UnitOption[]
+  sourceOptions: SourceOption[]
   unitLookup: DirectoryLookup<UnitOption>
-  groupLookup: DirectoryLookup<GroupOption>
+  sourceLookup: DirectoryLookup<SourceOption>
 }
 
 export function useObjectParametersQuery() {
@@ -25,16 +26,17 @@ export function useObjectParametersQuery() {
     queryKey: ['object-parameters'],
     queryFn: fetchObjectParametersSnapshot,
     select: (snapshot): ObjectParametersQueryData => {
-      const sortedUnits = sortByNameRu(snapshot.unitOptions)
-      const sortedGroups = sortByNameRu(snapshot.groupOptions)
+      const unitOptions = sortByNameRu(Object.values(snapshot.unitDirectory))
+      const sourceOptions = sortByNameRu(Object.values(snapshot.sourceDirectory))
 
       return {
-        ...snapshot,
         items: sortParameters(snapshot.items),
-        unitOptions: sortedUnits,
-        groupOptions: sortedGroups,
-        unitLookup: createDirectoryLookup(sortedUnits),
-        groupLookup: createDirectoryLookup(sortedGroups),
+        unitDirectory: snapshot.unitDirectory,
+        sourceDirectory: snapshot.sourceDirectory,
+        unitOptions,
+        sourceOptions,
+        unitLookup: snapshot.unitDirectory,
+        sourceLookup: snapshot.sourceDirectory,
       }
     },
   })
