@@ -284,9 +284,9 @@ function renderRange(row: LoadedObjectParameter): VNodeChild {
     ])
 
   return h('div', { class: 'range-cell' }, [
-    createItem('Макс', renderLimit(row.maxValue)),
-    createItem('Мин', renderLimit(row.minValue)),
-    createItem('Норм', renderLimit(null)),
+    createItem('Макс: ', renderLimit(row.maxValue)),
+    createItem('Мин: ', renderLimit(row.minValue)),
+    createItem('Норм: ', renderLimit(null)),
   ])
 }
 
@@ -346,10 +346,10 @@ const renderActions = (row: LoadedObjectParameter): VNodeChild => {
 
 const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
   {
-    title: 'Наименование',
+    title: 'Параметр ЕИ Компонент',
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    minWidth: 220,
+    minWidth: 240,
     ellipsis: { tooltip: true },
     className: 'col-name',
     render: renderNameWithMeta,
@@ -357,12 +357,12 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
   {
     title: 'Диапазон',
     key: 'range',
-    minWidth: 160,
-    align: 'center',
+    minWidth: 80,
+    align: 'left',
     render: renderRange,
   },
   {
-    title: 'Комментарии по границам',
+    title: 'Комментарии по диапазонам',
     key: 'note',
     minWidth: 200,
     ellipsis: { tooltip: true },
@@ -405,7 +405,7 @@ const cardFields = computed<CardField[]>(() => [
   },
   {
     key: 'note',
-    label: 'Комментарии по границам',
+    label: 'Комментарии по диапазонам',
     render: renderComments,
   },
   {
