@@ -761,6 +761,8 @@ const deleteParameter = (row: LoadedObjectParameter) => {
 
 .card__actions .table-actions {
   justify-content: flex-start;
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .badge {
