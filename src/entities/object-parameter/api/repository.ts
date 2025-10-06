@@ -253,12 +253,21 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
   if (relTypeId !== null) {
     await rpc('data/loadRelObjMember', [0]).catch(() => null)
   }
-  const paramsComponentResponse = relTypeId !== null ? await rpc<unknown>('data/loadParamsComponent', [relTypeId]).catch(() => null) : null
+  const paramsComponentResponse =
+    relTypeId !== null ? await rpc<unknown>('data/loadParamsComponent', [relTypeId]).catch(() => null) : null
+
+  // Дополнительно: связи параметр ↔ компонент и справочник компонентов
+  const [relationsResponse, componentsResponse] = await Promise.all([
+    rpc('data/loadComponentsObject2', ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components']).catch(() => null),
+    rpc('data/loadComponents', [0]).catch(() => null),
+  ])
 
   const unitItems = extractArray<RpcDirectoryItem>(measureResponse)
   const sourceItems = extractArray<RpcDirectoryItem>(collectionResponse)
   const parameterItems = extractArray<RpcParameterItem>(parametersResponse)
-  const componentItems = extractArray<RpcParamsComponentRecord>(paramsComponentResponse)
+  const paramsComponentItems = extractArray<RpcParamsComponentRecord>(paramsComponentResponse)
+  const relationItems = extractArray<Record<string, unknown>>(relationsResponse)
+  const allComponentItems = extractArray<Record<string, unknown>>(componentsResponse)
 
   const unitOptions = unitItems.map((item, index) =>
     toDirectoryOption(item, `unit-${index}`, ['pv', 'id', 'measureId', 'measure_id', 'unitId', 'unit_id'], [
@@ -290,45 +299,73 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
     mapParameter(item, index, { units: unitDirectory, sources: sourceDirectory }),
   )
 
-  if (componentItems.length) {
-    const byKey = new Map<string, LoadedObjectParameter>()
-    const byName = new Map<string, LoadedObjectParameter>()
-    for (const item of items) {
-      const key = buildParamUnitKey(item.name, item.unitName)
-      if (key) byKey.set(key, item)
-      const nameKey = normalizeText(item.name)
-      if (nameKey) byName.set(nameKey, item)
-    }
+  // Построение lookup-таблиц для сопоставления:
+  // 1) Класс параметра по его id из ответа loadParameters
+  const paramClsById = new Map<string, string>()
+  for (const raw of parameterItems) {
+    const rec = asRecord(raw)
+    const id = pickString(rec, ['id', 'ID', 'number'])
+    const cls = pickString(rec, ['cls', 'CLS'])
+    if (id && cls) paramClsById.set(id, cls)
+  }
 
-    for (const rawItem of componentItems) {
-      const record = asRecord(rawItem)
-      const parsed = parseParamsComponentName(record.name)
-      if (!parsed) continue
-      const key = buildParamUnitKey(parsed.parameterName, parsed.unitName)
-      let target: LoadedObjectParameter | undefined
-      if (key) target = byKey.get(key)
-      if (!target) {
-        const nameKey = normalizeText(parsed.parameterName)
-        if (nameKey) target = byName.get(nameKey)
-      }
-      if (!target) continue
+  // 2) Связи параметр(idrom1, clsrom1) -> компонент(idrom2, clsrom2) + idro
+  type RelInfo = { idro: string; compId: string; compCls: string }
+  const relByParamKey = new Map<string, RelInfo>()
+  for (const rel of relationItems) {
+    const rec = asRecord(rel)
+    const idro = pickString(rec, ['idro'])
+    const idrom1 = pickString(rec, ['idrom1'])
+    const clsrom1 = pickString(rec, ['clsrom1'])
+    const idrom2 = pickString(rec, ['idrom2'])
+    const clsrom2 = pickString(rec, ['clsrom2'])
+    if (!idro || !idrom1 || !clsrom1 || !idrom2 || !clsrom2) continue
+    relByParamKey.set(`${idrom1}|${clsrom1}`, { idro, compId: idrom2, compCls: clsrom2 })
+  }
 
-      const componentId = pickString(record, ['componentId', 'idComponent', 'component_id', 'id'])
-      if (componentId) target.componentId = componentId
+  // 3) Имя компонента по паре (id, cls) из loadComponents
+  const compNameByKey = new Map<string, string>()
+  for (const raw of allComponentItems) {
+    const rec = asRecord(raw)
+    const id = pickString(rec, ['id', 'ID', 'number'])
+    const cls = pickString(rec, ['cls', 'CLS'])
+    const name = pickString(rec, ['name', 'NAME'])
+    if (id && cls && name) compNameByKey.set(`${id}|${cls}`, name)
+  }
 
-      if (parsed.componentName) target.componentName = parsed.componentName
+  // 4) Свойства связи (лимиты/комментарии) по idro из loadParamsComponent
+  const propsByIdro = new Map<string, Record<string, unknown>>()
+  for (const raw of paramsComponentItems) {
+    const rec = asRecord(raw)
+    const idro = pickString(rec, ['id', 'idro'])
+    if (idro) propsByIdro.set(idro, rec)
+  }
 
-      const limitMin = pickNumber(record, ['ParamsLimitMin', 'limitMin', 'minValue'])
-      if (limitMin !== null) target.minValue = limitMin
+  // Присвоение componentName по связям и лимитов по idro
+  for (const item of items) {
+    const cls = paramClsById.get(item.id) ?? null
+    if (!cls) continue
+    const rel = relByParamKey.get(`${item.id}|${cls}`)
+    if (!rel) continue
 
-      const limitMax = pickNumber(record, ['ParamsLimitMax', 'limitMax', 'maxValue'])
-      if (limitMax !== null) target.maxValue = limitMax
+    // Имя и id компонента из справочника компонентов
+    item.componentId = rel.compId
+    item.componentName = compNameByKey.get(`${rel.compId}|${rel.compCls}`) ?? null
 
-      const limitNorm = pickNumber(record, ['ParamsLimitNorm', 'limitNorm', 'normValue'])
-      if (limitNorm !== null) target.normValue = limitNorm
+    // Лимиты и комментарии из loadParamsComponent по idro
+    const props = propsByIdro.get(rel.idro)
+    if (props) {
+      const limitMin = pickNumber(props, ['ParamsLimitMin', 'limitMin', 'minValue'])
+      if (limitMin !== null) item.minValue = limitMin
 
-      const comment = pickString(record, ['cmt', 'comment', 'note'])
-      if (comment) target.note = comment
+      const limitMax = pickNumber(props, ['ParamsLimitMax', 'limitMax', 'maxValue'])
+      if (limitMax !== null) item.maxValue = limitMax
+
+      const limitNorm = pickNumber(props, ['ParamsLimitNorm', 'limitNorm', 'normValue'])
+      if (limitNorm !== null) item.normValue = limitNorm
+
+      const comment = pickString(props, ['cmt', 'comment', 'note'])
+      if (comment) item.note = comment
     }
   }
 
