@@ -20,7 +20,9 @@
             </template>
           </NButton>
         </h2>
-        <div class="subtext">Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты</div>
+        <div class="subtext">
+          Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты
+        </div>
       </div>
 
       <div class="toolbar__controls">
@@ -68,7 +70,10 @@
           </header>
 
           <dl class="card__grid">
-            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -181,8 +186,13 @@
               ×
             </button>
           </div>
-          <div v-if="assistantMessages.length === 0" class="assistant-message assistant-message--assistant">
-            <span class="assistant-message__text">Подскажите, как назвать тип обслуживаемого объекта.</span>
+          <div
+            v-if="assistantMessages.length === 0"
+            class="assistant-message assistant-message--assistant"
+          >
+            <span class="assistant-message__text"
+              >Подскажите, как назвать тип обслуживаемого объекта.</span
+            >
           </div>
         </div>
 
@@ -220,7 +230,9 @@
             </NButton>
           </div>
           <div class="assistant__hint">
-            <span v-if="assistantListening">Запись идёт… скажите ответ и дождитесь завершения.</span>
+            <span v-if="assistantListening"
+              >Запись идёт… скажите ответ и дождитесь завершения.</span
+            >
             <span v-else-if="!speechRecognitionSupported">
               Голосовой ввод недоступен в этом браузере, используйте текст.
             </span>
@@ -231,7 +243,9 @@
 
       <template #footer>
         <div class="assistant__footer">
-          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant">Сбросить диалог</NButton>
+          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant"
+            >Сбросить диалог</NButton
+          >
           <NButton :disabled="assistantListening" @click="assistantOpen = false">Закрыть</NButton>
         </div>
       </template>
@@ -243,7 +257,18 @@
       title="О справочнике"
       style="max-width: 640px; width: 92vw"
     >
-      <p>Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать, планировать и учитывать работы.</p> <p>Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или полигон) и добавьте компоненты.</p> <p>Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и работ. В этом случае вы можете менять название, форму на карте и состав компонентов.</p>
+      <p>
+        Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать,
+        планировать и учитывать работы.
+      </p>
+      <p>
+        Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или
+        полигон) и добавьте компоненты.
+      </p>
+      <p>
+        Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и
+        работ. В этом случае вы можете менять название, форму на карте и состав компонентов.
+      </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
       </template>
@@ -301,7 +326,13 @@ import {
 import { debounce } from 'lodash-es'
 
 import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations, useObjectTypesQuery, ensureComponentObjects, resolveRemoveLinkIds, type LinkEntry } from '@features/object-type-crud'
+import {
+  useObjectTypeMutations,
+  useObjectTypesQuery,
+  ensureComponentObjects,
+  resolveRemoveLinkIds,
+  type LinkEntry,
+} from '@features/object-type-crud'
 import {
   type GeometryKind,
   type GeometryPair,
@@ -533,10 +564,11 @@ interface AssistantSpeechRecognition extends EventTarget {
 }
 
 type AssistantSpeechRecognitionConstructor = new () => AssistantSpeechRecognition
-type WindowWithSpeechRecognition = Window & typeof globalThis & {
-  SpeechRecognition?: AssistantSpeechRecognitionConstructor
-  webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
-}
+type WindowWithSpeechRecognition = Window &
+  typeof globalThis & {
+    SpeechRecognition?: AssistantSpeechRecognitionConstructor
+    webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
+  }
 
 type SpeechRecognitionWithStop = AssistantSpeechRecognition
 
@@ -546,7 +578,9 @@ const speechRecognitionSupported = computed(() => {
   return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition)
 })
 
-const speechSynthesisSupported = computed(() => typeof window !== 'undefined' && 'speechSynthesis' in window)
+const speechSynthesisSupported = computed(
+  () => typeof window !== 'undefined' && 'speechSynthesis' in window,
+)
 
 let recognition: SpeechRecognitionWithStop | null = null
 
@@ -630,10 +664,7 @@ const resetAssistantConversation = () => {
   assistantHistory.value = []
 }
 
-const goToStep = (
-  step: AssistantStep,
-  options: { repeat?: boolean; intro?: string } = {},
-) => {
+const goToStep = (step: AssistantStep, options: { repeat?: boolean; intro?: string } = {}) => {
   cancelSpeech()
   assistantStep.value = step
   let text = ''
@@ -681,7 +712,9 @@ const goToStep = (
   return pushAssistantMessage(text, { step, speak: true })
 }
 
-const startAssistantSession = (introMessage = 'Здравствуйте! Давайте создадим новый тип обслуживаемого объекта. Как его назовём?') => {
+const startAssistantSession = (
+  introMessage = 'Здравствуйте! Давайте создадим новый тип обслуживаемого объекта. Как его назовём?',
+) => {
   resetAssistantConversation()
   void goToStep('ask-name', { intro: introMessage })
 }
@@ -733,7 +766,10 @@ const handleAssistantResponse = (raw: string) => {
   messageIds.push(userMessageId)
 
   const addHistoryEntry = (rollback: () => void) => {
-    assistantHistory.value = [...assistantHistory.value, { id: historyId, step: currentStep, messageIds: [...messageIds], rollback }]
+    assistantHistory.value = [
+      ...assistantHistory.value,
+      { id: historyId, step: currentStep, messageIds: [...messageIds], rollback },
+    ]
   }
 
   switch (currentStep) {
@@ -766,7 +802,9 @@ const handleAssistantResponse = (raw: string) => {
     case 'ask-geometry': {
       const geometry = parseGeometryFromText(text)
       if (!geometry) {
-        pushAssistantMessage('Не удалось распознать форму на карте. Скажите «точка», «линия» или «полигон».')
+        pushAssistantMessage(
+          'Не удалось распознать форму на карте. Скажите «точка», «линия» или «полигон».',
+        )
         void goToStep('ask-geometry', { repeat: true })
         return
       }
@@ -781,10 +819,25 @@ const handleAssistantResponse = (raw: string) => {
     }
     case 'ask-components': {
       const normalized = normalizeText(text)
-      const stopPhrases = ['стоп', 'нет', 'нет компонент', 'нет компонентов', 'без компонент', 'без компонентов', 'всё', 'все', 'готово', 'хватит']
+      const stopPhrases = [
+        'стоп',
+        'нет',
+        'нет компонент',
+        'нет компонентов',
+        'без компонент',
+        'без компонентов',
+        'всё',
+        'все',
+        'готово',
+        'хватит',
+      ]
       const isStop =
-        stopPhrases.some((phrase) => normalized === phrase || normalized.startsWith(`${phrase} `) || normalized.endsWith(` ${phrase}`)) ||
-        ['без компонент', 'без компонентов'].some((phrase) => normalized.includes(phrase))
+        stopPhrases.some(
+          (phrase) =>
+            normalized === phrase ||
+            normalized.startsWith(`${phrase} `) ||
+            normalized.endsWith(` ${phrase}`),
+        ) || ['без компонент', 'без компонентов'].some((phrase) => normalized.includes(phrase))
 
       if (isStop) {
         const nextId = goToStep('confirm')
@@ -815,13 +868,18 @@ const handleAssistantResponse = (raw: string) => {
       }
 
       if (!added.length) {
-        pushAssistantMessage('Эти компоненты уже записаны. Назовите другой вариант или скажите «стоп».')
+        pushAssistantMessage(
+          'Эти компоненты уже записаны. Назовите другой вариант или скажите «стоп».',
+        )
         void goToStep('ask-components', { repeat: true })
         return
       }
 
       assistantSession.components = [...previous, ...added]
-      const summary = added.length === 1 ? `Добавила компонент: ${added[0]}.` : `Добавила компоненты: ${added.join(', ')}.`
+      const summary =
+        added.length === 1
+          ? `Добавила компонент: ${added[0]}.`
+          : `Добавила компоненты: ${added.join(', ')}.`
       const summaryId = pushAssistantMessage(summary)
       messageIds.push(summaryId)
       const nextId = goToStep('ask-components', { repeat: true })
@@ -926,11 +984,21 @@ const createTypeViaAssistant = async () => {
   }
 
   const geometry = assistantSession.geometry ?? DEFAULT_GEOMETRY
-  const componentNames = Array.from(new Set(assistantSession.components.map((item) => item.trim()).filter(Boolean)))
+  const componentNames = Array.from(
+    new Set(assistantSession.components.map((item) => item.trim()).filter(Boolean)),
+  )
 
   const existingType = checkExistingTypeName(nameTrimmed)
-  if (existingType && isTypeCompletelyIdentical({ name: nameTrimmed, geometry, component: componentNames }, existingType)) {
-    startAssistantSession('Полностью идентичный тип уже существует. Давайте попробуем другое название?')
+  if (
+    existingType &&
+    isTypeCompletelyIdentical(
+      { name: nameTrimmed, geometry, component: componentNames },
+      existingType,
+    )
+  ) {
+    startAssistantSession(
+      'Полностью идентичный тип уже существует. Давайте попробуем другое название?',
+    )
     return
   }
 
@@ -984,7 +1052,9 @@ const undoAssistantStep = (historyId: string) => {
   stopAssistantVoice()
 
   assistantHistory.value = history.slice(0, -1)
-  assistantMessages.value = assistantMessages.value.filter((message) => !lastEntry.messageIds.includes(message.id))
+  assistantMessages.value = assistantMessages.value.filter(
+    (message) => !lastEntry.messageIds.includes(message.id),
+  )
   lastEntry.rollback()
   assistantInput.value = ''
   assistantProcessing.value = false
@@ -1037,18 +1107,16 @@ const componentMapByName = computed(() => {
 const getGeometryPair = (kind: GeometryKind): GeometryPair =>
   geometryPairByKind.value[kind] ?? { fv: null, pv: null }
 
-
-
-
-
-
 const handleUpdateComponentValue = (nextNames: string[]) => {
   form.value.component = nextNames
 }
 
 const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {
   if (!createdComponents.value.some((item) => item.id === component.id)) {
-    createdComponents.value = [...createdComponents.value, { id: component.id, name: component.name }]
+    createdComponents.value = [
+      ...createdComponents.value,
+      { id: component.id, name: component.name },
+    ]
   }
   if (!form.value.component.includes(component.name)) {
     form.value.component = [...form.value.component, component.name]
@@ -1116,7 +1184,13 @@ function renderComponents(row: ObjectType): VNodeChild {
 const renderActions = (row: ObjectType): VNodeChild => {
   const editBtn = h(
     NButton,
-    { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить тип' },
+    {
+      quaternary: true,
+      circle: true,
+      size: 'small',
+      onClick: () => openEdit(row),
+      'aria-label': 'Изменить тип',
+    },
     { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
   )
 
@@ -1131,7 +1205,13 @@ const renderActions = (row: ObjectType): VNodeChild => {
       trigger: () =>
         h(
           NButton,
-          { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить тип' },
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            'aria-label': 'Удалить тип',
+          },
           { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
       default: () => 'Удалить тип и все связи?',
@@ -1521,7 +1601,10 @@ async function save() {
           const existingIds = new Set(allComponentOptions.value.map((option) => String(option.id)))
           const createdOptions = addComponents
             .filter((component) => !existingIds.has(String(component.id)))
-            .map<ComponentOption>((component) => ({ id: String(component.id), name: component.name }))
+            .map<ComponentOption>((component) => ({
+              id: String(component.id),
+              name: component.name,
+            }))
           if (createdOptions.length) {
             createdComponents.value = [...createdComponents.value, ...createdOptions]
           }
@@ -1653,7 +1736,6 @@ const removeRow = async (id: string | number) => {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
-
 :deep(.n-pagination) {
   font-size: 14px;
 }
@@ -1712,7 +1794,9 @@ const removeRow = async (id: string | number) => {
   border: none;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .page-title__info :deep(.n-button__content) {
@@ -1804,7 +1888,6 @@ const removeRow = async (id: string | number) => {
   gap: 12px;
 }
 
-
 .cards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1867,6 +1950,7 @@ const removeRow = async (id: string | number) => {
 
 .card__actions .table-actions {
   justify-content: flex-start;
+  opacity: 1;
 }
 
 .cards .chips-row {
@@ -1899,7 +1983,6 @@ const removeRow = async (id: string | number) => {
     grid-template-columns: 96px 1fr;
   }
 }
-
 
 .modal-footer {
   display: flex;
@@ -2006,8 +2089,6 @@ const removeRow = async (id: string | number) => {
   flex-direction: column;
   gap: 8px;
 }
-
-
 
 .assistant__actions {
   display: flex;

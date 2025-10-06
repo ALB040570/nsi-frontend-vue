@@ -1,4 +1,4 @@
-<!-- Файл: src/pages/nsi/ObjectParametersPage.vue
+﻿<!-- Файл: src/pages/nsi/ObjectParametersPage.vue
      Назначение: страница CRUD для параметров обслуживаемых объектов (пока только просмотр).
      Использование: подключается в маршрутизаторе по пути /nsi/object-parameters. -->
 <template>
@@ -21,7 +21,8 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Управляйте перечнем параметров обслуживаемых объектов и контролируйте их диапазоны значений
+          Управляйте перечнем параметров обслуживаемых объектов и контролируйте их диапазоны
+          значений
         </div>
       </div>
 
@@ -51,14 +52,20 @@
           :aria-label="primaryTitle(item)"
         >
           <header class="card__header">
-            <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+            <div class="card__title" role="heading" aria-level="4">
+              <FieldRenderer v-if="primaryField" :field="primaryField" :row="item" />
+              <span v-else class="card__title-text">{{ item.name }}</span>
+            </div>
             <span v-if="statusText(item)" class="badge" :class="statusClass(item)">
               {{ statusText(item) }}
             </span>
           </header>
 
           <dl class="card__grid">
-            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -96,12 +103,12 @@
       style="max-width: 640px; width: 92vw"
     >
       <p>
-        Здесь собраны параметры, необходимые для контроля состояния и эксплуатации обслуживаемых объектов. Указывайте единицу
-        измерения, компонент и допустимые границы значений.
+        Здесь собраны параметры, необходимые для контроля состояния и эксплуатации обслуживаемых
+        объектов. Указывайте единицу измерения, компонент и допустимые границы значений.
       </p>
       <p>
-        Создание и редактирование параметров находятся в разработке. Пока можно просматривать информацию по существующим
-        записям.
+        Создание и редактирование параметров находятся в разработке. Пока можно просматривать
+        информацию по существующим записям.
       </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
@@ -143,7 +150,10 @@ import {
 } from 'naive-ui'
 import { CreateOutline, InformationCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
-import { useObjectParameterMutations, useObjectParametersQuery } from '@features/object-parameter-crud'
+import {
+  useObjectParameterMutations,
+  useObjectParametersQuery,
+} from '@features/object-parameter-crud'
 import type { LoadedObjectParameter } from '@entities/object-parameter'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
@@ -330,16 +340,17 @@ function renderRange(row: LoadedObjectParameter): VNodeChild {
       { default: () => tagContent },
     )
 
-    const maybeTooltip = value === '—'
-      ? tagNode
-      : h(
-          NTooltip,
-          { placement: 'top', delay: 100 },
-          {
-            trigger: () => tagNode,
-            default: () => value,
-          },
-        )
+    const maybeTooltip =
+      value === '—'
+        ? tagNode
+        : h(
+            NTooltip,
+            { placement: 'top', delay: 100 },
+            {
+              trigger: () => tagNode,
+              default: () => value,
+            },
+          )
 
     return h('div', { class: 'range-row', key: `${row.id}-${label}` }, [labelNode, maybeTooltip])
   })
@@ -356,14 +367,9 @@ function renderComments(row: LoadedObjectParameter): VNodeChild {
     { placement: 'top', delay: 100 },
     {
       trigger: () =>
-        h('div', { class: 'note-text' }, [
-          h(
-            'span',
-            { class: 'note-text__clamped' },
-            row.note,
-          ),
-        ]),
-      default: () => noteLines.map((line, index) => h('div', { key: `${row.id}-note-${index}` }, line)),
+        h('div', { class: 'note-text' }, [h('span', { class: 'note-text__clamped' }, row.note)]),
+      default: () =>
+        noteLines.map((line, index) => h('div', { key: `${row.id}-note-${index}` }, line)),
     },
   )
 }
@@ -514,7 +520,9 @@ const cardFields = computed<CardField[]>(() => [
   },
 ])
 
-const primaryField = computed(() => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0])
+const primaryField = computed<CardField | null>(
+  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0] ?? null,
+)
 const statusField = computed(() => cardFields.value.find((field) => field.isStatus))
 const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
 const infoFields = computed(() =>
@@ -543,7 +551,7 @@ const toPlainText = (value: VNodeChild | VNodeChild[]): string => {
 }
 
 const primaryTitle = (row: LoadedObjectParameter) =>
-  toPlainText(primaryField.value ? primaryField.value.render(row) : '')
+  [row.name, row.componentName].filter(Boolean).join(' - ')
 const statusText = (row: LoadedObjectParameter) =>
   statusField.value ? toPlainText(statusField.value.render(row)) : ''
 const statusClass = (row: LoadedObjectParameter) => {
@@ -664,6 +672,7 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: 600;
 }
 
 .name-meta {
@@ -870,6 +879,46 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   overflow-wrap: anywhere;
 }
 
+.card__title-text {
+  display: block;
+  font-weight: 600;
+}
+
+.card__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card__title :deep(.name-cell) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card__title :deep(.name-cell__title) {
+  font-weight: 600;
+  display: block;
+}
+
+.card__title :deep(.name-meta) {
+  font-weight: 600;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.card__title :deep(.name-meta .n-tag__content) {
+  font-weight: 600;
+}
+.card__title .name-meta {
+  font-weight: 600;
+}
+
+.card__title :deep(.n-tag__content) {
+  font-weight: 600;
+}
+
 .card__grid {
   display: grid;
   grid-template-columns: 140px 1fr;
@@ -928,3 +977,4 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   }
 }
 </style>
+

@@ -21,7 +21,8 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Ведите перечень дефектов обслуживаемых объектов с указанием категории, компонента, индекса и статуса
+          Ведите перечень дефектов обслуживаемых объектов с указанием категории, компонента, индекса
+          и статуса
         </div>
       </div>
 
@@ -82,7 +83,10 @@
           </header>
 
           <dl class="card__grid">
-            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -205,8 +209,13 @@
               ×
             </button>
           </div>
-          <div v-if="assistantMessages.length === 0" class="assistant-message assistant-message--assistant">
-            <span class="assistant-message__text">Подскажите название дефекта, который нужно добавить.</span>
+          <div
+            v-if="assistantMessages.length === 0"
+            class="assistant-message assistant-message--assistant"
+          >
+            <span class="assistant-message__text"
+              >Подскажите название дефекта, который нужно добавить.</span
+            >
           </div>
         </div>
 
@@ -263,7 +272,9 @@
             </NButton>
           </div>
           <div class="assistant__hint">
-            <span v-if="assistantListening">Идёт запись… договорите фразу и дождитесь завершения.</span>
+            <span v-if="assistantListening"
+              >Идёт запись… договорите фразу и дождитесь завершения.</span
+            >
             <span v-else-if="!speechRecognitionSupported">
               Голосовой ввод недоступен в этом браузере — используйте текстовый ответ.
             </span>
@@ -274,7 +285,9 @@
 
       <template #footer>
         <div class="assistant__footer">
-          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant">Сбросить диалог</NButton>
+          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant"
+            >Сбросить диалог</NButton
+          >
           <NButton :disabled="assistantListening" @click="assistantOpen = false">Закрыть</NButton>
         </div>
       </template>
@@ -287,16 +300,16 @@
       style="max-width: 640px; width: 92vw"
     >
       <p>
-        Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние, планировать обслуживание и вести
-        аналитику по категориям и компонентам.
+        Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние,
+        планировать обслуживание и вести аналитику по категориям и компонентам.
       </p>
       <p>
-        Чтобы добавить дефект: укажите название, выберите категорию и компонент (при необходимости), задайте индекс и опишите
-        статус в комментарии.
+        Чтобы добавить дефект: укажите название, выберите категорию и компонент (при необходимости),
+        задайте индекс и опишите статус в комментарии.
       </p>
       <p>
-        Редактировать можно только те дефекты, с которыми нет ограничений на стороне подсистем. Вносите изменения внимательно,
-        чтобы не потерять связь с категориями и компонентами.
+        Редактировать можно только те дефекты, с которыми нет ограничений на стороне подсистем.
+        Вносите изменения внимательно, чтобы не потерять связь с категориями и компонентами.
       </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
@@ -486,7 +499,9 @@ watch(
 
 const defects = computed(() => snapshotData.value?.items ?? [])
 const categoryOptions = computed<DefectCategoryOption[]>(() => snapshotData.value?.categories ?? [])
-const componentOptions = computed<DefectComponentOption[]>(() => snapshotData.value?.components ?? [])
+const componentOptions = computed<DefectComponentOption[]>(
+  () => snapshotData.value?.components ?? [],
+)
 
 const componentLookup = computed(() =>
   createDefectComponentLookup(defects.value, componentOptions.value),
@@ -557,7 +572,13 @@ interface AssistantMessage {
   historyId?: string | null
 }
 
-type AssistantStep = 'ask-name' | 'ask-category' | 'ask-component' | 'ask-index' | 'ask-note' | 'confirm'
+type AssistantStep =
+  | 'ask-name'
+  | 'ask-category'
+  | 'ask-component'
+  | 'ask-index'
+  | 'ask-note'
+  | 'confirm'
 
 interface AssistantHistoryEntry {
   id: string
@@ -623,10 +644,11 @@ interface AssistantSpeechRecognition extends EventTarget {
 
 type AssistantSpeechRecognitionConstructor = new () => AssistantSpeechRecognition
 
-type WindowWithSpeechRecognition = Window & typeof globalThis & {
-  SpeechRecognition?: AssistantSpeechRecognitionConstructor
-  webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
-}
+type WindowWithSpeechRecognition = Window &
+  typeof globalThis & {
+    SpeechRecognition?: AssistantSpeechRecognitionConstructor
+    webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
+  }
 
 type SpeechRecognitionWithStop = AssistantSpeechRecognition
 
@@ -636,7 +658,9 @@ const speechRecognitionSupported = computed(() => {
   return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition)
 })
 
-const speechSynthesisSupported = computed(() => typeof window !== 'undefined' && 'speechSynthesis' in window)
+const speechSynthesisSupported = computed(
+  () => typeof window !== 'undefined' && 'speechSynthesis' in window,
+)
 
 let recognition: SpeechRecognitionWithStop | null = null
 
@@ -747,8 +771,10 @@ const stripKeywords = (value: string, keywords: string[]): string => {
 const categoryKeywords = ['категория', 'категории', 'категорию', 'категорией']
 const componentKeywords = ['компонент', 'компонента', 'компоненту', 'компоненты']
 
-const sanitizeCategoryInput = (value: string) => stripKeywords(normalizeText(value), categoryKeywords)
-const sanitizeComponentInput = (value: string) => stripKeywords(normalizeText(value), componentKeywords)
+const sanitizeCategoryInput = (value: string) =>
+  stripKeywords(normalizeText(value), categoryKeywords)
+const sanitizeComponentInput = (value: string) =>
+  stripKeywords(normalizeText(value), componentKeywords)
 
 const matchCategoryOption = (value: string): DefectCategoryOption | null => {
   const sanitized = sanitizeCategoryInput(value)
@@ -780,20 +806,31 @@ const matchComponentOption = (value: string): DefectComponentOption | null => {
   return null
 }
 
-const skipCommands = ['нет', 'пропусти', 'пропустить', 'без', 'не нужно', 'не указывать', 'пока нет']
+const skipCommands = [
+  'нет',
+  'пропусти',
+  'пропустить',
+  'без',
+  'не нужно',
+  'не указывать',
+  'пока нет',
+]
 
 const isSkipCommand = (value: string) => {
   const normalized = normalizeText(value)
   if (!normalized) return false
-  return skipCommands.some((command) =>
-    normalized === command || normalized.startsWith(`${command} `) || normalized.endsWith(` ${command}`),
+  return skipCommands.some(
+    (command) =>
+      normalized === command ||
+      normalized.startsWith(`${command} `) ||
+      normalized.endsWith(` ${command}`),
   )
 }
 
 const isAffirmative = (value: string) => {
   const normalized = normalizeText(value)
-  return ['да', 'подтверждаю', 'создать', 'готово', 'верно', 'правильно', 'ок', 'окей'].some((word) =>
-    normalized.includes(word),
+  return ['да', 'подтверждаю', 'создать', 'готово', 'верно', 'правильно', 'ок', 'окей'].some(
+    (word) => normalized.includes(word),
   )
 }
 
@@ -880,7 +917,9 @@ const goToStep = (
   return pushAssistantMessage(text, { step, speak: true })
 }
 
-const startAssistantSession = (introMessage = 'Здравствуйте! Я помогу добавить дефект. Как он будет называться?') => {
+const startAssistantSession = (
+  introMessage = 'Здравствуйте! Я помогу добавить дефект. Как он будет называться?',
+) => {
   resetAssistantConversation()
   void goToStep('ask-name', { intro: introMessage })
 }
@@ -922,7 +961,9 @@ const handleAssistantResponse = (raw: string) => {
   switch (currentStep) {
     case 'ask-name': {
       if (text.length < 2) {
-        messageIds.push(pushAssistantMessage('Название должно быть не короче двух символов. Попробуйте ещё раз.'))
+        messageIds.push(
+          pushAssistantMessage('Название должно быть не короче двух символов. Попробуйте ещё раз.'),
+        )
         const nextId = goToStep('ask-name', { repeat: true })
         if (nextId) messageIds.push(nextId)
         return
@@ -979,7 +1020,11 @@ const handleAssistantResponse = (raw: string) => {
 
       const option = matchCategoryOption(text)
       if (!option) {
-        messageIds.push(pushAssistantMessage('Не удалось найти такую категорию. Повторите, пожалуйста, или скажите, что категории нет.'))
+        messageIds.push(
+          pushAssistantMessage(
+            'Не удалось найти такую категорию. Повторите, пожалуйста, или скажите, что категории нет.',
+          ),
+        )
         const nextId = goToStep('ask-category', { repeat: true })
         if (nextId) messageIds.push(nextId)
         return
@@ -1026,7 +1071,11 @@ const handleAssistantResponse = (raw: string) => {
 
       const option = matchComponentOption(text)
       if (!option) {
-        messageIds.push(pushAssistantMessage('Не удалось найти такой компонент. Повторите, пожалуйста, или скажите, что компонента нет.'))
+        messageIds.push(
+          pushAssistantMessage(
+            'Не удалось найти такой компонент. Повторите, пожалуйста, или скажите, что компонента нет.',
+          ),
+        )
         const nextId = goToStep('ask-component', { repeat: true })
         if (nextId) messageIds.push(nextId)
         return
@@ -1210,7 +1259,9 @@ const createDefectViaAssistant = async () => {
       index: assistantSession.index.trim() ? assistantSession.index.trim() : null,
       note: assistantSession.note.trim() ? assistantSession.note.trim() : null,
     })
-    pushAssistantMessage(`Готово! Дефект «${nameTrimmed}» создан. Можете назвать следующий.`, { speak: true })
+    pushAssistantMessage(`Готово! Дефект «${nameTrimmed}» создан. Можете назвать следующий.`, {
+      speak: true,
+    })
     assistantSession.name = ''
     assistantSession.categoryFvId = null
     assistantSession.categoryPvId = null
@@ -1249,7 +1300,9 @@ const undoAssistantStep = (historyId: string) => {
   stopAssistantVoice()
 
   assistantHistory.value = history.slice(0, -1)
-  assistantMessages.value = assistantMessages.value.filter((message) => !lastEntry.messageIds.includes(message.id))
+  assistantMessages.value = assistantMessages.value.filter(
+    (message) => !lastEntry.messageIds.includes(message.id),
+  )
   lastEntry.rollback()
   assistantInput.value = ''
   assistantProcessing.value = false
@@ -1326,14 +1379,22 @@ function renderIndex(row: LoadedObjectDefect): VNodeChild {
 
 function renderNote(row: LoadedObjectDefect): VNodeChild {
   if (!row.note) return '—'
-  const lines = row.note.split(/\n+/).map((line, idx) => h('div', { key: `${row.id}-note-${idx}` }, line))
+  const lines = row.note
+    .split(/\n+/)
+    .map((line, idx) => h('div', { key: `${row.id}-note-${idx}` }, line))
   return h('div', { class: 'note-text' }, lines)
 }
 
 const renderActions = (row: LoadedObjectDefect): VNodeChild => {
   const editBtn = h(
     NButton,
-    { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить дефект' },
+    {
+      quaternary: true,
+      circle: true,
+      size: 'small',
+      onClick: () => openEdit(row),
+      'aria-label': 'Изменить дефект',
+    },
     { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
   )
 
@@ -1348,7 +1409,13 @@ const renderActions = (row: LoadedObjectDefect): VNodeChild => {
       trigger: () =>
         h(
           NButton,
-          { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить дефект' },
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            'aria-label': 'Удалить дефект',
+          },
           { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
       default: () => 'Удалить дефект?',
@@ -1359,11 +1426,11 @@ const renderActions = (row: LoadedObjectDefect): VNodeChild => {
 }
 
 const columns = computed<DataTableColumn<LoadedObjectDefect>[]>(() => [
-    {
+  {
     title: 'Индекс',
     key: 'index',
     sorter: (a, b) => a.index.localeCompare(b.index, 'ru'),
-    width:120,
+    width: 120,
     align: 'center',
     render: renderIndex,
   },
@@ -1445,7 +1512,9 @@ const cardFields = computed<CardField[]>(() => [
   },
 ])
 
-const primaryField = computed(() => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0])
+const primaryField = computed(
+  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
+)
 const statusField = computed(() => cardFields.value.find((field) => field.isStatus))
 const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
 const infoFields = computed(() =>
@@ -1543,7 +1612,9 @@ const checkExistingDefectName = (name: string, excludeId?: string): LoadedObject
   if (!normalizedName) return null
   return (
     defects.value.find(
-      (defect) => normalizeText(defect.name) === normalizedName && String(defect.id) !== String(excludeId ?? ''),
+      (defect) =>
+        normalizeText(defect.name) === normalizedName &&
+        String(defect.id) !== String(excludeId ?? ''),
     ) ?? null
   )
 }
@@ -1630,8 +1701,7 @@ function openCreate() {
 }
 
 function openEdit(row: LoadedObjectDefect) {
-  const actual =
-    defects.value.find((item) => String(item.id) === String(row.id)) ?? row
+  const actual = defects.value.find((item) => String(item.id) === String(row.id)) ?? row
 
   editing.value = actual
 
@@ -1984,6 +2054,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 
 .card__actions .table-actions {
   justify-content: flex-start;
+  opacity: 1;
 }
 
 .badge {
