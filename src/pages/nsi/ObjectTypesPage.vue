@@ -157,7 +157,10 @@
       v-model:show="assistantOpen"
       preset="card"
       title="Голосовой ассистент"
-      style="max-width: 640px; width: 92vw"
+      :show-mask="false"
+      :trap-focus="false"
+      :block-scroll-on-open="false"
+      style="max-width: 520px; width: min(92vw, 520px); margin: 0 20px 20px auto"
     >
       <div class="assistant">
         <div ref="assistantMessagesRef" class="assistant__messages">
@@ -2004,15 +2007,43 @@ const removeRow = async (id: string | number) => {
   gap: 8px;
 }
 
+
+
 .assistant__actions {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
 }
 
 .assistant__actions :deep(.n-button) {
-  min-width: 120px;
+  width: 100%;
+}
+
+.assistant__voice {
+  width: 100%;
+  min-height: clamp(120px, 24vh, 220px);
+  font-size: clamp(18px, 3.2vw, 24px);
+  border-radius: 20px;
+  padding: clamp(14px, 3vw, 24px);
+}
+
+.assistant__voice :deep(.n-button__content) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 14px);
+  width: 100%;
+}
+
+.assistant__voice :deep(.n-icon) {
+  font-size: clamp(44px, 10vw, 80px);
+}
+
+.assistant__voice:focus-visible {
+  outline: 3px solid #4c6ef5;
+  outline-offset: 4px;
 }
 
 .assistant__hint {
@@ -2026,20 +2057,5 @@ const removeRow = async (id: string | number) => {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-@media (max-width: 520px) {
-  .assistant-message {
-    max-width: 100%;
-  }
-
-  .assistant__actions {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .assistant__actions :deep(.n-button) {
-    width: 100%;
-  }
 }
 </style>

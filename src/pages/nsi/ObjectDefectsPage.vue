@@ -45,6 +45,12 @@
             class="toolbar__select"
           />
         </div>
+        <NButton quaternary class="toolbar__assistant" @click="openAssistant">
+          <template #icon>
+            <NIcon><ChatbubblesOutline /></NIcon>
+          </template>
+          Ассистент
+        </NButton>
         <NButton type="primary" @click="openCreate">+ Добавить дефект</NButton>
       </div>
     </NCard>
@@ -172,6 +178,109 @@
     </NModal>
 
     <NModal
+      v-model:show="assistantOpen"
+      preset="card"
+      title="Голосовой ассистент"
+      :show-mask="false"
+      :trap-focus="false"
+      :block-scroll-on-open="false"
+      style="max-width: 520px; width: min(92vw, 520px); margin: 0 20px 20px auto"
+    >
+      <div class="assistant">
+        <div ref="assistantMessagesRef" class="assistant__messages">
+          <div
+            v-for="message in assistantMessages"
+            :key="message.id"
+            class="assistant-message"
+            :class="`assistant-message--${message.role}`"
+          >
+            <span class="assistant-message__text">{{ message.content }}</span>
+            <button
+              v-if="canUndoMessage(message)"
+              type="button"
+              class="assistant-message__undo"
+              aria-label="Отменить ответ"
+              @click="undoAssistantStep(message.historyId!)"
+            >
+              ×
+            </button>
+          </div>
+          <div v-if="assistantMessages.length === 0" class="assistant-message assistant-message--assistant">
+            <span class="assistant-message__text">Подскажите название дефекта, который нужно добавить.</span>
+          </div>
+        </div>
+
+        <div class="assistant__controls">
+          <div
+            v-if="assistantStep === 'ask-category' && assistantCategorySuggestions.length"
+            class="assistant__picker"
+          >
+            <span class="assistant__picker-label">Популярные категории:</span>
+            <div class="assistant__picker-buttons">
+              <NButton
+                v-for="option in assistantCategorySuggestions"
+                :key="option.fvId"
+                tertiary
+                size="small"
+                class="assistant__picker-button"
+                @click="chooseAssistantCategory(option)"
+              >
+                {{ option.name }}
+              </NButton>
+            </div>
+          </div>
+
+          <NInput
+            v-model:value="assistantInput"
+            type="textarea"
+            rows="2"
+            placeholder="Ответьте голосом или введите текст"
+            :disabled="assistantProcessing || assistantListening"
+          />
+          <div class="assistant__actions">
+            <NButton
+              tertiary
+              class="assistant__voice"
+              :type="assistantListening ? 'error' : 'default'"
+              :disabled="!speechRecognitionSupported || assistantProcessing"
+              @click="toggleAssistantVoice"
+            >
+              <template #icon>
+                <NIcon>
+                  <component :is="assistantListening ? MicOffOutline : MicOutline" />
+                </NIcon>
+              </template>
+              {{ assistantListening ? 'Стоп' : 'Говорить' }}
+            </NButton>
+
+            <NButton
+              type="primary"
+              :disabled="!assistantInput.trim() || assistantProcessing"
+              :loading="assistantProcessing"
+              @click="sendAssistantText"
+            >
+              Ответить
+            </NButton>
+          </div>
+          <div class="assistant__hint">
+            <span v-if="assistantListening">Идёт запись… договорите фразу и дождитесь завершения.</span>
+            <span v-else-if="!speechRecognitionSupported">
+              Голосовой ввод недоступен в этом браузере — используйте текстовый ответ.
+            </span>
+            <span v-else>Нажмите «Говорить», чтобы отвечать голосом.</span>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="assistant__footer">
+          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant">Сбросить диалог</NButton>
+          <NButton :disabled="assistantListening" @click="assistantOpen = false">Закрыть</NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <NModal
       v-model:show="infoOpen"
       preset="card"
       title="О справочнике"
@@ -231,7 +340,14 @@ import {
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
 
-import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/ionicons5'
+import {
+  CreateOutline,
+  TrashOutline,
+  InformationCircleOutline,
+  ChatbubblesOutline,
+  MicOutline,
+  MicOffOutline,
+} from '@vicons/ionicons5'
 
 import {
   useObjectDefectsQuery,
@@ -406,6 +522,749 @@ const componentSelectOptions = computed(() =>
 const categorySelectOptions = computed(() =>
   categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
 )
+
+const categoryNameMap = computed(() => {
+  const map = new Map<string, DefectCategoryOption>()
+  for (const option of categoryOptions.value) {
+    const keys = [option.name, option.fvId, option.pvId]
+    for (const key of keys) {
+      const normalized = normalizeText(key ?? '')
+      if (normalized) map.set(normalized, option)
+    }
+  }
+  return map
+})
+
+const componentNameMap = computed(() => {
+  const map = new Map<string, DefectComponentOption>()
+  for (const option of componentOptions.value) {
+    const keys = [option.name, option.id, option.pvId]
+    for (const key of keys) {
+      const normalized = normalizeText(key ?? '')
+      if (normalized) map.set(normalized, option)
+    }
+  }
+  return map
+})
+
+type AssistantRole = 'assistant' | 'user'
+
+interface AssistantMessage {
+  id: string
+  role: AssistantRole
+  content: string
+  step?: AssistantStep
+  historyId?: string | null
+}
+
+type AssistantStep = 'ask-name' | 'ask-category' | 'ask-component' | 'ask-index' | 'ask-note' | 'confirm'
+
+interface AssistantHistoryEntry {
+  id: string
+  step: AssistantStep
+  messageIds: string[]
+  rollback: () => void
+}
+
+const assistantOpen = ref(false)
+const assistantMessagesRef = ref<HTMLDivElement | null>(null)
+const assistantMessages = ref<AssistantMessage[]>([])
+const assistantInput = ref('')
+const assistantStep = ref<AssistantStep>('ask-name')
+const assistantProcessing = ref(false)
+const assistantListening = ref(false)
+const assistantHistory = ref<AssistantHistoryEntry[]>([])
+
+const assistantSession = reactive({
+  name: '',
+  categoryFvId: null as string | null,
+  categoryPvId: null as string | null,
+  categoryName: '',
+  componentId: null as string | null,
+  componentPvId: null as string | null,
+  componentName: '',
+  index: '',
+  note: '',
+})
+
+const findDefectByName = (value: string): LoadedObjectDefect | null => {
+  const normalizedName = normalizeText(value)
+  if (!normalizedName) return null
+  return defects.value.find((defect) => normalizeText(defect.name) === normalizedName) ?? null
+}
+
+const assistantCategorySuggestions = computed(() => categoryOptions.value.slice(0, 6))
+
+interface AssistantSpeechRecognitionResult {
+  readonly isFinal: boolean
+  readonly 0: { transcript: string }
+}
+
+interface AssistantSpeechRecognitionEvent extends Event {
+  readonly resultIndex: number
+  readonly results: ArrayLike<AssistantSpeechRecognitionResult>
+}
+
+interface AssistantSpeechRecognitionErrorEvent extends Event {
+  readonly error: string
+}
+
+interface AssistantSpeechRecognition extends EventTarget {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onresult: ((event: AssistantSpeechRecognitionEvent) => void) | null
+  onerror: ((event: AssistantSpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+
+type AssistantSpeechRecognitionConstructor = new () => AssistantSpeechRecognition
+
+type WindowWithSpeechRecognition = Window & typeof globalThis & {
+  SpeechRecognition?: AssistantSpeechRecognitionConstructor
+  webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
+}
+
+type SpeechRecognitionWithStop = AssistantSpeechRecognition
+
+const speechRecognitionSupported = computed(() => {
+  if (typeof window === 'undefined') return false
+  const w = window as WindowWithSpeechRecognition
+  return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition)
+})
+
+const speechSynthesisSupported = computed(() => typeof window !== 'undefined' && 'speechSynthesis' in window)
+
+let recognition: SpeechRecognitionWithStop | null = null
+
+const createMessageId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const ensureChatScroll = () => {
+  nextTick(() => {
+    const el = assistantMessagesRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+const cancelSpeech = () => {
+  if (!speechSynthesisSupported.value) return
+  if (typeof window === 'undefined') return
+  const synth = window.speechSynthesis
+  synth?.cancel()
+}
+
+const speakMessage = (text: string) => {
+  if (!speechSynthesisSupported.value) return
+  if (typeof window === 'undefined') return
+  const synth = window.speechSynthesis
+  if (!synth) return
+  cancelSpeech()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'ru-RU'
+  synth.speak(utterance)
+}
+
+const pushAssistantMessage = (
+  content: string,
+  options: { step?: AssistantStep; speak?: boolean; historyId?: string | null } = {},
+) => {
+  const id = createMessageId()
+  assistantMessages.value.push({
+    id,
+    role: 'assistant',
+    content,
+    step: options.step,
+    historyId: options.historyId ?? null,
+  })
+  if (options.speak) speakMessage(content)
+  ensureChatScroll()
+  return id
+}
+
+const pushUserMessage = (content: string, options: { step: AssistantStep; historyId: string }) => {
+  const id = createMessageId()
+  assistantMessages.value.push({
+    id,
+    role: 'user',
+    content,
+    step: options.step,
+    historyId: options.historyId,
+  })
+  ensureChatScroll()
+  return id
+}
+
+const stopAssistantVoice = () => {
+  if (!recognition) return
+  try {
+    recognition.stop()
+    recognition.abort()
+  } catch (error) {
+    console.warn('failed to stop recognition', error)
+  }
+  recognition = null
+  assistantListening.value = false
+}
+
+const resetAssistantConversation = () => {
+  stopAssistantVoice()
+  cancelSpeech()
+  assistantMessages.value = []
+  assistantInput.value = ''
+  assistantStep.value = 'ask-name'
+  assistantProcessing.value = false
+  assistantHistory.value = []
+  assistantSession.name = ''
+  assistantSession.categoryFvId = null
+  assistantSession.categoryPvId = null
+  assistantSession.categoryName = ''
+  assistantSession.componentId = null
+  assistantSession.componentPvId = null
+  assistantSession.componentName = ''
+  assistantSession.index = ''
+  assistantSession.note = ''
+}
+
+const stripKeywords = (value: string, keywords: string[]): string => {
+  let current = value.trim()
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const keyword of keywords) {
+      const prefix = `${keyword} `
+      if (current.startsWith(prefix)) {
+        current = current.slice(prefix.length).trim()
+        changed = true
+      }
+    }
+  }
+  return current
+}
+
+const categoryKeywords = ['категория', 'категории', 'категорию', 'категорией']
+const componentKeywords = ['компонент', 'компонента', 'компоненту', 'компоненты']
+
+const sanitizeCategoryInput = (value: string) => stripKeywords(normalizeText(value), categoryKeywords)
+const sanitizeComponentInput = (value: string) => stripKeywords(normalizeText(value), componentKeywords)
+
+const matchCategoryOption = (value: string): DefectCategoryOption | null => {
+  const sanitized = sanitizeCategoryInput(value)
+  if (!sanitized) return null
+  const direct = categoryNameMap.value.get(sanitized)
+  if (direct) return direct
+  for (const option of categoryOptions.value) {
+    const normalizedName = normalizeText(option.name)
+    if (!normalizedName) continue
+    if (normalizedName.includes(sanitized) || sanitized.includes(normalizedName)) return option
+    const chunks = sanitized.split(' ').filter(Boolean)
+    if (chunks.length && chunks.every((chunk) => normalizedName.includes(chunk))) return option
+  }
+  return null
+}
+
+const matchComponentOption = (value: string): DefectComponentOption | null => {
+  const sanitized = sanitizeComponentInput(value)
+  if (!sanitized) return null
+  const direct = componentNameMap.value.get(sanitized)
+  if (direct) return direct
+  for (const option of componentOptions.value) {
+    const normalizedName = normalizeText(option.name)
+    if (!normalizedName) continue
+    if (normalizedName.includes(sanitized) || sanitized.includes(normalizedName)) return option
+    const chunks = sanitized.split(' ').filter(Boolean)
+    if (chunks.length && chunks.every((chunk) => normalizedName.includes(chunk))) return option
+  }
+  return null
+}
+
+const skipCommands = ['нет', 'пропусти', 'пропустить', 'без', 'не нужно', 'не указывать', 'пока нет']
+
+const isSkipCommand = (value: string) => {
+  const normalized = normalizeText(value)
+  if (!normalized) return false
+  return skipCommands.some((command) =>
+    normalized === command || normalized.startsWith(`${command} `) || normalized.endsWith(` ${command}`),
+  )
+}
+
+const isAffirmative = (value: string) => {
+  const normalized = normalizeText(value)
+  return ['да', 'подтверждаю', 'создать', 'готово', 'верно', 'правильно', 'ок', 'окей'].some((word) =>
+    normalized.includes(word),
+  )
+}
+
+const isNegative = (value: string) => {
+  const normalized = normalizeText(value)
+  return ['нет', 'не надо', 'отмена', 'не нужно', 'стоп'].some((word) => normalized.includes(word))
+}
+
+const describeSummary = () => {
+  const name = assistantSession.name.trim()
+  const category = assistantSession.categoryName || 'без категории'
+  const component = assistantSession.componentName || 'без компонента'
+  const index = assistantSession.index.trim()
+  const note = assistantSession.note.trim()
+  const parts = [`Название: ${name}.`, `Категория: ${category}.`, `Компонент: ${component}.`]
+  parts.push(index ? `Индекс: ${index}.` : 'Индекс пропущен.')
+  parts.push(note ? 'Комментарий добавлен.' : 'Комментарий пропущен.')
+  return parts.join(' ')
+}
+
+const goToStep = (
+  step: AssistantStep,
+  options: { repeat?: boolean; intro?: string } = {},
+): string | null => {
+  if (step === 'ask-category' && categoryOptions.value.length === 0) {
+    pushAssistantMessage('Категории пока не загружены, пропускаю этот шаг.')
+    return goToStep('ask-component', {
+      intro: 'Выберите компонент дефекта. Если компонент не нужен, скажите, что без компонента.',
+    })
+  }
+
+  if (step === 'ask-component' && componentOptions.value.length === 0) {
+    pushAssistantMessage('Компоненты не найдены, пропускаю этот шаг.')
+    return goToStep('ask-index', {
+      intro: 'Укажите индекс дефекта. Если индекса нет, скажите «нет индекса».',
+    })
+  }
+
+  assistantStep.value = step
+
+  let text = ''
+  switch (step) {
+    case 'ask-name':
+      text = options.intro
+        ? options.intro
+        : options.repeat
+          ? 'Повторите, пожалуйста, название дефекта — минимум два символа.'
+          : 'Как назовём дефект?'
+      break
+    case 'ask-category':
+      text = options.intro
+        ? options.intro
+        : options.repeat
+          ? 'Повторите категорию или скажите, что её нет.'
+          : 'Назовите категорию дефекта или скажите «нет категории». '
+      break
+    case 'ask-component':
+      text = options.intro
+        ? options.intro
+        : options.repeat
+          ? 'Повторите компонент или скажите, что его нет.'
+          : 'Выберите компонент дефекта или скажите «нет компонента». '
+      break
+    case 'ask-index':
+      text = options.intro
+        ? options.intro
+        : options.repeat
+          ? 'Повторите индекс или скажите, что его нет.'
+          : 'Укажите индекс дефекта. Если индекса нет, скажите «нет индекса». '
+      break
+    case 'ask-note':
+      text = options.intro
+        ? options.intro
+        : options.repeat
+          ? 'Повторите комментарий или скажите, что его нет.'
+          : 'Добавьте короткий комментарий или статус. Если нечего добавить, скажите «нет комментария». '
+      break
+    case 'confirm':
+      text = `${describeSummary()} Создать такой дефект? Ответьте «да» или «нет».`
+      break
+  }
+
+  if (!text) return null
+  return pushAssistantMessage(text, { step, speak: true })
+}
+
+const startAssistantSession = (introMessage = 'Здравствуйте! Я помогу добавить дефект. Как он будет называться?') => {
+  resetAssistantConversation()
+  void goToStep('ask-name', { intro: introMessage })
+}
+
+const openAssistant = () => {
+  assistantOpen.value = true
+}
+
+const restartAssistant = () => {
+  startAssistantSession('Начнём заново. Как назовём дефект?')
+}
+
+const chooseAssistantCategory = (option: DefectCategoryOption) => {
+  handleAssistantResponse(option.name)
+}
+
+const handleAssistantResponse = (raw: string) => {
+  const text = raw.trim()
+  if (!text) return
+
+  const currentStep = assistantStep.value
+  const historyId = createMessageId()
+  const messageIds: string[] = []
+  const userMessageId = pushUserMessage(text, { step: currentStep, historyId })
+  messageIds.push(userMessageId)
+
+  const addHistoryEntry = (rollback: () => void) => {
+    assistantHistory.value = [
+      ...assistantHistory.value,
+      {
+        id: historyId,
+        step: currentStep,
+        messageIds: [...messageIds],
+        rollback,
+      },
+    ]
+  }
+
+  switch (currentStep) {
+    case 'ask-name': {
+      if (text.length < 2) {
+        messageIds.push(pushAssistantMessage('Название должно быть не короче двух символов. Попробуйте ещё раз.'))
+        const nextId = goToStep('ask-name', { repeat: true })
+        if (nextId) messageIds.push(nextId)
+        return
+      }
+
+      assistantSession.name = text
+      const duplicate = findDefectByName(text)
+      if (duplicate) {
+        const warning = duplicate.categoryName
+          ? `Дефект с таким названием уже есть в категории «${duplicate.categoryName}». Могу добавить ещё один вариант.`
+          : 'Дефект с таким названием уже есть. Могу добавить ещё один вариант.'
+        messageIds.push(pushAssistantMessage(warning))
+      }
+
+      const nextId = goToStep('ask-category')
+      if (nextId) messageIds.push(nextId)
+
+      addHistoryEntry(() => {
+        assistantSession.name = ''
+        assistantSession.categoryFvId = null
+        assistantSession.categoryPvId = null
+        assistantSession.categoryName = ''
+        assistantSession.componentId = null
+        assistantSession.componentPvId = null
+        assistantSession.componentName = ''
+        assistantSession.index = ''
+        assistantSession.note = ''
+        assistantStep.value = 'ask-name'
+      })
+      break
+    }
+    case 'ask-category': {
+      const previous = {
+        fvId: assistantSession.categoryFvId,
+        pvId: assistantSession.categoryPvId,
+        name: assistantSession.categoryName,
+      }
+
+      if (isSkipCommand(text)) {
+        assistantSession.categoryFvId = null
+        assistantSession.categoryPvId = null
+        assistantSession.categoryName = ''
+        messageIds.push(pushAssistantMessage('Категорию пропускаем.'))
+        const nextId = goToStep('ask-component')
+        if (nextId) messageIds.push(nextId)
+        addHistoryEntry(() => {
+          assistantSession.categoryFvId = previous.fvId
+          assistantSession.categoryPvId = previous.pvId
+          assistantSession.categoryName = previous.name
+          assistantStep.value = 'ask-category'
+        })
+        return
+      }
+
+      const option = matchCategoryOption(text)
+      if (!option) {
+        messageIds.push(pushAssistantMessage('Не удалось найти такую категорию. Повторите, пожалуйста, или скажите, что категории нет.'))
+        const nextId = goToStep('ask-category', { repeat: true })
+        if (nextId) messageIds.push(nextId)
+        return
+      }
+
+      assistantSession.categoryFvId = option.fvId
+      assistantSession.categoryPvId = option.pvId
+      assistantSession.categoryName = option.name
+      messageIds.push(pushAssistantMessage(`Категория «${option.name}».`))
+
+      const nextId = goToStep('ask-component')
+      if (nextId) messageIds.push(nextId)
+
+      addHistoryEntry(() => {
+        assistantSession.categoryFvId = previous.fvId
+        assistantSession.categoryPvId = previous.pvId
+        assistantSession.categoryName = previous.name
+        assistantStep.value = 'ask-category'
+      })
+      break
+    }
+    case 'ask-component': {
+      const previous = {
+        id: assistantSession.componentId,
+        pvId: assistantSession.componentPvId,
+        name: assistantSession.componentName,
+      }
+
+      if (isSkipCommand(text)) {
+        assistantSession.componentId = null
+        assistantSession.componentPvId = null
+        assistantSession.componentName = ''
+        messageIds.push(pushAssistantMessage('Компонент пропускаем.'))
+        const nextId = goToStep('ask-index')
+        if (nextId) messageIds.push(nextId)
+        addHistoryEntry(() => {
+          assistantSession.componentId = previous.id
+          assistantSession.componentPvId = previous.pvId
+          assistantSession.componentName = previous.name
+          assistantStep.value = 'ask-component'
+        })
+        return
+      }
+
+      const option = matchComponentOption(text)
+      if (!option) {
+        messageIds.push(pushAssistantMessage('Не удалось найти такой компонент. Повторите, пожалуйста, или скажите, что компонента нет.'))
+        const nextId = goToStep('ask-component', { repeat: true })
+        if (nextId) messageIds.push(nextId)
+        return
+      }
+
+      assistantSession.componentId = option.id
+      assistantSession.componentPvId = option.pvId ?? null
+      assistantSession.componentName = option.name
+      messageIds.push(pushAssistantMessage(`Компонент «${option.name}».`))
+
+      const nextId = goToStep('ask-index')
+      if (nextId) messageIds.push(nextId)
+
+      addHistoryEntry(() => {
+        assistantSession.componentId = previous.id
+        assistantSession.componentPvId = previous.pvId
+        assistantSession.componentName = previous.name
+        assistantStep.value = 'ask-component'
+      })
+      break
+    }
+    case 'ask-index': {
+      const previous = assistantSession.index
+
+      if (isSkipCommand(text)) {
+        assistantSession.index = ''
+        messageIds.push(pushAssistantMessage('Индекс пропускаем.'))
+        const nextId = goToStep('ask-note')
+        if (nextId) messageIds.push(nextId)
+        addHistoryEntry(() => {
+          assistantSession.index = previous
+          assistantStep.value = 'ask-index'
+        })
+        return
+      }
+
+      const trimmed = text.trim()
+      if (!trimmed) {
+        messageIds.push(pushAssistantMessage('Индекс не распознан. Попробуйте ещё раз.'))
+        const nextId = goToStep('ask-index', { repeat: true })
+        if (nextId) messageIds.push(nextId)
+        return
+      }
+
+      assistantSession.index = trimmed
+      messageIds.push(pushAssistantMessage(`Индекс «${trimmed}».`))
+
+      const nextId = goToStep('ask-note')
+      if (nextId) messageIds.push(nextId)
+
+      addHistoryEntry(() => {
+        assistantSession.index = previous
+        assistantStep.value = 'ask-index'
+      })
+      break
+    }
+    case 'ask-note': {
+      const previous = assistantSession.note
+
+      if (isSkipCommand(text)) {
+        assistantSession.note = ''
+        messageIds.push(pushAssistantMessage('Комментарий пропускаем.'))
+        const nextId = goToStep('confirm')
+        if (nextId) messageIds.push(nextId)
+        addHistoryEntry(() => {
+          assistantSession.note = previous
+          assistantStep.value = 'ask-note'
+        })
+        return
+      }
+
+      assistantSession.note = text.trim()
+      messageIds.push(pushAssistantMessage('Комментарий записан.'))
+
+      const nextId = goToStep('confirm')
+      if (nextId) messageIds.push(nextId)
+
+      addHistoryEntry(() => {
+        assistantSession.note = previous
+        assistantStep.value = 'ask-note'
+      })
+      break
+    }
+    case 'confirm': {
+      if (isAffirmative(text)) {
+        void createDefectViaAssistant()
+        return
+      }
+      if (isNegative(text)) {
+        startAssistantSession('Хорошо, начнём заново. Как назовём дефект?')
+        return
+      }
+
+      messageIds.push(pushAssistantMessage('Ответьте, пожалуйста, «да» или «нет».'))
+      const nextId = goToStep('confirm')
+      if (nextId) messageIds.push(nextId)
+      return
+    }
+  }
+}
+
+const createRecognition = (): SpeechRecognitionWithStop | null => {
+  if (!speechRecognitionSupported.value || typeof window === 'undefined') return null
+  const w = window as WindowWithSpeechRecognition
+  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition
+  if (!Ctor) return null
+  const instance = new Ctor() as SpeechRecognitionWithStop
+  instance.lang = 'ru-RU'
+  instance.interimResults = false
+  instance.maxAlternatives = 1
+  return instance
+}
+
+const toggleAssistantVoice = () => {
+  if (assistantListening.value) {
+    stopAssistantVoice()
+    return
+  }
+
+  const instance = createRecognition()
+  if (!instance) {
+    message.warning('Голосовой ввод недоступен в этом браузере')
+    return
+  }
+
+  recognition = instance
+  cancelSpeech()
+
+  instance.onresult = (event: AssistantSpeechRecognitionEvent) => {
+    const result = event.results[event.resultIndex]
+    if (result?.isFinal) {
+      const transcript = result[0]?.transcript?.trim() ?? ''
+      if (transcript) handleAssistantResponse(transcript)
+    }
+  }
+
+  instance.onerror = (event: AssistantSpeechRecognitionErrorEvent) => {
+    if (event.error !== 'aborted') message.error('Не удалось распознать речь')
+    stopAssistantVoice()
+  }
+
+  instance.onend = () => {
+    stopAssistantVoice()
+  }
+
+  try {
+    instance.start()
+    assistantListening.value = true
+  } catch (error) {
+    console.error(error)
+    message.error('Не удалось начать запись')
+    stopAssistantVoice()
+  }
+}
+
+const sendAssistantText = () => {
+  const text = assistantInput.value.trim()
+  if (!text) return
+  assistantInput.value = ''
+  handleAssistantResponse(text)
+}
+
+const createDefectViaAssistant = async () => {
+  if (assistantProcessing.value) return
+
+  const nameTrimmed = assistantSession.name.trim()
+  if (nameTrimmed.length < 2) {
+    pushAssistantMessage('Название слишком короткое. Начнём заново.')
+    void goToStep('ask-name', { repeat: true })
+    return
+  }
+
+  assistantProcessing.value = true
+  try {
+    await create.mutateAsync({
+      name: nameTrimmed,
+      categoryFvId: assistantSession.categoryFvId,
+      categoryPvId: assistantSession.categoryPvId,
+      componentId: assistantSession.componentId,
+      componentPvId: assistantSession.componentPvId,
+      index: assistantSession.index.trim() ? assistantSession.index.trim() : null,
+      note: assistantSession.note.trim() ? assistantSession.note.trim() : null,
+    })
+    pushAssistantMessage(`Готово! Дефект «${nameTrimmed}» создан. Можете назвать следующий.`, { speak: true })
+    assistantSession.name = ''
+    assistantSession.categoryFvId = null
+    assistantSession.categoryPvId = null
+    assistantSession.categoryName = ''
+    assistantSession.componentId = null
+    assistantSession.componentPvId = null
+    assistantSession.componentName = ''
+    assistantSession.index = ''
+    assistantSession.note = ''
+    void goToStep('ask-name', { intro: 'Назовите следующий дефект или закройте ассистента.' })
+  } catch (error) {
+    console.error(error)
+    const errorText = getErrorMessage(error) || 'Не удалось создать дефект'
+    pushAssistantMessage(errorText)
+    void goToStep('confirm', { repeat: true })
+  } finally {
+    assistantProcessing.value = false
+  }
+}
+
+const canUndoMessage = (message: AssistantMessage) => {
+  if (message.role !== 'user' || !message.historyId) return false
+  if (assistantProcessing.value) return false
+  const history = assistantHistory.value
+  if (!history.length) return false
+  return history[history.length - 1].id === message.historyId
+}
+
+const undoAssistantStep = (historyId: string) => {
+  const history = assistantHistory.value
+  if (!history.length) return
+  const lastEntry = history[history.length - 1]
+  if (lastEntry.id !== historyId) return
+
+  cancelSpeech()
+  stopAssistantVoice()
+
+  assistantHistory.value = history.slice(0, -1)
+  assistantMessages.value = assistantMessages.value.filter((message) => !lastEntry.messageIds.includes(message.id))
+  lastEntry.rollback()
+  assistantInput.value = ''
+  assistantProcessing.value = false
+
+  void goToStep(assistantStep.value, { repeat: true })
+}
+
+watch(assistantOpen, (value) => {
+  if (value) {
+    startAssistantSession()
+  } else {
+    stopAssistantVoice()
+    cancelSpeech()
+  }
+})
 
 const filteredRows = computed(() => {
   const search = normalizeText(q.value)
@@ -1173,5 +2032,173 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   color: #e6a23c;
   font-size: 12px;
   font-style: italic;
+}
+
+.toolbar__assistant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar__assistant :deep(.n-icon) {
+  font-size: 18px;
+}
+
+.assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 320px;
+}
+
+.assistant__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 4px;
+  background: #f8fafc;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant-message {
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  max-width: 85%;
+  padding: 8px 32px 8px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.assistant-message__text {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.assistant-message__undo {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.assistant-message__undo:hover,
+.assistant-message__undo:focus-visible {
+  color: #1f2937;
+}
+
+.assistant-message__undo:focus-visible {
+  outline: 2px solid #818cf8;
+  border-radius: 4px;
+}
+
+.assistant-message--assistant {
+  align-self: flex-start;
+  background: #eef2ff;
+}
+
+.assistant-message--user {
+  align-self: flex-end;
+  background: #d1fae5;
+}
+
+.assistant__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant__picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.assistant__picker-label {
+  font-size: 13px;
+  color: var(--n-text-color-3);
+}
+
+.assistant__picker-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.assistant__picker-button {
+  flex: 1 1 calc(50% - 8px);
+  min-width: 120px;
+}
+
+.assistant__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.assistant__actions :deep(.n-button) {
+  width: 100%;
+}
+
+.assistant__voice {
+  width: 100%;
+  min-height: clamp(120px, 24vh, 220px);
+  font-size: clamp(18px, 3.2vw, 24px);
+  border-radius: 20px;
+  padding: clamp(14px, 3vw, 24px);
+}
+
+.assistant__voice :deep(.n-button__content) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 14px);
+  width: 100%;
+}
+
+.assistant__voice :deep(.n-icon) {
+  font-size: clamp(44px, 10vw, 80px);
+}
+
+.assistant__voice:focus-visible {
+  outline: 3px solid #4c6ef5;
+  outline-offset: 4px;
+}
+
+.assistant__hint {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.assistant__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .assistant-message {
+    max-width: 100%;
+  }
 }
 </style>

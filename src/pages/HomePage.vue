@@ -175,44 +175,61 @@ interface RecentItem {
 const updatesLoading = computed(() => typesLoading.value || parametersLoading.value || defectsLoading.value)
 
 const recentItems = computed<RecentItem[]>(() => {
-  const items: RecentItem[] = []
-  const takeLast = <T,>(collection: T[] | undefined | null, limit: number, map: (item: T) => RecentItem | null) => {
-    if (!collection?.length) return
-    const slice = collection.slice(-limit).reverse()
-    for (const entry of slice) {
-      const mapped = map(entry)
-      if (mapped) items.push(mapped)
-    }
+  const limit = 9
+  const createSegment = <T,>(
+    collection: T[] | undefined | null,
+    map: (item: T) => RecentItem | null,
+  ): RecentItem[] => {
+    if (!collection?.length) return []
+    return collection
+      .slice(-4)
+      .reverse()
+      .map(map)
+      .filter((entry): entry is RecentItem => entry !== null)
   }
 
-  takeLast(typesSnapshot.value?.items, 4, (item) => ({
-    id: `type-${item.id}`,
-    kind: 'type',
-    kindLabel: 'Тип',
-    title: item.name,
-    subtitle: item.geometry ? `Геометрия: ${item.geometry}` : null,
-    timestamp: null,
-  }))
+  const segments: RecentItem[][] = [
+    createSegment(typesSnapshot.value?.items, (item) => ({
+      id: `type-${item.id}`,
+      kind: 'type',
+      kindLabel: 'Тип',
+      title: item.name,
+      subtitle: item.geometry ? `Геометрия: ${item.geometry}` : null,
+      timestamp: null,
+    })),
+    createSegment(parametersSnapshot.value?.items, (item) => ({
+      id: `parameter-${item.id}`,
+      kind: 'parameter',
+      kindLabel: 'Параметр',
+      title: item.name,
+      subtitle: item.sourceName ?? item.unitName ?? null,
+      timestamp: null,
+    })),
+    createSegment(defectsSnapshot.value?.items, (item) => ({
+      id: `defect-${item.id}`,
+      kind: 'defect',
+      kindLabel: 'Дефект',
+      title: item.name,
+      subtitle: item.componentName ?? item.categoryName ?? null,
+      timestamp: null,
+    })),
+  ]
 
-  takeLast(parametersSnapshot.value?.items, 4, (item) => ({
-    id: `parameter-${item.id}`,
-    kind: 'parameter',
-    kindLabel: 'Параметр',
-    title: item.name,
-    subtitle: item.sourceName ?? item.unitName ?? null,
-    timestamp: null,
-  }))
+  const result: RecentItem[] = []
+  let cursor = 0
 
-  takeLast(defectsSnapshot.value?.items, 4, (item) => ({
-    id: `defect-${item.id}`,
-    kind: 'defect',
-    kindLabel: 'Дефект',
-    title: item.name,
-    subtitle: item.componentName ?? item.categoryName ?? null,
-    timestamp: null,
-  }))
+  const hasItems = () => segments.some((segment) => segment.length > 0)
 
-  return items.slice(0, 6)
+  while (result.length < limit && hasItems()) {
+    const segment = segments[cursor % segments.length]
+    if (segment.length) {
+      const entry = segment.shift()
+      if (entry) result.push(entry)
+    }
+    cursor += 1
+  }
+
+  return result
 })
 
 const schemaNodes = [
