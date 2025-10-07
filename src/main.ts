@@ -22,6 +22,7 @@ import type { ConfigProviderProps, GlobalThemeOverrides } from 'naive-ui'
 
 import App from './App.vue'
 import router from './router'
+import { registerPWA } from './pwa'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
@@ -83,3 +84,4 @@ app.use(VueQueryPlugin, { queryClient })
 app.use(router)
 
 app.mount('#app')
+registerPWA()
