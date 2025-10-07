@@ -41,6 +41,7 @@
         :loading="tableLoading"
         :row-key="rowKey"
         :bordered="false"
+        :max-height="tableMaxHeight || undefined"
       />
 
       <div v-else class="cards">
@@ -334,6 +335,7 @@ const infoOpen = ref(false)
 const q = ref('')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const isMobile = ref(false)
+const tableMaxHeight = ref<number | null>(null)
 
 const { data: snapshot, isLoading, isFetching, error } = useObjectParametersQuery()
 const parameterMutations = useObjectParameterMutations()
@@ -594,12 +596,26 @@ onMounted(() => {
   mediaQueryList = window.matchMedia('(max-width: 768px)')
   handleMediaQueryChange(mediaQueryList)
   mediaQueryList.addEventListener('change', handleMediaQueryChange)
+
+  const computeTableHeight = () => {
+    // Примерная высота под таблицу: высота окна минус тулбар + отступы и пагинация
+    const headerReserve = 260 // тулбар, подзаголовок, отступы
+    const paginationReserve = 80
+    const totalReserve = headerReserve + paginationReserve
+    const h = Math.max(320, window.innerHeight - totalReserve)
+    tableMaxHeight.value = h
+  }
+  computeTableHeight()
+  window.addEventListener('resize', computeTableHeight)
 })
 
 onBeforeUnmount(() => {
   if (mediaQueryList) {
     mediaQueryList.removeEventListener('change', handleMediaQueryChange)
     mediaQueryList = null
+  }
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', () => void 0)
   }
 })
 
@@ -704,27 +720,43 @@ function renderComponentTag(row: LoadedObjectParameter): VNodeChild {
   )
 }
 
+const renderTooltipLines = (value: string) =>
+  value.split(/\n+/).map((line, index) => h('div', { key: `tooltip-line-${index}` }, line || ' '))
+
+const renderMultilineCell = (
+  value: string | null | undefined,
+  className = 'cell-multiline',
+  withTooltip = true,
+): VNodeChild => {
+  const text = value?.trim()
+  if (!text) return '—'
+
+  const renderBlock = () => h('div', { class: className }, text)
+
+  if (!withTooltip) return renderBlock()
+
+  return h(
+    NTooltip,
+    { placement: 'top', delay: 100 },
+    {
+      trigger: renderBlock,
+      default: () => renderTooltipLines(text),
+    },
+  )
+}
+
 function renderNameWithMeta(row: LoadedObjectParameter): VNodeChild {
   const component = row.componentName ? renderComponentTag(row) : null
 
-  const titleNode = h('span', { class: 'name-cell__title' }, row.name)
-  const tooltipWrapped = row.name
-    ? h(
-        NTooltip,
-        { placement: 'top', delay: 100 },
-        {
-          trigger: () => titleNode,
-          default: () => row.name,
-        },
-      )
-    : titleNode
+  const titleText = row.name?.trim() ?? ''
+  const titleNode = renderMultilineCell(titleText || null, 'name-cell__title')
 
   if (!component) {
-    return h('div', { class: 'name-cell' }, [tooltipWrapped])
+    return h('div', { class: 'name-cell' }, [titleNode])
   }
 
   return h('div', { class: 'name-cell' }, [
-    tooltipWrapped,
+    titleNode,
     h('div', { class: 'name-meta' }, [component]),
   ])
 }
@@ -775,42 +807,16 @@ function renderRange(row: LoadedObjectParameter): VNodeChild {
 }
 
 function renderComments(row: LoadedObjectParameter): VNodeChild {
-  if (!row.note) return '—'
-  const noteLines = row.note.split(/\n+/)
-
-  return h(
-    NTooltip,
-    { placement: 'top', delay: 100 },
-    {
-      trigger: () =>
-        h('div', { class: 'note-text' }, [h('span', { class: 'note-text__clamped' }, row.note)]),
-      default: () =>
-        noteLines.map((line, index) => h('div', { key: `${row.id}-note-${index}` }, line)),
-    },
-  )
-}
-
-const withTooltip = (value: string | null | undefined): VNodeChild => {
-  const text = value?.trim()
-  if (!text) return '—'
-
-  return h(
-    NTooltip,
-    { placement: 'top', delay: 100 },
-    {
-      trigger: () => h('span', { class: 'cell-ellipsis' }, text),
-      default: () => text,
-    },
-  )
+  return renderMultilineCell(row.note)
 }
 
 function renderSourceDetails(row: LoadedObjectParameter): VNodeChild {
   const source = row.sourceName ?? row.code
-  return withTooltip(source)
+  return renderMultilineCell(source)
 }
 
 function renderDescription(row: LoadedObjectParameter): VNodeChild {
-  return withTooltip(row.description)
+  return renderMultilineCell(row.description)
 }
 
 const renderActions = (row: LoadedObjectParameter): VNodeChild => {
@@ -859,7 +865,6 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
     key: 'name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     minWidth: 360,
-    ellipsis: { tooltip: true },
     className: 'col-name',
     render: renderNameWithMeta,
   },
@@ -874,7 +879,6 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
     title: 'Комментарии по диапазонам',
     key: 'note',
     minWidth: 200,
-    ellipsis: { tooltip: true },
     className: 'col-note',
     render: renderComments,
   },
@@ -889,7 +893,6 @@ const columns = computed<DataTableColumn<LoadedObjectParameter>[]>(() => [
     title: 'Описание',
     key: 'description',
     minWidth: 200,
-    ellipsis: { tooltip: true },
     render: renderDescription,
   },
   {
@@ -1091,7 +1094,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   padding: 0 12px;
   height: auto;
   line-height: 24px;
-  vertical-align: middle;
+  vertical-align: top;
 }
 
 :deep(.n-data-table thead th) {
@@ -1118,14 +1121,16 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   gap: 6px;
   max-width: 100%;
 }
-
 .name-cell__title {
-  display: block;
-  max-width: 100%;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
   font-weight: 600;
+  line-height: 1.4;
 }
 
 .name-meta {
@@ -1135,12 +1140,17 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   align-items: center;
 }
 
-.cell-ellipsis {
-  display: inline-block;
+
+.cell-multiline {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .toolbar {
@@ -1213,12 +1223,13 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 
 .note-text__clamped {
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
   word-break: break-word;
+  line-height: 1.4;
 }
 
 .creation-form {
