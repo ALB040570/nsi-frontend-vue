@@ -6,6 +6,7 @@ import { rpc } from '@shared/api'
 
 import type {
   CreateParameterPayload,
+  DeleteParameterPayload,
   DirectoryLookup,
   DirectoryOption,
   LoadedObjectParameter,
@@ -51,6 +52,20 @@ async function rpcWithDebug<T = unknown, TParams = unknown>(
     )
     throw new Error(`${context}: ${message}`)
   }
+}
+
+function extractRpcFailureReason(response: unknown): string | null {
+  if (!response || typeof response !== 'object') return null
+  const keys = Object.keys(response as Record<string, unknown>)
+  if (keys.length === 0) return null
+  if ('error' in (response as Record<string, unknown>)) {
+    const err = (response as Record<string, unknown>).error
+    if (typeof err === 'string') return err
+    if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+      return err.message
+    }
+  }
+  return JSON.stringify(response)
 }
 
 function extractArray<T = unknown>(value: unknown): T[] {
@@ -838,27 +853,40 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
   const accessLevel = details.accessLevel ?? payload.accessLevel ?? DEFAULT_ACCESS_LEVEL
   const cls = details.cls ?? DEFAULT_PARAMETER_CLASS
 
-  await rpcWithDebug(
+  const paramsPayload: Record<string, unknown> = {
+    accessLevel,
+    id: details.id,
+    cls,
+    name,
+    objCollections: payload.source.id,
+    pvCollections: payload.source.pv,
+    meaParamsMeasure: payload.measure.id,
+    pvParamsMeasure: payload.measure.pv,
+    ParamsDescription: descriptionTrimmed,
+  }
+
+  if (details.sourceRecordId !== null) paramsPayload.idCollections = details.sourceRecordId
+  if (details.measureRecordId !== null) paramsPayload.idParamsMeasure = details.measureRecordId
+  if (details.descriptionRecordId !== null) paramsPayload.idParamsDescription = details.descriptionRecordId
+
+  const saveParamsResponse = await rpcWithDebug(
     'data/saveParams',
-    [
-      'upd',
-      {
-        accessLevel,
-        id: details.id,
-        cls,
-        name,
-        idCollections: details.sourceRecordId,
-        pvCollections: payload.source.pv,
-        objCollections: payload.source.id,
-        idParamsMeasure: details.measureRecordId,
-        pvParamsMeasure: payload.measure.pv,
-        meaParamsMeasure: payload.measure.id,
-        idParamsDescription: details.descriptionRecordId,
-        ParamsDescription: descriptionTrimmed,
-      },
-    ],
+    ['upd', paramsPayload],
     'Обновление параметра: сохранение основной записи',
   )
+
+  const saveRecords = extractArray<Record<string, unknown>>(saveParamsResponse)
+  const saveRecord = saveRecords[0] ? asRecord(saveRecords[0]) : null
+
+  const nextSourceRecordId = saveRecord
+    ? pickNumber(saveRecord, ['idCollections']) ?? details.sourceRecordId
+    : details.sourceRecordId
+  const nextMeasureRecordId = saveRecord
+    ? pickNumber(saveRecord, ['idParamsMeasure']) ?? details.measureRecordId
+    : details.measureRecordId
+  const nextDescriptionRecordId = saveRecord
+    ? pickNumber(saveRecord, ['idParamsDescription']) ?? details.descriptionRecordId
+    : details.descriptionRecordId
 
   const relationId = details.componentRelationId
   if (!relationId) throw new Error('Не удалось определить идентификатор связи параметра и компонента')
@@ -923,11 +951,15 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
 
   const updatedDetails = buildUpdatedDetails(details, {
     accessLevel,
+    sourceRecordId: nextSourceRecordId !== null ? Number(nextSourceRecordId) : null,
     measureId: payload.measure.id,
     measurePv: payload.measure.pv,
+    measureRecordId: nextMeasureRecordId !== null ? Number(nextMeasureRecordId) : null,
     sourceObjId: payload.source.id,
     sourcePv: payload.source.pv,
     componentRelationName: relationName,
+    descriptionRecordId:
+      nextDescriptionRecordId !== null ? Number(nextDescriptionRecordId) : details.descriptionRecordId,
     componentCls: payload.component.cls,
     componentRelcls: payload.component.relcls,
     componentRcm: payload.component.rcm,
@@ -958,7 +990,28 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
   }
 }
 
-export async function deleteParameter(id: string): Promise<void> {
-  void id
-  return Promise.resolve()
+export async function deleteParameter({ id, relationId }: DeleteParameterPayload): Promise<void> {
+  if (!Number.isFinite(id)) throw new Error('Не определён идентификатор параметра для удаления')
+
+  if (relationId && Number.isFinite(relationId)) {
+    const relationResponse = await rpcWithDebug(
+      'data/deleteOwner',
+      [Number(relationId), 0],
+      'Удаление параметра: удаление связи параметр-компонент',
+    )
+    const relationError = extractRpcFailureReason(relationResponse)
+    if (relationError) {
+      throw new Error(`Невозможно удалить связь параметра с компонентом: ${relationError}`)
+    }
+  }
+
+  const parameterResponse = await rpcWithDebug(
+    'data/deleteOwnerWithProperties',
+    [Number(id), 1],
+    'Удаление параметра: удаление записи параметра',
+  )
+  const parameterError = extractRpcFailureReason(parameterResponse)
+  if (parameterError) {
+    throw new Error(`Параметр не удалён: ${parameterError}`)
+  }
 }

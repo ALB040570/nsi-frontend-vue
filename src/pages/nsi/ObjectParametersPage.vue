@@ -522,10 +522,10 @@ const handleSubmit = async () => {
       return null
     }
     return {
-      cls: details.componentCls,
-      relcls: details.componentRelcls,
-      rcm: details.componentRcm,
-      ent: details.componentEnt,
+      cls: Number(details.componentCls),
+      relcls: Number(details.componentRelcls),
+      rcm: Number(details.componentRcm),
+      ent: Number(details.componentEnt),
       name: editingParameter.value.componentName ?? details.componentRelationName ?? '',
     }
   })()
@@ -538,8 +538,8 @@ const handleSubmit = async () => {
   const basePayload = {
     name: creationForm.name.trim(),
     description: creationForm.description.trim() || null,
-    measure: { id: measure.id, pv: measure.pv, name: measure.name },
-    source: { id: source.id, pv: source.pv, name: source.name },
+    measure: { id: Number(measure.id), pv: Number(measure.pv), name: measure.name },
+    source: { id: Number(source.id), pv: Number(source.pv), name: source.name },
     component: componentOption,
     limits: {
       max: creationForm.limitMax,
@@ -1030,9 +1030,24 @@ defineExpose({
   isEditMode,
 })
 
-const deleteParameter = (row: LoadedObjectParameter) => {
+const deleteParameter = async (row: LoadedObjectParameter) => {
   parameterMutations.remove.reset()
-  message.warning(`Удаление параметра «${row.name}» временно недоступно`)
+
+  const rawId = row.details.id ?? Number(row.id)
+  if (!rawId || !Number.isFinite(rawId)) {
+    message.error('Не удалось определить идентификатор параметра для удаления')
+    return
+  }
+
+  try {
+    await parameterMutations.remove.mutateAsync({
+      id: Number(rawId),
+      relationId: row.details.componentRelationId ?? null,
+    })
+    message.success(`Параметр «${row.name}» удалён`)
+  } catch (err) {
+    message.error(getErrorMessage(err) ?? `Не удалось удалить параметр «${row.name}»`)
+  }
 }
 </script>
 

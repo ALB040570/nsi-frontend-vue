@@ -56,6 +56,11 @@ export interface ParameterDetails {
   limitNormId: number | null
 }
 
+export interface DeleteParameterPayload {
+  id: number
+  relationId?: number | null
+}
+
 export interface CreateParameterPayload {
   name: string
   description: string | null

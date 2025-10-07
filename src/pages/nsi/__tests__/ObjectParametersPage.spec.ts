@@ -30,6 +30,7 @@ const createMutateAsyncMock = vi.hoisted(() => vi.fn())
 const updateResetMock = vi.hoisted(() => vi.fn())
 const updateMutateAsyncMock = vi.hoisted(() => vi.fn())
 const removeResetMock = vi.hoisted(() => vi.fn())
+const removeMutateAsyncMock = vi.hoisted(() => vi.fn())
 
 const loadMeasuresMock = vi.hoisted(() => vi.fn())
 const loadSourcesMock = vi.hoisted(() => vi.fn())
@@ -159,7 +160,7 @@ vi.mock('@features/object-parameter-crud', () => ({
   useObjectParameterMutations: () => ({
     create: { reset: createResetMock, mutateAsync: createMutateAsyncMock, isPending: { value: false } },
     update: { reset: updateResetMock, mutateAsync: updateMutateAsyncMock, isPending: { value: false } },
-    remove: { reset: removeResetMock },
+    remove: { reset: removeResetMock, mutateAsync: removeMutateAsyncMock },
   }),
 }))
 
@@ -201,6 +202,11 @@ describe('ObjectParametersPage creation flow', () => {
     createResetMock.mockReset()
     updateResetMock.mockReset()
     removeResetMock.mockReset()
+    removeMutateAsyncMock.mockReset()
+    removeMutateAsyncMock.mockReset()
+    removeMutateAsyncMock.mockReset()
+    removeMutateAsyncMock.mockReset()
+    removeMutateAsyncMock.mockReset()
     createMutateAsyncMock.mockReset()
     updateMutateAsyncMock.mockReset()
     loadMeasuresMock.mockReset()

@@ -8,15 +8,14 @@ import {
   deleteParameter,
   updateParameter,
   type CreateParameterPayload,
+  type DeleteParameterPayload,
   type UpdateParameterPayload,
 } from '@entities/object-parameter'
 
 export type CreateObjectParameterPayload = CreateParameterPayload
 export type UpdateObjectParameterPayload = UpdateParameterPayload
 
-export interface RemoveObjectParameterPayload {
-  id: string
-}
+export type RemoveObjectParameterPayload = DeleteParameterPayload
 
 export function useObjectParameterMutations() {
   const qc = useQueryClient()
@@ -33,7 +32,7 @@ export function useObjectParameterMutations() {
   })
 
   const remove = useMutation({
-    mutationFn: ({ id }: RemoveObjectParameterPayload) => deleteParameter(id),
+    mutationFn: (payload: RemoveObjectParameterPayload) => deleteParameter(payload),
     onSuccess: () => invalidate(),
   })
 
