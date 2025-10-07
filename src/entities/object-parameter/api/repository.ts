@@ -3,13 +3,18 @@
  *  Использование: импортируйте функции в фичах и страницах для загрузки и мутаций данных.
  */
 import { rpc } from '@shared/api'
-import { normalizeText } from '@shared/lib'
 
 import type {
+  CreateParameterPayload,
   DirectoryLookup,
   DirectoryOption,
   LoadedObjectParameter,
   ObjectParametersSnapshot,
+  ParameterComponentOption,
+  ParameterDetails,
+  ParameterMeasureOption,
+  ParameterSourceOption,
+  UpdateParameterPayload,
 } from '../model/types'
 
 interface RpcDirectoryItem {
@@ -24,48 +29,27 @@ interface RpcParamsComponentRecord {
   [key: string]: unknown
 }
 
-type ParameterMutationPayload = Omit<LoadedObjectParameter, 'id'> & { id?: string }
-
 const STRING_TRUE = new Set(['1', 'true', 'yes', 'y'])
-const COMPONENT_SEPARATOR = '<=>'
+const REL_TYP_PARAMS_COMPONENT = 1002
+const RELCLS_PARAMS_COMPONENT = 1074
+const PARAMETER_RCM = 1148
+const DEFAULT_PARAMETER_CLASS = 1041
+const DEFAULT_ACCESS_LEVEL = 1
 
-function buildParamUnitKey(name: string | null | undefined, unit: string | null | undefined): string | null {
-  const normalizedName = normalizeText(name ?? '')
-  if (!normalizedName) return null
-  const normalizedUnit = normalizeText(unit ?? '')
-  return `${normalizedName}|${normalizedUnit}`
-}
-
-function parseParamsComponentName(value: unknown): {
-  parameterName: string | null
-  unitName: string | null
-  componentName: string | null
-} | null {
-  if (typeof value !== 'string') return null
-  const raw = value.trim()
-  if (!raw) return null
-
-  const separatorIndex = raw.indexOf(COMPONENT_SEPARATOR)
-  if (separatorIndex === -1) return null
-
-  const left = raw.slice(0, separatorIndex).trim()
-  const right = raw.slice(separatorIndex + COMPONENT_SEPARATOR.length).trim()
-
-  if (!left) return null
-
-  const commaIndex = left.lastIndexOf(',')
-  let parameterName = left
-  let unitName: string | null = null
-
-  if (commaIndex !== -1) {
-    parameterName = left.slice(0, commaIndex).trim()
-    unitName = left.slice(commaIndex + 1).trim()
-  }
-
-  return {
-    parameterName: parameterName || null,
-    unitName: unitName || null,
-    componentName: right || null,
+async function rpcWithDebug<T = unknown, TParams = unknown>(
+  method: string,
+  params: TParams,
+  context: string,
+): Promise<T> {
+  try {
+    return await rpc<T>(method, params)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(
+      `[object-parameter] RPC ${method} failed at ${context}: ${message}`,
+      { params },
+    )
+    throw new Error(`${context}: ${message}`)
   }
 }
 
@@ -167,6 +151,59 @@ function createDirectoryLookup(options: DirectoryOption[]): DirectoryLookup {
   }, {})
 }
 
+function toMeasureOption(item: RpcDirectoryItem, fallbackName: string): ParameterMeasureOption | null {
+  const record = asRecord(item)
+  const id = pickNumber(record, ['id', 'measureId', 'meaParamsMeasure'])
+  const pv = pickNumber(record, ['pv', 'pvParamsMeasure'])
+  const name = pickString(record, ['name', 'shortName', 'caption', 'title']) ?? fallbackName
+
+  if (id === null || pv === null) return null
+
+  return {
+    id: Number(id),
+    pv: Number(pv),
+    name,
+  }
+}
+
+function toSourceOption(item: RpcDirectoryItem, fallbackName: string): ParameterSourceOption | null {
+  const record = asRecord(item)
+  const id = pickNumber(record, ['id', 'collectionId', 'objCollections'])
+  const pv = pickNumber(record, ['pv', 'pvCollections'])
+  const name = pickString(record, ['name', 'caption', 'title', 'description']) ?? fallbackName
+
+  if (id === null || pv === null) return null
+
+  return {
+    id: Number(id),
+    pv: Number(pv),
+    name,
+  }
+}
+
+function toComponentOption(item: RpcParamsComponentRecord): ParameterComponentOption | null {
+  const record = asRecord(item)
+
+  const ent = pickNumber(record, ['ent', 'idrom2', 'id'])
+  const cls = pickNumber(record, ['cls', 'clsrom2'])
+  const relcls = pickNumber(record, ['relcls'])
+  const rcm = pickNumber(record, ['rcm'])
+  const name = pickString(record, ['name', 'namerom2'])
+
+  if (ent === null || cls === null || relcls === null || rcm === null || !name) return null
+  if (Number(ent) === 0) return null
+
+  return {
+    cls: Number(cls),
+    relcls: Number(relcls),
+    rcm: Number(rcm),
+    ent: Number(ent),
+    name,
+  }
+}
+
+const compareByNameRu = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'ru')
+
 function mapParameter(
   item: RpcParameterItem,
   index: number,
@@ -174,6 +211,7 @@ function mapParameter(
 ): LoadedObjectParameter {
   const record = asRecord(item)
   const id = pickString(record, ['id', 'parameterId', 'parameter_id']) ?? `parameter-${index}`
+  const numericId = pickNumber(record, ['id', 'ID', 'number'])
   const name =
     pickString(record, ['name', 'parameterName', 'parameter_name', 'title', 'ParamsName', 'paramsName']) ??
     `Параметр ${index + 1}`
@@ -199,6 +237,15 @@ function mapParameter(
   const isRequired = pickBoolean(record, ['isRequired', 'required', 'is_required', 'mandatory'])
   const note = pickString(record, ['note', 'comment', 'description', 'remark', 'ParamsComment'])
   const description = pickString(record, ['ParamsDescription', 'description', 'parameterDescription'])
+  const cls = pickNumber(record, ['cls', 'CLS'])
+  const accessLevel = pickNumber(record, ['accessLevel'])
+  const idCollections = pickNumber(record, ['idCollections'])
+  const objCollections = pickNumber(record, ['objCollections'])
+  const pvCollections = pickNumber(record, ['pvCollections'])
+  const idParamsMeasure = pickNumber(record, ['idParamsMeasure'])
+  const meaParamsMeasure = pickNumber(record, ['meaParamsMeasure'])
+  const pvParamsMeasure = pickNumber(record, ['pvParamsMeasure'])
+  const idParamsDescription = pickNumber(record, ['idParamsDescription'])
 
   const unitName =
     (unitId ? directories.units[unitId]?.name : null) ??
@@ -222,6 +269,28 @@ function mapParameter(
       'ParamsCollectionName',
     ])
 
+  const details: ParameterDetails = {
+    id: numericId !== null ? Number(numericId) : null,
+    cls: cls !== null ? Number(cls) : null,
+    accessLevel: accessLevel !== null ? Number(accessLevel) : null,
+    measureRecordId: idParamsMeasure !== null ? Number(idParamsMeasure) : null,
+    measureId: meaParamsMeasure !== null ? Number(meaParamsMeasure) : null,
+    measurePv: pvParamsMeasure !== null ? Number(pvParamsMeasure) : null,
+    sourceRecordId: idCollections !== null ? Number(idCollections) : null,
+    sourceObjId: objCollections !== null ? Number(objCollections) : null,
+    sourcePv: pvCollections !== null ? Number(pvCollections) : null,
+    descriptionRecordId: idParamsDescription !== null ? Number(idParamsDescription) : null,
+    componentRelationId: null,
+    componentRelationName: null,
+    componentCls: null,
+    componentRelcls: null,
+    componentRcm: null,
+    componentEnt: null,
+    limitMaxId: null,
+    limitMinId: null,
+    limitNormId: null,
+  }
+
   return {
     id,
     name,
@@ -239,27 +308,52 @@ function mapParameter(
     unitName: unitName ?? null,
     sourceName: sourceName ?? null,
     componentName: null,
+    details,
   }
 }
 
 export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersSnapshot> {
   const [measureResponse, collectionResponse, parametersResponse] = await Promise.all([
-    rpc<RpcDirectoryItem[]>('data/loadMeasure', ['Prop_ParamsMeasure']),
-    rpc<RpcDirectoryItem[]>('data/loadCollections', ['Cls_Collections', 'Prop_Collections']),
-    rpc<RpcParameterItem[]>('data/loadParameters', [0]),
+    rpcWithDebug<RpcDirectoryItem[], ['Prop_ParamsMeasure']>(
+      'data/loadMeasure',
+      ['Prop_ParamsMeasure'],
+      'Снапшот: загрузка единиц измерения',
+    ),
+    rpcWithDebug<RpcDirectoryItem[], ['Cls_Collections', 'Prop_Collections']>(
+      'data/loadCollections',
+      ['Cls_Collections', 'Prop_Collections'],
+      'Снапшот: загрузка источников',
+    ),
+    rpcWithDebug<RpcParameterItem[], [number]>(
+      'data/loadParameters',
+      [0],
+      'Снапшот: загрузка параметров',
+    ),
   ])
 
-  const relTypeId = await rpc<number>('data/getIdRelTyp', ['RT_ParamsComponent']).catch(() => null)
+  const relTypeId = await rpcWithDebug<number>(
+    'data/getIdRelTyp',
+    ['RT_ParamsComponent'],
+    'Снапшот: получение идентификатора RT_ParamsComponent',
+  ).catch(() => null)
   if (relTypeId !== null) {
     await rpc('data/loadRelObjMember', [0]).catch(() => null)
   }
   const paramsComponentResponse =
-    relTypeId !== null ? await rpc<unknown>('data/loadParamsComponent', [relTypeId]).catch(() => null) : null
+    relTypeId !== null
+      ? await rpcWithDebug<unknown, [number]>(
+          'data/loadParamsComponent',
+          [relTypeId],
+          'Снапшот: загрузка параметр-компонент связей',
+        ).catch(() => null)
+      : null
 
   // Дополнительно: связи параметр ↔ компонент и справочник компонентов
   const [relationsResponse, componentsResponse] = await Promise.all([
-    rpc('data/loadComponentsObject2', ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components']).catch(() => null),
-    rpc('data/loadComponents', [0]).catch(() => null),
+    rpcWithDebug('data/loadComponentsObject2', ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components'], 'Снапшот: загрузка доп. связей').catch(
+      () => null,
+    ),
+    rpcWithDebug('data/loadComponents', [0], 'Снапшот: загрузка справочника компонентов').catch(() => null),
   ])
 
   const unitItems = extractArray<RpcDirectoryItem>(measureResponse)
@@ -351,6 +445,12 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
     // Имя и id компонента из справочника компонентов
     item.componentId = rel.compId
     item.componentName = compNameByKey.get(`${rel.compId}|${rel.compCls}`) ?? null
+    item.details.componentRelationId = rel.idro ? Number(rel.idro) : null
+    item.details.componentRelationName = item.componentName
+    item.details.componentEnt = rel.compId ? Number(rel.compId) : null
+    item.details.componentCls = rel.compCls ? Number(rel.compCls) : null
+    item.details.componentRelcls = RELCLS_PARAMS_COMPONENT
+    item.details.componentRcm = 1149
 
     // Лимиты и комментарии из loadParamsComponent по idro
     const props = propsByIdro.get(rel.idro)
@@ -366,40 +466,496 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
 
       const comment = pickString(props, ['cmt', 'comment', 'note'])
       if (comment) item.note = comment
+
+      const limitMaxId = pickNumber(props, ['idParamsLimitMax'])
+      const limitMinId = pickNumber(props, ['idParamsLimitMin'])
+      const limitNormId = pickNumber(props, ['idParamsLimitNorm'])
+      if (limitMaxId !== null) item.details.limitMaxId = Number(limitMaxId)
+      if (limitMinId !== null) item.details.limitMinId = Number(limitMinId)
+      if (limitNormId !== null) item.details.limitNormId = Number(limitNormId)
+      const relationName = pickString(props, ['name'])
+      if (relationName) item.details.componentRelationName = relationName
     }
   }
 
   return { items, unitDirectory, sourceDirectory }
 }
 
-function normalizeMutationPayload(payload: ParameterMutationPayload & { id: string }): LoadedObjectParameter {
+export async function loadParameterMeasures(): Promise<ParameterMeasureOption[]> {
+  const response = await rpcWithDebug<RpcDirectoryItem[], ['Prop_ParamsMeasure']>(
+    'data/loadMeasure',
+    ['Prop_ParamsMeasure'],
+    'Справочники формы: единицы измерения',
+  )
+  const items = extractArray<RpcDirectoryItem>(response)
+  const unique = new Map<number, ParameterMeasureOption>()
+
+  items.forEach((item, index) => {
+    const option = toMeasureOption(item, `Единица измерения ${index + 1}`)
+    if (option) unique.set(option.pv, option)
+  })
+
+  return Array.from(unique.values()).sort(compareByNameRu)
+}
+
+export async function loadParameterSources(): Promise<ParameterSourceOption[]> {
+  const response = await rpcWithDebug<RpcDirectoryItem[], ['Cls_Collections', 'Prop_Collections']>(
+    'data/loadCollections',
+    ['Cls_Collections', 'Prop_Collections'],
+    'Справочники формы: источники',
+  )
+  const items = extractArray<RpcDirectoryItem>(response)
+  const unique = new Map<number, ParameterSourceOption>()
+
+  items.forEach((item, index) => {
+    const option = toSourceOption(item, `Источник ${index + 1}`)
+    if (option) unique.set(option.id, option)
+  })
+
+  return Array.from(unique.values()).sort(compareByNameRu)
+}
+
+export async function loadParameterComponents(): Promise<ParameterComponentOption[]> {
+  const response = await rpcWithDebug<RpcParamsComponentRecord[], [{ relTyp: number }]>(
+    'data/loadAllMembers',
+    [{ relTyp: REL_TYP_PARAMS_COMPONENT }],
+    'Справочники формы: состав RT_ParamsComponent',
+  )
+  const items = extractArray<RpcParamsComponentRecord>(response)
+  const unique = new Map<number, ParameterComponentOption>()
+
+  items.forEach((item) => {
+    const option = toComponentOption(item)
+    if (!option) return
+    if (option.rcm !== 1149) return
+    unique.set(option.ent, option)
+  })
+
+  return Array.from(unique.values()).sort(compareByNameRu)
+}
+
+const ensureFiniteNumber = (value: number | null | undefined): number | null =>
+  typeof value === 'number' && Number.isFinite(value) ? value : null
+
+export async function createParameter(payload: CreateParameterPayload): Promise<LoadedObjectParameter> {
+  const name = payload.name.trim()
+  if (!name) throw new Error('Укажите наименование параметра')
+
+  const descriptionRaw = payload.description ?? ''
+  const descriptionTrimmed = descriptionRaw.trim()
+  const descriptionForResult = descriptionTrimmed || null
+
+  const commentRaw = payload.limits.comment ?? ''
+  const commentTrimmed = commentRaw.trim()
+  const commentForResult = commentTrimmed || null
+
+  const limitMax = ensureFiniteNumber(payload.limits.max)
+  const limitMin = ensureFiniteNumber(payload.limits.min)
+  const limitNorm = ensureFiniteNumber(payload.limits.norm)
+
+  const accessLevel = payload.accessLevel ?? DEFAULT_ACCESS_LEVEL
+
+  const saveParamsResponse = await rpcWithDebug(
+    'data/saveParams',
+    [
+      'ins',
+      {
+        accessLevel,
+        name,
+        meaParamsMeasure: payload.measure.id,
+        pvParamsMeasure: payload.measure.pv,
+        objCollections: payload.source.id,
+        pvCollections: payload.source.pv,
+        ParamsDescription: descriptionTrimmed,
+      },
+    ],
+    'Создание параметра: сохранение основной записи',
+  )
+
+  const savedRecords = extractArray<Record<string, unknown>>(saveParamsResponse)
+  const savedRecord = savedRecords[0]
+  if (!savedRecord) throw new Error('Не удалось сохранить параметр')
+
+  const createdId = pickNumber(savedRecord, ['id', 'ID', 'number'])
+  if (createdId === null) throw new Error('Не удалось определить идентификатор параметра')
+
+  const createdCls = pickNumber(savedRecord, ['cls', 'CLS']) ?? DEFAULT_PARAMETER_CLASS
+  const createdName = pickString(savedRecord, ['name', 'ParamsName', 'paramsName']) ?? name
+
+  let previousMaxNumber = 0
+  try {
+    const beforeResponse = await rpcWithDebug<RpcParamsComponentRecord[], [number]>(
+      'data/loadParamsComponent',
+      [REL_TYP_PARAMS_COMPONENT],
+      'Создание параметра: загрузка текущих связей',
+    )
+    const beforeRecords = extractArray<RpcParamsComponentRecord>(beforeResponse)
+    previousMaxNumber = beforeRecords.reduce((acc, record) => {
+      const num = pickNumber(asRecord(record), ['number'])
+      return num !== null ? Math.max(acc, Number(num)) : acc
+    }, 0)
+  } catch {
+    previousMaxNumber = 0
+  }
+
+  const parameterRelationEntry = {
+    cls: Number(createdCls),
+    relcls: RELCLS_PARAMS_COMPONENT,
+    rcm: PARAMETER_RCM,
+    ent: Number(createdId),
+    name: createdName,
+  }
+
+  const componentRelationEntry = {
+    cls: payload.component.cls,
+    relcls: payload.component.relcls,
+    rcm: payload.component.rcm,
+    ent: payload.component.ent,
+    name: payload.component.name,
+  }
+
+  await rpcWithDebug(
+    'data/createGroupRelObj',
+    [REL_TYP_PARAMS_COMPONENT, [[[parameterRelationEntry], [componentRelationEntry]]]],
+    'Создание параметра: создание связи с компонентом',
+  )
+
+  const afterResponse = await rpcWithDebug<RpcParamsComponentRecord[], [number]>(
+    'data/loadParamsComponent',
+    [REL_TYP_PARAMS_COMPONENT],
+    'Создание параметра: подтверждение связи',
+  )
+  const afterRecords = extractArray<RpcParamsComponentRecord>(afterResponse)
+  const expectedRelationName = `${createdName} <=> ${componentRelationEntry.name}`
+  const relationRecord = afterRecords.find((record) => {
+    const recordObject = asRecord(record)
+    const num = pickNumber(recordObject, ['number'])
+    if (num !== null && num > previousMaxNumber) return true
+    const relationName = pickString(recordObject, ['name'])
+    return relationName === expectedRelationName
+  })
+
+  if (!relationRecord) {
+    throw new Error('Не удалось получить созданную связь параметра с компонентом')
+  }
+
+  const relationObject = asRecord(relationRecord)
+  const relationId = pickNumber(relationObject, ['id', 'idro'])
+  const relationName = pickString(relationObject, ['name']) ?? expectedRelationName
+
+  if (relationId === null) {
+    throw new Error('Не удалось определить идентификатор связи параметра и компонента')
+  }
+
+  const limits: Array<{ codProp: string; value: number | null }> = [
+    { codProp: 'Prop_ParamsLimitMax', value: limitMax },
+    { codProp: 'Prop_ParamsLimitMin', value: limitMin },
+    { codProp: 'Prop_ParamsLimitNorm', value: limitNorm },
+  ]
+
+  for (const { codProp, value } of limits) {
+    if (value === null) continue
+    await rpcWithDebug(
+      'data/saveParamComponentValue',
+      [
+        {
+          name: relationName,
+          codProp,
+          own: Number(relationId),
+          isObj: 0,
+          val: String(value),
+          mode: 'ins',
+        },
+      ],
+      `Создание параметра: сохранение значения ${codProp}`,
+    )
+  }
+
+  if (commentForResult) {
+    await rpcWithDebug(
+      'data/editRelObj',
+      [
+        {
+          id: Number(relationId),
+          name: relationName,
+          cmt: commentTrimmed,
+        },
+      ],
+      'Создание параметра: сохранение комментария связи',
+    )
+  }
+
+  let limitMaxId: number | null = pickNumber(relationObject, ['idParamsLimitMax'])
+  let limitMinId: number | null = pickNumber(relationObject, ['idParamsLimitMin'])
+  let limitNormId: number | null = pickNumber(relationObject, ['idParamsLimitNorm'])
+
+  if (
+    (limitMax !== null && limitMaxId === null) ||
+    (limitMin !== null && limitMinId === null) ||
+    (limitNorm !== null && limitNormId === null) ||
+    commentForResult !== null
+  ) {
+    try {
+      const refreshed = await rpcWithDebug<RpcParamsComponentRecord[], [number]>(
+        'data/loadParamsComponent',
+        [REL_TYP_PARAMS_COMPONENT],
+        'Создание параметра: повторная загрузка связей',
+      )
+      const refreshedRecords = extractArray<RpcParamsComponentRecord>(refreshed)
+      const refreshedRelation = refreshedRecords.find((record) => {
+        const recordObject = asRecord(record)
+        const idro = pickNumber(recordObject, ['id', 'idro'])
+        return idro !== null && Number(idro) === Number(relationId)
+      })
+      if (refreshedRelation) {
+        const refreshedObject = asRecord(refreshedRelation)
+        limitMaxId = pickNumber(refreshedObject, ['idParamsLimitMax'])
+        limitMinId = pickNumber(refreshedObject, ['idParamsLimitMin'])
+        limitNormId = pickNumber(refreshedObject, ['idParamsLimitNorm'])
+      }
+    } catch {
+      // ignore refresh errors
+    }
+  }
+
+  const details: ParameterDetails = {
+    id: Number(createdId),
+    cls: Number(createdCls),
+    accessLevel,
+    measureRecordId: pickNumber(savedRecord, ['idParamsMeasure']),
+    measureId: payload.measure.id,
+    measurePv: payload.measure.pv,
+    sourceRecordId: pickNumber(savedRecord, ['idCollections']),
+    sourceObjId: payload.source.id,
+    sourcePv: payload.source.pv,
+    descriptionRecordId: pickNumber(savedRecord, ['idParamsDescription']),
+    componentRelationId: Number(relationId),
+    componentRelationName: relationName,
+    componentCls: payload.component.cls,
+    componentRelcls: payload.component.relcls,
+    componentRcm: payload.component.rcm,
+    componentEnt: payload.component.ent,
+    limitMaxId: limitMaxId !== null ? Number(limitMaxId) : null,
+    limitMinId: limitMinId !== null ? Number(limitMinId) : null,
+    limitNormId: limitNormId !== null ? Number(limitNormId) : null,
+  }
+
   return {
-    id: payload.id,
-    name: payload.name,
-    code: payload.code ?? null,
-    valueType: payload.valueType,
-    unitId: payload.unitId ?? null,
-    sourceId: payload.sourceId ?? null,
-    componentId: payload.componentId ?? null,
-    minValue: payload.minValue ?? null,
-    maxValue: payload.maxValue ?? null,
-    normValue: payload.normValue ?? null,
-    isRequired: Boolean(payload.isRequired),
-    note: payload.note ?? null,
-    description: payload.description ?? null,
-    unitName: payload.unitName ?? null,
-    sourceName: payload.sourceName ?? null,
-    componentName: payload.componentName ?? null,
+    id: String(createdId),
+    name: createdName,
+    code: null,
+    valueType: 'number',
+    unitId: String(payload.measure.pv),
+    sourceId: String(payload.source.id),
+    componentId: String(componentRelationEntry.ent),
+    minValue: limitMin,
+    maxValue: limitMax,
+    normValue: limitNorm,
+    isRequired: false,
+    note: commentForResult,
+    description: descriptionForResult,
+    unitName: payload.measure.name,
+    sourceName: payload.source.name,
+    componentName: componentRelationEntry.name,
+    details,
   }
 }
 
-export async function createParameter(payload: ParameterMutationPayload): Promise<LoadedObjectParameter> {
-  const id = payload.id ?? String(Date.now())
-  return Promise.resolve(normalizeMutationPayload({ ...payload, id }))
+interface SaveParamComponentValuePayload {
+  codProp: string
+  value: number | null
 }
 
-export async function updateParameter(payload: ParameterMutationPayload & { id: string }): Promise<LoadedObjectParameter> {
-  return Promise.resolve(normalizeMutationPayload(payload))
+async function saveParamComponentValue(
+  relationId: number,
+  relationName: string,
+  { codProp, value }: SaveParamComponentValuePayload,
+) {
+  if (value === null || value === undefined) return
+
+  const basePayload: Record<string, unknown> = {
+    name: relationName,
+    codProp,
+    own: relationId,
+    isObj: 0,
+    val: String(value),
+    mode: 'ins',
+  }
+
+  try {
+    await rpcWithDebug('data/saveParamComponentValue', [basePayload], `Сохранение значения ${codProp}`)
+  } catch (error) {
+    throw error
+  }
+}
+
+function buildUpdatedDetails(
+  prev: ParameterDetails,
+  updates: Partial<ParameterDetails>,
+): ParameterDetails {
+  return {
+    id: updates.id ?? prev.id,
+    cls: updates.cls ?? prev.cls,
+    accessLevel: updates.accessLevel ?? prev.accessLevel,
+    measureRecordId: updates.measureRecordId ?? prev.measureRecordId,
+    measureId: updates.measureId ?? prev.measureId,
+    measurePv: updates.measurePv ?? prev.measurePv,
+    sourceRecordId: updates.sourceRecordId ?? prev.sourceRecordId,
+    sourceObjId: updates.sourceObjId ?? prev.sourceObjId,
+    sourcePv: updates.sourcePv ?? prev.sourcePv,
+    descriptionRecordId: updates.descriptionRecordId ?? prev.descriptionRecordId,
+    componentRelationId: updates.componentRelationId ?? prev.componentRelationId,
+    componentRelationName: updates.componentRelationName ?? prev.componentRelationName,
+    componentCls: updates.componentCls ?? prev.componentCls,
+    componentRelcls: updates.componentRelcls ?? prev.componentRelcls,
+    componentRcm: updates.componentRcm ?? prev.componentRcm,
+    componentEnt: updates.componentEnt ?? prev.componentEnt,
+    limitMaxId: updates.limitMaxId ?? prev.limitMaxId,
+    limitMinId: updates.limitMinId ?? prev.limitMinId,
+    limitNormId: updates.limitNormId ?? prev.limitNormId,
+  }
+}
+
+export async function updateParameter(payload: UpdateParameterPayload): Promise<LoadedObjectParameter> {
+  const name = payload.name.trim()
+  if (!name) throw new Error('Укажите наименование параметра')
+
+  const descriptionRaw = payload.description ?? ''
+  const descriptionTrimmed = descriptionRaw.trim()
+  const descriptionForResult = descriptionTrimmed || null
+
+  const commentRaw = payload.limits.comment ?? ''
+  const commentTrimmed = commentRaw.trim()
+  const commentForResult = commentTrimmed || null
+
+  const limitMax = ensureFiniteNumber(payload.limits.max)
+  const limitMin = ensureFiniteNumber(payload.limits.min)
+  const limitNorm = ensureFiniteNumber(payload.limits.norm)
+
+  const details = payload.details
+  if (!details.id) throw new Error('Не удалось определить идентификатор параметра для обновления')
+
+  const accessLevel = details.accessLevel ?? payload.accessLevel ?? DEFAULT_ACCESS_LEVEL
+  const cls = details.cls ?? DEFAULT_PARAMETER_CLASS
+
+  await rpcWithDebug(
+    'data/saveParams',
+    [
+      'upd',
+      {
+        accessLevel,
+        id: details.id,
+        cls,
+        name,
+        idCollections: details.sourceRecordId,
+        pvCollections: payload.source.pv,
+        objCollections: payload.source.id,
+        idParamsMeasure: details.measureRecordId,
+        pvParamsMeasure: payload.measure.pv,
+        meaParamsMeasure: payload.measure.id,
+        idParamsDescription: details.descriptionRecordId,
+        ParamsDescription: descriptionTrimmed,
+      },
+    ],
+    'Обновление параметра: сохранение основной записи',
+  )
+
+  const relationId = details.componentRelationId
+  if (!relationId) throw new Error('Не удалось определить идентификатор связи параметра и компонента')
+
+  const relationName = `${name} <=> ${payload.component.name}`
+
+  await saveParamComponentValue(relationId, relationName, {
+    codProp: 'Prop_ParamsLimitMax',
+    value: limitMax,
+  })
+  await saveParamComponentValue(relationId, relationName, {
+    codProp: 'Prop_ParamsLimitMin',
+    value: limitMin,
+  })
+  await saveParamComponentValue(relationId, relationName, {
+    codProp: 'Prop_ParamsLimitNorm',
+    value: limitNorm,
+  })
+
+  await rpcWithDebug(
+    'data/editRelObj',
+    [
+      {
+        id: relationId,
+        name: relationName,
+        cmt: commentTrimmed,
+      },
+    ],
+    'Обновление параметра: сохранение комментария связи',
+  )
+
+  const refreshed = await rpcWithDebug<RpcParamsComponentRecord[], [number]>(
+    'data/loadParamsComponent',
+    [REL_TYP_PARAMS_COMPONENT],
+    'Обновление параметра: загрузка обновлённых связей',
+  )
+  const refreshedRecords = extractArray<RpcParamsComponentRecord>(refreshed)
+  const refreshedRelation = refreshedRecords.find((record) => {
+    const recordObject = asRecord(record)
+    const idro = pickNumber(recordObject, ['id', 'idro'])
+    return idro !== null && Number(idro) === relationId
+  })
+
+  let limitMaxId = details.limitMaxId
+  let limitMinId = details.limitMinId
+  let limitNormId = details.limitNormId
+  let noteFromRelation: string | null = commentForResult
+
+  if (refreshedRelation) {
+    const refreshedObject = asRecord(refreshedRelation)
+    const maxId = pickNumber(refreshedObject, ['idParamsLimitMax'])
+    const minId = pickNumber(refreshedObject, ['idParamsLimitMin'])
+    const normId = pickNumber(refreshedObject, ['idParamsLimitNorm'])
+    if (maxId !== null) limitMaxId = Number(maxId)
+    if (minId !== null) limitMinId = Number(minId)
+    if (normId !== null) limitNormId = Number(normId)
+    const refreshedComment = pickString(refreshedObject, ['cmt', 'comment', 'note'])
+    if (refreshedComment !== null && refreshedComment !== undefined && refreshedComment.trim()) {
+      noteFromRelation = refreshedComment
+    }
+  }
+
+  const updatedDetails = buildUpdatedDetails(details, {
+    accessLevel,
+    measureId: payload.measure.id,
+    measurePv: payload.measure.pv,
+    sourceObjId: payload.source.id,
+    sourcePv: payload.source.pv,
+    componentRelationName: relationName,
+    componentCls: payload.component.cls,
+    componentRelcls: payload.component.relcls,
+    componentRcm: payload.component.rcm,
+    componentEnt: payload.component.ent,
+    limitMaxId,
+    limitMinId,
+    limitNormId,
+  })
+
+  return {
+    id: String(payload.id),
+    name,
+    code: null,
+    valueType: 'number',
+    unitId: String(payload.measure.pv),
+    sourceId: String(payload.source.id),
+    componentId: payload.component ? String(payload.component.ent) : null,
+    minValue: limitMin,
+    maxValue: limitMax,
+    normValue: limitNorm,
+    isRequired: false,
+    note: noteFromRelation,
+    description: descriptionForResult,
+    unitName: payload.measure.name,
+    sourceName: payload.source.name,
+    componentName: payload.component.name,
+    details: updatedDetails,
+  }
 }
 
 export async function deleteParameter(id: string): Promise<void> {

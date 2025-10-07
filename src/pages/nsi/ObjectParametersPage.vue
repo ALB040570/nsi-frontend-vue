@@ -107,11 +107,136 @@
         объектов. Указывайте единицу измерения, компонент и допустимые границы значений.
       </p>
       <p>
-        Создание и редактирование параметров находятся в разработке. Пока можно просматривать
-        информацию по существующим записям.
+        Используйте кнопку «Добавить параметр», чтобы создать запись, выбрать компонент и задать
+        допустимые границы значений. Возможность редактирования и удаления существующих записей
+        появится позднее.
       </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+      </template>
+    </NModal>
+
+    <NModal
+      v-model:show="createModalOpen"
+      preset="card"
+      :title="modalTitle"
+      style="max-width: 640px; width: 92vw"
+    >
+      <NSpin :show="directoriesLoading && !directoriesLoaded">
+        <NForm
+          ref="formRef"
+          :model="creationForm"
+          :rules="creationRules"
+          label-width="200px"
+          label-placement="left"
+          size="small"
+          class="creation-form"
+        >
+          <NFormItem label="Наименование параметра" path="name">
+            <NInput
+              v-model:value="creationForm.name"
+              placeholder="Введите наименование нового параметра"
+            />
+          </NFormItem>
+
+          <NFormItem label="Единица измерения" path="measureId">
+            <NSelect
+              v-model:value="creationForm.measureId"
+              :options="measureSelectOptions"
+              :loading="directoriesLoading && !directoriesLoaded"
+              placeholder="Выберите единицу измерения"
+            />
+          </NFormItem>
+
+          <NFormItem label="Источник" path="sourceId">
+            <NSelect
+              v-model:value="creationForm.sourceId"
+              :options="sourceSelectOptions"
+              :loading="directoriesLoading && !directoriesLoaded"
+              placeholder="Выберите источник данных"
+            />
+          </NFormItem>
+
+          <NFormItem label="Описание">
+            <NInput
+              v-model:value="creationForm.description"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="Добавьте описание параметра"
+            />
+          </NFormItem>
+
+          <NFormItem label="Компонент" path="componentEnt">
+            <NSelect
+              v-model:value="creationForm.componentEnt"
+              :options="componentSelectOptions"
+              :loading="directoriesLoading && !directoriesLoaded"
+              filterable
+              placeholder="Выберите компонент"
+              :disabled="isEditMode"
+            />
+            <p class="field-hint">
+              Показываются компоненты с признаками rcm = 1149.
+              <span v-if="isEditMode">Компонент пока нельзя изменить.</span>
+            </p>
+          </NFormItem>
+
+          <NFormItem label="Предельные значения">
+            <div class="limits-grid">
+              <div class="limits-grid__item">
+                <span class="limits-grid__label">Максимум</span>
+                <NInputNumber
+                  v-model:value="creationForm.limitMax"
+                  :show-button="false"
+                  placeholder="Максимальное значение"
+                  clearable
+                />
+              </div>
+              <div class="limits-grid__item">
+                <span class="limits-grid__label">Минимум</span>
+                <NInputNumber
+                  v-model:value="creationForm.limitMin"
+                  :show-button="false"
+                  placeholder="Минимальное значение"
+                  clearable
+                />
+              </div>
+              <div class="limits-grid__item">
+                <span class="limits-grid__label">Норма</span>
+                <NInputNumber
+                  v-model:value="creationForm.limitNorm"
+                  :show-button="false"
+                  placeholder="Нормативное значение"
+                  clearable
+                />
+              </div>
+            </div>
+            <p class="field-hint">Оставьте пустыми, если значение не требуется.</p>
+          </NFormItem>
+
+          <NFormItem label="Комментарий">
+            <NInput
+              v-model:value="creationForm.comment"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 4 }"
+              placeholder="Комментарий к диапазону"
+            />
+          </NFormItem>
+        </NForm>
+      </NSpin>
+
+      <template #footer>
+        <div class="modal-footer">
+          <NButton @click="handleCancelCreate" :disabled="creationPending">Отмена</NButton>
+          <NButton
+            type="primary"
+            :loading="creationPending"
+            :disabled="creationPending || saveDisabled"
+            @click="handleSubmit"
+          >
+            Сохранить
+          </NButton>
+        </div>
       </template>
     </NModal>
   </section>
@@ -137,16 +262,22 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NForm,
+  NFormItem,
   NIcon,
   NInput,
+  NInputNumber,
   NModal,
   NPagination,
   NPopconfirm,
+  NSelect,
+  NSpin,
   NTag,
   NTooltip,
   useMessage,
   type DataTableColumn,
   type FormInst,
+  type FormRules,
 } from 'naive-ui'
 import { CreateOutline, InformationCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
@@ -154,7 +285,18 @@ import {
   useObjectParameterMutations,
   useObjectParametersQuery,
 } from '@features/object-parameter-crud'
-import type { LoadedObjectParameter } from '@entities/object-parameter'
+import type { CreateObjectParameterPayload, UpdateObjectParameterPayload } from '@features/object-parameter-crud'
+import {
+  loadParameterComponents,
+  loadParameterMeasures,
+  loadParameterSources,
+} from '@entities/object-parameter'
+import type {
+  LoadedObjectParameter,
+  ParameterComponentOption,
+  ParameterMeasureOption,
+  ParameterSourceOption,
+} from '@entities/object-parameter'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
 interface PaginationState {
@@ -171,6 +313,18 @@ interface CardField {
   isActions?: boolean
 }
 
+interface CreateParameterForm {
+  name: string
+  measureId: string | null
+  sourceId: string | null
+  description: string
+  componentEnt: string | null
+  limitMax: number | null
+  limitMin: number | null
+  limitNorm: number | null
+  comment: string
+}
+
 const router = useRouter()
 const route = useRoute()
 
@@ -183,6 +337,248 @@ const isMobile = ref(false)
 
 const { data: snapshot, isLoading, isFetching, error } = useObjectParametersQuery()
 const parameterMutations = useObjectParameterMutations()
+
+const createModalOpen = ref(false)
+const directoriesLoading = ref(false)
+const directoriesLoaded = ref(false)
+const measureOptions = ref<ParameterMeasureOption[]>([])
+const sourceOptions = ref<ParameterSourceOption[]>([])
+const componentOptions = ref<ParameterComponentOption[]>([])
+const editingParameter = ref<LoadedObjectParameter | null>(null)
+
+const creationForm = reactive<CreateParameterForm>({
+  name: '',
+  measureId: null,
+  sourceId: null,
+  description: '',
+  componentEnt: null,
+  limitMax: null,
+  limitMin: null,
+  limitNorm: null,
+  comment: '',
+})
+
+const selectedMeasure = computed(() => {
+  if (!creationForm.measureId) return null
+  return measureOptions.value.find((item) => String(item.id) === creationForm.measureId) ?? null
+})
+const selectedSource = computed(() => {
+  if (!creationForm.sourceId) return null
+  return sourceOptions.value.find((item) => String(item.id) === creationForm.sourceId) ?? null
+})
+const selectedComponent = computed(() => {
+  if (!creationForm.componentEnt) return null
+  return componentOptions.value.find((item) => String(item.ent) === creationForm.componentEnt) ?? null
+})
+
+const measureSelectOptions = computed(() =>
+  measureOptions.value.map((item) => ({ label: item.name, value: String(item.id) })),
+)
+const sourceSelectOptions = computed(() =>
+  sourceOptions.value.map((item) => ({ label: item.name, value: String(item.id) })),
+)
+const componentSelectOptions = computed(() =>
+  componentOptions.value.map((item) => ({ label: item.name, value: String(item.ent) })),
+)
+
+const isEditMode = computed(() => editingParameter.value !== null)
+const modalTitle = computed(() => (isEditMode.value ? 'Изменить параметр' : 'Добавить параметр'))
+
+const creationRules = computed<FormRules>(() => {
+  const rules: FormRules = {
+    name: [
+      { required: true, message: 'Укажите наименование', trigger: ['input', 'blur'] },
+      {
+        validator: (_rule, value: string) => {
+          return Boolean(value && value.trim().length >= 3)
+            ? Promise.resolve()
+            : Promise.reject(new Error('Минимум 3 символа'))
+        },
+        trigger: ['blur'],
+      },
+    ],
+    measureId: [{ required: true, message: 'Выберите единицу измерения', trigger: ['change', 'blur'] }],
+    sourceId: [{ required: true, message: 'Выберите источник', trigger: ['change', 'blur'] }],
+  }
+
+  if (!isEditMode.value) {
+    rules.componentEnt = [{ required: true, message: 'Выберите компонент', trigger: ['change', 'blur'] }]
+  }
+
+  return rules
+})
+
+const creationPending = computed(
+  () =>
+    parameterMutations.create.isPending.value || parameterMutations.update.isPending.value,
+)
+const saveDisabled = computed(() => {
+  if (directoriesLoading.value && !directoriesLoaded.value) return true
+  return (
+    measureOptions.value.length === 0 ||
+    sourceOptions.value.length === 0 ||
+    componentOptions.value.length === 0
+  )
+})
+
+const resetCreationForm = () => {
+  if (formRef.value) formRef.value.restoreValidation()
+  creationForm.name = ''
+  creationForm.measureId = null
+  creationForm.sourceId = null
+  creationForm.description = ''
+  creationForm.componentEnt = null
+  creationForm.limitMax = null
+  creationForm.limitMin = null
+  creationForm.limitNorm = null
+  creationForm.comment = ''
+}
+
+const loadCreationDirectories = async (force = false) => {
+  if (directoriesLoading.value) return
+  if (directoriesLoaded.value && !force) return
+
+  directoriesLoading.value = true
+  try {
+    const [measures, sources, components] = await Promise.all([
+      loadParameterMeasures(),
+      loadParameterSources(),
+      loadParameterComponents(),
+    ])
+
+    measureOptions.value = measures
+    sourceOptions.value = sources
+    componentOptions.value = components
+    directoriesLoaded.value = true
+  } catch (err) {
+    message.error(getErrorMessage(err) ?? 'Не удалось загрузить справочники')
+  } finally {
+    directoriesLoading.value = false
+  }
+}
+
+const handleCancelCreate = () => {
+  createModalOpen.value = false
+  editingParameter.value = null
+}
+
+const revalidateFieldOnChange = (path: keyof CreateParameterForm, value: unknown) => {
+  if (!createModalOpen.value) return
+  if (path === 'componentEnt' && isEditMode.value) return
+  if (value === null || value === undefined || value === '') return
+  const form = formRef.value
+  if (!form || typeof form.validate !== 'function') return
+  void form
+    .validate(undefined, (rule) => rule?.key === String(path))
+    .catch(() => undefined)
+}
+
+const applyParameterToForm = (parameter: LoadedObjectParameter) => {
+  creationForm.name = parameter.name
+  creationForm.description = parameter.description ?? ''
+  creationForm.measureId = parameter.details.measureId
+    ? String(parameter.details.measureId)
+    : null
+  creationForm.sourceId = parameter.details.sourceObjId
+    ? String(parameter.details.sourceObjId)
+    : null
+  const componentEntValue =
+    parameter.details.componentEnt ??
+    (parameter.componentId ? Number(parameter.componentId) : null)
+  creationForm.componentEnt = componentEntValue !== null ? String(componentEntValue) : null
+  creationForm.limitMax = parameter.maxValue ?? null
+  creationForm.limitMin = parameter.minValue ?? null
+  creationForm.limitNorm = parameter.normValue ?? null
+  creationForm.comment = parameter.note ?? ''
+}
+
+const handleSubmit = async () => {
+  if (saveDisabled.value) return
+  if (!formRef.value) return
+
+  try {
+    await formRef.value.validate(undefined, (rule) => {
+      if (isEditMode.value && rule?.key === 'componentEnt') {
+        return false
+      }
+      return true
+    })
+  } catch {
+    return
+  }
+
+  const measure = selectedMeasure.value
+  const source = selectedSource.value
+  const componentOption = (() => {
+    if (selectedComponent.value) return selectedComponent.value
+    if (!isEditMode.value || !editingParameter.value) return null
+    const details = editingParameter.value.details
+    if (
+      details.componentCls === null ||
+      details.componentRelcls === null ||
+      details.componentRcm === null ||
+      details.componentEnt === null
+    ) {
+      return null
+    }
+    return {
+      cls: details.componentCls,
+      relcls: details.componentRelcls,
+      rcm: details.componentRcm,
+      ent: details.componentEnt,
+      name: editingParameter.value.componentName ?? details.componentRelationName ?? '',
+    }
+  })()
+
+  if (!measure || !source || !componentOption) {
+    message.error('Заполните обязательные поля формы')
+    return
+  }
+
+  const basePayload = {
+    name: creationForm.name.trim(),
+    description: creationForm.description.trim() || null,
+    measure: { id: measure.id, pv: measure.pv, name: measure.name },
+    source: { id: source.id, pv: source.pv, name: source.name },
+    component: componentOption,
+    limits: {
+      max: creationForm.limitMax,
+      min: creationForm.limitMin,
+      norm: creationForm.limitNorm,
+      comment: creationForm.comment.trim() || null,
+    },
+    accessLevel: 1,
+  }
+
+  try {
+    if (isEditMode.value && editingParameter.value) {
+      const parameterId = Number(
+        editingParameter.value.details.id ?? editingParameter.value.id,
+      )
+      if (!Number.isFinite(parameterId)) {
+        message.error('Не удалось определить идентификатор параметра')
+        return
+      }
+      const updatePayload: UpdateObjectParameterPayload = {
+        ...basePayload,
+        id: parameterId,
+        details: editingParameter.value.details,
+      }
+      await parameterMutations.update.mutateAsync(updatePayload)
+      message.success('Параметр успешно обновлён')
+    } else {
+      const createPayload: CreateObjectParameterPayload = basePayload
+      await parameterMutations.create.mutateAsync(createPayload)
+      message.success('Параметр успешно создан')
+    }
+    createModalOpen.value = false
+  } catch (err) {
+    const fallbackMessage = isEditMode.value
+      ? 'Не удалось обновить параметр'
+      : 'Не удалось создать параметр'
+    message.error(getErrorMessage(err) ?? fallbackMessage)
+  }
+}
 
 if (typeof window !== 'undefined') {
   isMobile.value = window.matchMedia('(max-width: 768px)').matches
@@ -230,6 +626,26 @@ watch(
 watch(q, () => {
   pagination.page = 1
 })
+
+watch(createModalOpen, (isOpen) => {
+  if (!isOpen) {
+    resetCreationForm()
+    editingParameter.value = null
+  }
+})
+
+watch(
+  () => creationForm.measureId,
+  (value) => revalidateFieldOnChange('measureId', value),
+)
+watch(
+  () => creationForm.sourceId,
+  (value) => revalidateFieldOnChange('sourceId', value),
+)
+watch(
+  () => creationForm.componentEnt,
+  (value) => revalidateFieldOnChange('componentEnt', value),
+)
 
 const snapshotData = computed(() => snapshot.value ?? undefined)
 const parameters = computed<LoadedObjectParameter[]>(() => snapshotData.value?.items ?? [])
@@ -582,15 +998,37 @@ const ActionsRenderer = defineComponent({
 
 const openCreate = () => {
   resetFormValidation()
+  resetCreationForm()
+  editingParameter.value = null
   parameterMutations.create.reset()
-  message.info('Создание параметра будет доступно позднее')
+  parameterMutations.update.reset()
+  createModalOpen.value = true
+  void loadCreationDirectories(!directoriesLoaded.value)
 }
 
-const openEdit = (row: LoadedObjectParameter) => {
+const openEdit = async (row: LoadedObjectParameter) => {
   resetFormValidation()
+  resetCreationForm()
+  editingParameter.value = row
   parameterMutations.update.reset()
-  message.info(`Редактирование параметра «${row.name}» пока недоступно`)
+  parameterMutations.create.reset()
+  createModalOpen.value = true
+  try {
+    await loadCreationDirectories(true)
+  } finally {
+    applyParameterToForm(row)
+  }
 }
+
+defineExpose({
+  openCreate,
+  openEdit,
+  handleSubmit,
+  createModalOpen,
+  creationForm,
+  editingParameter,
+  isEditMode,
+})
 
 const deleteParameter = (row: LoadedObjectParameter) => {
   parameterMutations.remove.reset()
@@ -766,6 +1204,41 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   text-overflow: ellipsis;
   white-space: normal;
   word-break: break-word;
+}
+
+.creation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.limits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.limits-grid__item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.limits-grid__label {
+  font-size: 12px;
+  color: var(--n-text-color-3);
 }
 
 .range-cell {
@@ -977,4 +1450,3 @@ const deleteParameter = (row: LoadedObjectParameter) => {
   }
 }
 </style>
-
