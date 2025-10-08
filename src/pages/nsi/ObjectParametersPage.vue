@@ -305,7 +305,6 @@ import type {
   ParameterSourceOption,
 } from '@entities/object-parameter'
 import { getErrorMessage, normalizeText } from '@shared/lib'
-import { api } from '@shared/api'
 import { ComponentsSelect } from '@features/components-select'
 import { CreatableSelect } from '@features/creatable-select'
 import { createMeasureAndSelect } from '@entities/object-parameter'
@@ -740,48 +739,11 @@ async function createMeasureOption(name: string) {
   await new Promise((resolve) => setTimeout(resolve, 250))
 
   try {
-    type MeasureRecord = { id?: number | string; pv?: number | string; name?: string }
+    // Важно: используем репозиторий с rpc (не меняем слой сети)
+    const response = await loadParameterMeasures()
 
-    // Прямой POST на baseURL (/api) без повторного добавления /api в пути
-    const { data: response } = await api.post<unknown>('', {
-      method: 'data/loadMeasure',
-      params: ['Prop_ParamsMeasure'],
-    })
-
-    const isObj = (v: unknown): v is Record<string, unknown> =>
-      typeof v === 'object' && v !== null
-
-    const asRecords = (v: unknown): MeasureRecord[] => (Array.isArray(v) ? (v as MeasureRecord[]) : [])
-
-    let raw: MeasureRecord[] = []
-    if (Array.isArray(response)) {
-      raw = asRecords(response)
-    } else if (isObj(response)) {
-      const direct = (response as { records?: unknown }).records
-      if (Array.isArray(direct)) {
-        raw = asRecords(direct)
-      } else if (isObj((response as { result?: unknown }).result)) {
-        const nested = (response as { result?: { records?: unknown } }).result?.records
-        if (Array.isArray(nested)) raw = asRecords(nested)
-      }
-    }
-
-    const list = raw
-      .map((item) => ({
-        id: Number(item.id),
-        pv: Number(item.pv),
-        name: String(item.name ?? '') || String(item.id ?? ''),
-      }))
-      .filter((x) => Number.isFinite(x.id) && Number.isFinite(x.pv))
-      .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-
-    if (list.length) {
-      measureOptions.value = list
-    } else {
-      // Фоллбэк на старую реализацию
-      const refreshed = await loadParameterMeasures()
-      measureOptions.value = refreshed
-    }
+    // иммутабельно обновляем опции
+    measureOptions.value = [...response]
   } catch {
     // Если не удалось перезагрузить, хотя бы добавим локально
     if (!measureOptions.value.some((m) => Number(m.id) === Number(created.id))) {

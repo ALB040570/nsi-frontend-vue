@@ -141,6 +141,7 @@
             :options="categorySelectOptions"
             :multiple="false"
             :placeholder="'Выберите категорию'"
+            :create="createCategoryOption"
             @update:value="(v) => handleCategoryChange(typeof v === 'string' ? v : null)"
           />
         </NFormItem>
@@ -372,11 +373,14 @@ import {
 } from '@features/object-defect-crud'
 import {
   deleteDefectOwnerWithProperties,
+  createDefectCategory,
   type DefectCategoryOption,
   type DefectComponentOption,
   type LoadedObjectDefect,
   type ObjectDefectsSnapshot,
 } from '@entities/object-defect'
+import { listDefectCategories } from '@entities/object-defect'
+//
 import { useQueryClient } from '@tanstack/vue-query'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
@@ -1650,6 +1654,24 @@ const handleCategoryChange = (nextFvId: string | null) => {
   }
   const option = categoryLookup.value.byFvId.get(nextFvId)
   form.value.categoryPvId = option?.pvId ?? null
+}
+
+// Создание категории на лету через Meta API + рефетч снапшота
+const createCategoryOption = async (name: string) => {
+  const created = await createDefectCategory(name)
+
+  // Точечный рефетч только категорий через репозиторий (rpc data/loadFvForSelect)
+  const cats: DefectCategoryOption[] = await listDefectCategories()
+
+  // Обновить кэш снапшота, чтобы вычислимые опции подтянулись реактивно
+  queryClient.setQueryData(['object-defects'], (prev: ObjectDefectsSnapshot | undefined) => {
+    if (!prev) return { items: [], components: [], categories: cats }
+    return { ...prev, categories: cats }
+  })
+
+  const value = String(created.id)
+  form.value.categoryFvId = value
+  return { label: created.name, value }
 }
 
 const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
