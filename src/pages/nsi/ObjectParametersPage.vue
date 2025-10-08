@@ -109,8 +109,7 @@
       </p>
       <p>
         Используйте кнопку «Добавить параметр», чтобы создать запись, выбрать компонент и задать
-        допустимые границы значений. Возможность редактирования и удаления существующих записей
-        появится позднее.
+        допустимые границы значений. Имеется возможность редактирования и удаления существующих записей, которые еще не использовались в системе учета работ или мониторинга.
       </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
@@ -141,20 +140,26 @@
           </NFormItem>
 
           <NFormItem label="Единица измерения" path="measureId">
-            <NSelect
-              v-model:value="creationForm.measureId"
+            <CreatableSelect
+              :value="creationForm.measureId"
               :options="measureSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
-              placeholder="Выберите единицу измерения"
+              :multiple="false"
+              :placeholder="'Выберите единицу измерения'"
+              :create="createMeasureOption"
+              @created="handleMeasureCreated"
+              @update:value="(v) => (creationForm.measureId = typeof v === 'string' ? v : null)"
             />
           </NFormItem>
 
           <NFormItem label="Источник" path="sourceId">
-            <NSelect
-              v-model:value="creationForm.sourceId"
+            <CreatableSelect
+              :value="creationForm.sourceId"
               :options="sourceSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
-              placeholder="Выберите источник данных"
+              :multiple="false"
+              :placeholder="'Выберите источник данных'"
+              @update:value="(v) => (creationForm.sourceId = typeof v === 'string' ? v : null)"
             />
           </NFormItem>
 
@@ -168,13 +173,15 @@
           </NFormItem>
 
           <NFormItem label="Компонент" path="componentEnt">
-            <NSelect
-              v-model:value="creationForm.componentEnt"
+            <ComponentsSelect
+              :value="creationForm.componentEnt"
               :options="componentSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
-              filterable
-              placeholder="Выберите компонент"
+              :multiple="false"
+              :value-kind="'id'"
+              :placeholder="'Выберите компонент'"
               :disabled="isEditMode"
+              @update:value="(v) => (creationForm.componentEnt = typeof v === 'string' ? v : null)"
             />
             <p class="field-hint">
               Показываются компоненты с признаками rcm = 1149.
@@ -271,7 +278,6 @@ import {
   NModal,
   NPagination,
   NPopconfirm,
-  NSelect,
   NSpin,
   NTag,
   NTooltip,
@@ -299,6 +305,10 @@ import type {
   ParameterSourceOption,
 } from '@entities/object-parameter'
 import { getErrorMessage, normalizeText } from '@shared/lib'
+import { api } from '@shared/api'
+import { ComponentsSelect } from '@features/components-select'
+import { CreatableSelect } from '@features/creatable-select'
+import { createMeasureAndSelect } from '@entities/object-parameter'
 
 interface PaginationState {
   page: number
@@ -597,14 +607,6 @@ onMounted(() => {
   handleMediaQueryChange(mediaQueryList)
   mediaQueryList.addEventListener('change', handleMediaQueryChange)
 
-  const computeTableHeight = () => {
-    // Примерная высота под таблицу: высота окна минус тулбар + отступы и пагинация
-    const headerReserve = 260 // тулбар, подзаголовок, отступы
-    const paginationReserve = 80
-    const totalReserve = headerReserve + paginationReserve
-    const h = Math.max(320, window.innerHeight - totalReserve)
-    tableMaxHeight.value = h
-  }
   computeTableHeight()
   window.addEventListener('resize', computeTableHeight)
 })
@@ -615,7 +617,7 @@ onBeforeUnmount(() => {
     mediaQueryList = null
   }
   if (typeof window !== 'undefined') {
-    window.removeEventListener('resize', () => void 0)
+    window.removeEventListener('resize', computeTableHeight)
   }
 })
 
@@ -718,6 +720,90 @@ function renderComponentTag(row: LoadedObjectParameter): VNodeChild {
     { size: 'small', bordered: true, round: true, class: 'tag-component' },
     { default: () => row.componentName },
   )
+}
+
+// Вынесено на уровень setup, чтобы корректно снимать слушатель resize
+function computeTableHeight() {
+  if (typeof window === 'undefined') return
+  // Примерная высота под таблицу: высота окна минус тулбар + отступы и пагинация
+  const headerReserve = 260 // тулбар, подзаголовок, отступы
+  const paginationReserve = 80
+  const totalReserve = headerReserve + paginationReserve
+  const h = Math.max(320, window.innerHeight - totalReserve)
+  tableMaxHeight.value = h
+}
+
+async function createMeasureOption(name: string) {
+  const created = await createMeasureAndSelect(name)
+
+  // Небольшая пауза, чтобы бэкенд успел обновить данные для data/loadMeasure
+  await new Promise((resolve) => setTimeout(resolve, 250))
+
+  try {
+    type MeasureRecord = { id?: number | string; pv?: number | string; name?: string }
+
+    // Прямой POST на baseURL (/api) без повторного добавления /api в пути
+    const { data: response } = await api.post<unknown>('', {
+      method: 'data/loadMeasure',
+      params: ['Prop_ParamsMeasure'],
+    })
+
+    const isObj = (v: unknown): v is Record<string, unknown> =>
+      typeof v === 'object' && v !== null
+
+    const asRecords = (v: unknown): MeasureRecord[] => (Array.isArray(v) ? (v as MeasureRecord[]) : [])
+
+    let raw: MeasureRecord[] = []
+    if (Array.isArray(response)) {
+      raw = asRecords(response)
+    } else if (isObj(response)) {
+      const direct = (response as { records?: unknown }).records
+      if (Array.isArray(direct)) {
+        raw = asRecords(direct)
+      } else if (isObj((response as { result?: unknown }).result)) {
+        const nested = (response as { result?: { records?: unknown } }).result?.records
+        if (Array.isArray(nested)) raw = asRecords(nested)
+      }
+    }
+
+    const list = raw
+      .map((item) => ({
+        id: Number(item.id),
+        pv: Number(item.pv),
+        name: String(item.name ?? '') || String(item.id ?? ''),
+      }))
+      .filter((x) => Number.isFinite(x.id) && Number.isFinite(x.pv))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+    if (list.length) {
+      measureOptions.value = list
+    } else {
+      // Фоллбэк на старую реализацию
+      const refreshed = await loadParameterMeasures()
+      measureOptions.value = refreshed
+    }
+  } catch {
+    // Если не удалось перезагрузить, хотя бы добавим локально
+    if (!measureOptions.value.some((m) => Number(m.id) === Number(created.id))) {
+      measureOptions.value = [...measureOptions.value, created].sort((a, b) =>
+        a.name.localeCompare(b.name, 'ru'),
+      )
+    }
+  }
+
+  const picked =
+    measureOptions.value.find((m) => Number(m.id) === Number(created.id)) ||
+    measureOptions.value.find((m) => normalizeText(m.name) === normalizeText(name))
+
+  const nextValue = String(picked?.id ?? created.id)
+  // Зафиксируем выбор в форме, даже если селект уже проставил значение ранее
+  creationForm.measureId = nextValue
+
+  return { label: picked?.name ?? created.name, value: nextValue }
+}
+
+function handleMeasureCreated() {
+  // Доп. хук при создании (если нужно) — сейчас не требуется
 }
 
 const renderTooltipLines = (value: string) =>

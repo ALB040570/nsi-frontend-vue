@@ -40,18 +40,20 @@ function normalizeRewriteBase(pathname: string): string {
 }
 
 function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
-  const proxyBase = normalizeProxyBase(env.VITE_API_DEV_PROXY_BASE)
-  const rawApiBase = env.VITE_API_BASE?.trim()
   const proxies: Record<string, ProxyOptions> = {}
+
+  // 1) Основной API (NSI)
+  const apiProxyBase = normalizeProxyBase(env.VITE_API_DEV_PROXY_BASE)
+  const rawApiBase = env.VITE_API_BASE?.trim()
 
   if (rawApiBase && ABSOLUTE_URL_PATTERN.test(rawApiBase)) {
     try {
       const apiURL = new URL(rawApiBase)
       const target = `${apiURL.protocol}//${apiURL.host}`
       const rewriteBase = normalizeRewriteBase(apiURL.pathname)
-      const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
+      const pattern = new RegExp(`^${escapeForRegex(apiProxyBase)}`)
 
-      proxies[proxyBase] = {
+      proxies[apiProxyBase] = {
         target,
         changeOrigin: true,
         rewrite: (path) => path.replace(pattern, rewriteBase),
@@ -61,12 +63,42 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     }
   }
 
-  if (!proxies[proxyBase]) {
-    const pattern = new RegExp(`^${escapeForRegex(proxyBase)}`)
-    proxies[proxyBase] = {
+  if (!proxies[apiProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(apiProxyBase)}`)
+    proxies[apiProxyBase] = {
       target: 'http://45.8.116.32',
       changeOrigin: true,
       rewrite: (path) => path.replace(pattern, '/dtj/nsi/api'),
+    }
+  }
+
+  // 2) Meta API
+  const metaProxyBase = normalizeProxyBase(env.VITE_META_DEV_PROXY_BASE || '/meta-api')
+  const rawMetaBase = env.VITE_META_API_BASE?.trim()
+
+  if (rawMetaBase && ABSOLUTE_URL_PATTERN.test(rawMetaBase)) {
+    try {
+      const metaURL = new URL(rawMetaBase)
+      const target = `${metaURL.protocol}//${metaURL.host}`
+      const rewriteBase = normalizeRewriteBase(metaURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
+
+      proxies[metaProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[metaProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
+    proxies[metaProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/meta/api'),
     }
   }
 

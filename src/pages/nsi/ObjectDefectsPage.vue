@@ -136,24 +136,23 @@
         </NFormItem>
 
         <NFormItem label="Категория">
-          <NSelect
-            v-model:value="form.categoryFvId"
+          <CreatableSelect
+            :value="form.categoryFvId"
             :options="categorySelectOptions"
-            placeholder="Выберите категорию"
-            clearable
-            filterable
-            @update:value="handleCategoryChange"
+            :multiple="false"
+            :placeholder="'Выберите категорию'"
+            @update:value="(v) => handleCategoryChange(typeof v === 'string' ? v : null)"
           />
         </NFormItem>
 
         <NFormItem label="Компонент">
-          <NSelect
-            v-model:value="form.componentId"
+          <ComponentsSelect
+            :value="form.componentId"
             :options="componentSelectOptions"
-            placeholder="Выберите компонент"
-            clearable
-            filterable
-            @update:value="handleComponentChange"
+            :multiple="false"
+            :value-kind="'id'"
+            :placeholder="'Выберите компонент'"
+            @update:value="(v) => handleComponentChange(typeof v === 'string' ? v : null)"
           />
         </NFormItem>
 
@@ -361,6 +360,9 @@ import {
   MicOutline,
   MicOffOutline,
 } from '@vicons/ionicons5'
+
+import { CreatableSelect } from '@features/creatable-select'
+import { ComponentsSelect } from '@features/components-select'
 
 import {
   useObjectDefectsQuery,
