@@ -59,7 +59,13 @@ function resolveMetaBaseURL(): string {
 }
 
 const baseURL = resolveMetaBaseURL()
-const metaApi = axios.create({ baseURL })
+const metaApi = axios.create({
+  baseURL,
+  withCredentials: false,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
 
 export async function metaRpc<T = unknown, P = unknown>(method: string, params: P): Promise<T> {
   const { data } = await metaApi.post<MetaRpcResponse<T>>('', { method, params })
