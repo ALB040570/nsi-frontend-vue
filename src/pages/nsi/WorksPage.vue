@@ -67,6 +67,7 @@
 
     <div class="table-area">
       <NDataTable
+        v-if="!isMobile"
         class="s360-cards table-full table-stretch"
         :columns="columns"
         :data="rows"
@@ -74,6 +75,52 @@
         :row-key="rowKey"
         :bordered="false"
       />
+
+      <div v-else class="cards" role="list">
+        <article
+          v-for="item in rows"
+          :key="item.id"
+          class="card"
+          role="group"
+          :aria-label="primaryTitle(item)"
+        >
+          <header class="card__header">
+            <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+          </header>
+
+          <dl class="card__grid">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <FieldRenderer :field="field" :row="item" />
+              </dd>
+            </template>
+          </dl>
+
+          <footer v-if="actionsField" class="card__actions">
+            <ActionsRenderer :row="item" />
+          </footer>
+        </article>
+      </div>
+
+      <div class="pagination-bar">
+        <NPagination
+          v-model:page="pagination.page"
+          v-model:page-size="pagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :item-count="total"
+          show-size-picker
+          show-quick-jumper
+          aria-label="Постраничная навигация по технологическим работам"
+        >
+          <template #prefix>
+            <span class="pagination-total">Всего: {{ total }}</span>
+          </template>
+        </NPagination>
+      </div>
     </div>
 
     <NModal v-model:show="infoOpen" preset="card" title="О справочнике работ" style="max-width: 520px">
@@ -91,9 +138,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref } from 'vue'
+import {
+  computed,
+  defineComponent,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  watchEffect,
+  type PropType,
+  type VNodeChild,
+} from 'vue'
 import type { DataTableColumns } from 'naive-ui'
-import { NButton, NCard, NDataTable, NIcon, NInput, NModal, NSelect, NTooltip, useMessage } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NDataTable,
+  NIcon,
+  NInput,
+  NModal,
+  NPagination,
+  NSelect,
+  NTag,
+  NTooltip,
+  useMessage,
+} from 'naive-ui'
 import { InformationCircleOutline, PencilOutline, TrashOutline } from '@vicons/ionicons5'
 
 import { rpc } from '@shared/api'
@@ -156,6 +227,19 @@ interface WorkTableRow {
   periodicityText: string
 }
 
+interface PaginationState {
+  page: number
+  pageSize: number
+}
+
+interface CardField {
+  key: string
+  label: string
+  render: (row: WorkTableRow) => VNodeChild
+  isPrimary?: boolean
+  isActions?: boolean
+}
+
 const tableLoading = ref(false)
 const q = ref('')
 const infoOpen = ref(false)
@@ -169,6 +253,7 @@ const objectTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const sourceOptions = ref<Array<{ label: string; value: string }>>([])
 const periodTypeOptions = ref<Array<{ label: string; value: string }>>([])
 
+const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const works = ref<WorkTableRow[]>([])
 
 const message = useMessage()
@@ -178,6 +263,16 @@ const directories = {
   objectTypes: new Map<string, string>(),
   sources: new Map<string, string>(),
   periodTypes: new Map<string, string>(),
+}
+
+const isMobile = ref(false)
+if (typeof window !== 'undefined') {
+  isMobile.value = window.matchMedia('(max-width: 768px)').matches
+}
+
+let mediaQueryList: MediaQueryList | null = null
+const handleMediaQueryChange = (event: MediaQueryList | MediaQueryListEvent) => {
+  isMobile.value = 'matches' in event ? event.matches : false
 }
 
 const filteredRows = computed(() => {
@@ -199,26 +294,121 @@ const filteredRows = computed(() => {
   })
 })
 
-const rows = computed(() =>
+const sortedRows = computed(() =>
   [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
 )
+
+const total = computed(() => sortedRows.value.length)
+const paginatedRows = computed(() => {
+  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
+})
+const rows = computed(() => paginatedRows.value)
+
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
+
+watch([q, workTypeFilter, objectTypeFilter, sourceFilter, periodTypeFilter], () => {
+  pagination.page = 1
+})
+
+watch(
+  () => pagination.pageSize,
+  () => {
+    pagination.page = 1
+  },
+)
+
+watchEffect(() => {
+  if (pagination.page > maxPage.value) {
+    pagination.page = maxPage.value
+  }
+})
+
+const renderName = (row: WorkTableRow): VNodeChild => {
+  if (!row.fullName) {
+    return h('span', { class: 'table-cell__primary' }, row.name)
+  }
+
+  return h(
+    NTooltip,
+    { placement: 'top' },
+    {
+      trigger: () => h('span', { class: 'table-cell__primary' }, row.name),
+      default: () => row.fullName,
+    },
+  )
+}
+
+const renderSource = (row: WorkTableRow): VNodeChild => {
+  if (!row.sourceName && !row.sourceNumber) return '—'
+
+  const chip =
+    row.sourceName != null
+      ? h(
+          NTag,
+          {
+            size: 'small',
+            round: true,
+            bordered: false,
+            class: 'source-chip',
+          },
+          { default: () => row.sourceName },
+        )
+      : null
+
+  const number = row.sourceNumber
+    ? h('span', { class: 'source-number' }, `№ ${row.sourceNumber}`)
+    : null
+
+  if (!chip) return number ?? '—'
+  if (!number) return chip
+
+  return h('div', { class: 'source-cell' }, [chip, number])
+}
+
+const renderPeriodicity = (row: WorkTableRow): VNodeChild => row.periodicityText || '—'
+
+const renderActions = (row: WorkTableRow): VNodeChild =>
+  h('div', { class: 'table-actions' }, [
+    h(
+      NButton,
+      {
+        quaternary: true,
+        size: 'small',
+        onClick: () => editWork(row),
+      },
+      {
+        icon: () =>
+          h(NIcon, null, {
+            default: () => h(PencilOutline),
+          }),
+      },
+    ),
+    h(
+      NButton,
+      {
+        quaternary: true,
+        size: 'small',
+        type: 'error',
+        onClick: () => removeWork(row),
+      },
+      {
+        icon: () =>
+          h(NIcon, null, {
+            default: () => h(TrashOutline),
+          }),
+      },
+    ),
+  ])
 
 const columns: DataTableColumns<WorkTableRow> = [
   {
     title: 'Работа',
     key: 'name',
+    className: 'col-name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    render(row) {
-      if (!row.fullName) return row.name
-      return h(
-        NTooltip,
-        { placement: 'top' },
-        {
-          trigger: () => h('span', { class: 'table-cell__primary' }, row.name),
-          default: () => row.fullName,
-        },
-      )
-    },
+    width: 240,
+    render: renderName,
   },
   {
     title: 'Вид работы',
@@ -233,59 +423,107 @@ const columns: DataTableColumns<WorkTableRow> = [
   {
     title: 'Источник и номер',
     key: 'sourceName',
-    render(row) {
-      if (!row.sourceName && !row.sourceNumber) return '—'
-      if (row.sourceName && row.sourceNumber) {
-        return `${row.sourceName} №${row.sourceNumber}`
-      }
-      return row.sourceName ?? row.sourceNumber ?? '—'
-    },
+    render: renderSource,
   },
   {
     title: 'Периодичность',
     key: 'periodicityText',
-    render: (row) => row.periodicityText || '—',
+    render: renderPeriodicity,
   },
   {
     title: 'Действия',
     key: 'actions',
-    render(row) {
-      return h('div', { class: 'table-actions' }, [
-        h(
-          NButton,
-          {
-            quaternary: true,
-            size: 'small',
-            onClick: () => editWork(row),
-          },
-          {
-            icon: () =>
-              h(NIcon, null, {
-                default: () => h(PencilOutline),
-              }),
-          },
-        ),
-        h(
-          NButton,
-          {
-            quaternary: true,
-            size: 'small',
-            type: 'error',
-            onClick: () => removeWork(row),
-          },
-          {
-            icon: () =>
-              h(NIcon, null, {
-                default: () => h(TrashOutline),
-              }),
-          },
-        ),
-      ])
-    },
+    className: 'col-actions',
+    render: renderActions,
   },
 ]
 
 const rowKey = (row: WorkTableRow) => row.id
+
+const cardFields = computed<CardField[]>(() => [
+  {
+    key: 'name',
+    label: 'Работа',
+    render: renderName,
+    isPrimary: true,
+  },
+  {
+    key: 'workTypeName',
+    label: 'Вид работы',
+    render: (row) => row.workTypeName ?? '—',
+  },
+  {
+    key: 'objectTypeName',
+    label: 'Тип объекта',
+    render: (row) => row.objectTypeName ?? '—',
+  },
+  {
+    key: 'sourceName',
+    label: 'Источник и номер',
+    render: renderSource,
+  },
+  {
+    key: 'periodicityText',
+    label: 'Периодичность',
+    render: renderPeriodicity,
+  },
+  {
+    key: 'actions',
+    label: 'Действия',
+    render: renderActions,
+    isActions: true,
+  },
+])
+
+const primaryField = computed(
+  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
+)
+const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
+const infoFields = computed(() =>
+  cardFields.value.filter((field) => !field.isPrimary && !field.isActions),
+)
+
+const toPlainText = (value: VNodeChild | VNodeChild[]): string => {
+  if (value == null || typeof value === 'boolean') return ''
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => toPlainText(item as VNodeChild | VNodeChild[]))
+      .filter(Boolean)
+      .join(' ')
+  }
+  if (typeof value === 'object') {
+    const childContainer = value as { children?: unknown }
+    const { children } = childContainer
+    if (Array.isArray(children)) return toPlainText(children as VNodeChild[])
+    if (children != null) return toPlainText(children as VNodeChild)
+    return ''
+  }
+  return String(value)
+}
+
+const primaryTitle = (row: WorkTableRow) =>
+  toPlainText(primaryField.value ? primaryField.value.render(row) : '')
+
+const FieldRenderer = defineComponent({
+  name: 'FieldRenderer',
+  props: {
+    field: { type: Object as PropType<CardField>, required: true },
+    row: { type: Object as PropType<WorkTableRow>, required: true },
+  },
+  setup(props) {
+    return () => props.field.render(props.row)
+  },
+})
+
+const ActionsRenderer = defineComponent({
+  name: 'ActionsRenderer',
+  props: {
+    row: { type: Object as PropType<WorkTableRow>, required: true },
+  },
+  setup(props) {
+    return () => renderActions(props.row)
+  },
+})
 
 function openCreate() {
   message.info('Создание работ пока недоступно в прототипе')
@@ -474,7 +712,19 @@ async function loadWorks() {
 }
 
 onMounted(() => {
+  if (typeof window !== 'undefined') {
+    mediaQueryList = window.matchMedia('(max-width: 768px)')
+    handleMediaQueryChange(mediaQueryList)
+    mediaQueryList.addEventListener('change', handleMediaQueryChange)
+  }
   void loadWorks()
+})
+
+onBeforeUnmount(() => {
+  if (mediaQueryList) {
+    mediaQueryList.removeEventListener('change', handleMediaQueryChange)
+    mediaQueryList = null
+  }
 })
 </script>
 
@@ -483,6 +733,64 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.table-stretch {
+  width: 100%;
+}
+
+.table-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.table-full {
+  flex: 1;
+  min-width: 0;
+}
+
+:deep(.n-data-table .n-data-table-table) {
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  width: 100%;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
+  background: var(--n-card-color, #fff);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-td) {
+  border-bottom: none;
+  padding: 0 12px;
+  height: auto;
+  line-height: 24px;
+  vertical-align: middle;
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='name']),
+:deep(.n-data-table .n-data-table-td.col-name) {
+  width: 220px;
+  max-width: 260px;
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='actions']),
+:deep(.n-data-table .n-data-table-td.col-actions) {
+  width: 120px;
+  text-align: right;
+}
+
+:deep(.n-data-table thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .toolbar {
@@ -537,11 +845,6 @@ onMounted(() => {
   width: 160px;
 }
 
-.table-area {
-  display: flex;
-  flex-direction: column;
-}
-
 .table-actions {
   display: flex;
   gap: 4px;
@@ -551,6 +854,26 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+}
+
+.source-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.source-chip {
+  background: #eef2ff;
+  color: #312e81;
+  font-weight: 500;
+}
+
+.source-number {
+  color: var(--text-color-2);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .modal-footer {
@@ -563,6 +886,83 @@ onMounted(() => {
   margin: 0;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.pagination-total {
+  margin-right: 12px;
+  font-size: 14px;
+  color: var(--n-text-color-3);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card__header,
+.card__actions {
+  min-width: 0;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.card__grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px 10px;
+  margin: 10px 0;
+}
+
+.card__grid dt {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.card__grid dd {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.card__actions .table-actions {
+  justify-content: flex-start;
 }
 
 @media (max-width: 768px) {
@@ -580,6 +980,12 @@ onMounted(() => {
 
   .toolbar__select {
     flex: 1 1 150px;
+  }
+}
+
+@media (max-width: 360px) {
+  .card__grid {
+    grid-template-columns: 100px 1fr;
   }
 }
 </style>
