@@ -139,6 +139,128 @@
       </div>
     </div>
 
+    <NModal
+      v-model:show="dialogOpen"
+      preset="card"
+      :title="dialogTitle"
+      style="width: min(620px, 96vw)"
+    >
+      <template v-if="!isRelationStep">
+        <NForm :model="workForm" label-width="180px" class="work-form">
+          <NFormItem
+            label="Наименование"
+            :feedback="workFormErrors.name ?? undefined"
+            :validation-status="workFormErrors.name ? 'error' : undefined"
+          >
+            <NInput v-model:value="workForm.name" placeholder="Введите наименование" />
+          </NFormItem>
+
+          <NFormItem
+            label="Вид работы"
+            :feedback="workFormErrors.workTypeId ?? undefined"
+            :validation-status="workFormErrors.workTypeId ? 'error' : undefined"
+          >
+            <NSelect
+              v-model:value="workForm.workTypeId"
+              :options="workTypeOptions"
+              placeholder="Выберите вид работы"
+              filterable
+            />
+          </NFormItem>
+
+          <NFormItem
+            label="Источник"
+            :feedback="workFormErrors.sourceId ?? undefined"
+            :validation-status="workFormErrors.sourceId ? 'error' : undefined"
+          >
+            <NSelect
+              v-model:value="workForm.sourceId"
+              :options="sourceFormOptions"
+              placeholder="Выберите источник"
+              filterable
+            />
+          </NFormItem>
+
+          <NFormItem
+            label="Номер в источнике"
+            :feedback="workFormErrors.sourceNumber ?? undefined"
+            :validation-status="workFormErrors.sourceNumber ? 'error' : undefined"
+          >
+            <NInput v-model:value="workForm.sourceNumber" placeholder="Например, 99" />
+          </NFormItem>
+
+          <NFormItem
+            label="Тип периода"
+            :feedback="workFormErrors.periodTypeId ?? undefined"
+            :validation-status="workFormErrors.periodTypeId ? 'error' : undefined"
+          >
+            <NSelect
+              v-model:value="workForm.periodTypeId"
+              :options="periodTypeFormOptions"
+              placeholder="Выберите тип периода"
+              filterable
+            />
+          </NFormItem>
+
+          <NFormItem
+            label="Число повторений"
+            :feedback="workFormErrors.periodicity ?? undefined"
+            :validation-status="workFormErrors.periodicity ? 'error' : undefined"
+          >
+            <NInputNumber v-model:value="workForm.periodicity" :min="1" placeholder="1" />
+          </NFormItem>
+
+          <NFormItem v-if="isEditMode" label="Тип объекта">
+            <NSpin :show="objectTypeSelectLoading">
+              <NSelect
+                v-model:value="selectedObjectTypeId"
+                :options="relationSelectOptions"
+                placeholder="Выберите тип объекта"
+                :disabled="!relationSelectOptions.length"
+                filterable
+                clearable
+              />
+            </NSpin>
+            <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
+              Для работы пока нет доступных типов объектов.
+            </p>
+          </NFormItem>
+        </NForm>
+      </template>
+      <template v-else>
+        <div class="work-relation">
+          <p class="text-body">Выберите тип обслуживаемого объекта, с которым связана новая работа.</p>
+          <NSpin :show="objectTypeSelectLoading">
+            <NSelect
+              v-model:value="selectedObjectTypeId"
+              :options="relationSelectOptions"
+              placeholder="Выберите тип объекта"
+              :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
+              filterable
+            />
+          </NSpin>
+          <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
+            Нет доступных типов объектов для назначения. Попробуйте добавить их позже через редактирование работы.
+          </p>
+          <p class="text-small">Связь можно изменить позже через кнопку редактирования в таблице.</p>
+        </div>
+      </template>
+
+      <template #footer>
+        <div class="modal-footer">
+          <NButton @click="dialogOpen = false" :disabled="savingWork || relationSaving">Отмена</NButton>
+          <NButton
+            type="primary"
+            class="btn-primary"
+            :loading="isRelationStep ? relationSaving : savingWork"
+            @click="saveWork"
+          >
+            {{ primaryButtonLabel }}
+          </NButton>
+        </div>
+      </template>
+    </NModal>
+
     <NModal v-model:show="infoOpen" preset="card" title="О справочнике работ" style="max-width: 520px">
       <p class="text-body">
         Справочник содержит технологические работы по содержанию и восстановлению обслуживаемых объектов.
@@ -172,11 +294,15 @@ import {
   NButton,
   NCard,
   NDataTable,
+  NForm,
+  NFormItem,
   NIcon,
   NInput,
+  NInputNumber,
   NModal,
   NPagination,
   NSelect,
+  NSpin,
   NTag,
   NTooltip,
   useMessage,
@@ -198,6 +324,10 @@ interface RawSourceRecord {
   ID?: number | string
   name?: string
   NAME?: string
+  obj?: number | string
+  OBJ?: number | string
+  pv?: number | string
+  PV?: number | string
 }
 
 interface RawPeriodTypeRecord {
@@ -205,6 +335,10 @@ interface RawPeriodTypeRecord {
   ID?: number | string
   name?: string
   NAME?: string
+  fv?: number | string
+  FV?: number | string
+  pv?: number | string
+  PV?: number | string
 }
 
 interface RawObjectTypeRelationRecord {
@@ -225,6 +359,32 @@ interface RawWorkRecord {
   fvPeriodType?: number | string
   pvPeriodType?: number | string
   Periodicity?: number | string
+  idPeriodType?: number | string
+  idNumberSource?: number | string
+  idPeriodicity?: number | string
+  objCollections?: number | string
+}
+
+interface RawWorkObjectTypeRecord {
+  id?: number | string
+  ID?: number | string
+  obj?: number | string
+  OBJ?: number | string
+  uch2?: number | string
+  cls?: number | string
+  CLS?: number | string
+  cls2?: number | string
+  name?: string
+  NAME?: string
+  checked?: number | string | boolean
+  selected?: number | string | boolean
+  actual?: number | string | boolean
+  fact?: number | string | boolean
+  exists?: number | string | boolean
+  idro?: number | string
+  IDRO?: number | string
+  idr?: number | string
+  IDR?: number | string
 }
 
 interface WorkTableRow {
@@ -237,10 +397,18 @@ interface WorkTableRow {
   sourceId: string | null
   sourceName: string | null
   sourceNumber: string | null
+  sourceObjId: string | null
+  sourcePvId: string | null
+  sourceRecordId: string | null
+  numberSourceRecordId: string | null
   periodTypeId: string | null
   periodTypeName: string | null
+  periodTypePvId: string | null
+  periodTypeRecordId: string | null
   periodicityValue: number | null
   periodicityText: string
+  periodicityRecordId: string | null
+  cls: string | null
 }
 
 interface PaginationState {
@@ -256,6 +424,50 @@ interface CardField {
   isActions?: boolean
 }
 
+interface WorkTypeOptionDetails {
+  id: string
+  label: string
+}
+
+interface SourceOptionDetails {
+  id: string
+  label: string
+  objId: string
+  pvId: string
+}
+
+interface PeriodTypeOptionDetails {
+  id: string
+  label: string
+  fvId: string
+  pvId: string | null
+}
+
+interface WorkObjectTypeOption {
+  value: string
+  cls: string
+  label: string
+  relationId?: string | null
+}
+
+interface WorkFormState {
+  name: string
+  workTypeId: string | null
+  sourceId: string | null
+  sourceNumber: string
+  periodTypeId: string | null
+  periodicity: number | null
+}
+
+interface WorkFormErrors {
+  name: string | null
+  workTypeId: string | null
+  sourceId: string | null
+  sourceNumber: string | null
+  periodTypeId: string | null
+  periodicity: string | null
+}
+
 const tableLoading = ref(false)
 const q = ref('')
 const infoOpen = ref(false)
@@ -268,6 +480,13 @@ const workTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const objectTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const sourceOptions = ref<Array<{ label: string; value: string }>>([])
 const periodTypeOptions = ref<Array<{ label: string; value: string }>>([])
+
+const workTypeDirectory = new Map<string, WorkTypeOptionDetails>()
+const sourceDirectory = new Map<string, SourceOptionDetails>()
+const sourceDirectoryByPv = new Map<string, SourceOptionDetails>()
+const periodTypeDirectory = new Map<string, PeriodTypeOptionDetails>()
+const rawSourceRecords = new Map<string, RawSourceRecord>()
+const rawPeriodTypeRecords = new Map<string, RawPeriodTypeRecord>()
 
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const works = ref<WorkTableRow[]>([])
@@ -285,6 +504,70 @@ const directories = {
   sources: new Map<string, string>(),
   periodTypes: new Map<string, string>(),
 }
+
+const dialogOpen = ref(false)
+const dialogStep = ref<'form' | 'relation'>('form')
+const dialogMode = ref<'create' | 'edit'>('create')
+const savingWork = ref(false)
+const relationSaving = ref(false)
+const objectTypeSelectLoading = ref(false)
+
+const workForm = reactive<WorkFormState>({
+  name: '',
+  workTypeId: null,
+  sourceId: null,
+  sourceNumber: '',
+  periodTypeId: null,
+  periodicity: null,
+})
+
+const workFormErrors = reactive<WorkFormErrors>({
+  name: null,
+  workTypeId: null,
+  sourceId: null,
+  sourceNumber: null,
+  periodTypeId: null,
+  periodicity: null,
+})
+
+const objectTypeSelectOptions = ref<WorkObjectTypeOption[]>([])
+const selectedObjectTypeId = ref<string | null>(null)
+const selectedObjectTypeCls = ref<string | null>(null)
+const currentRelationId = ref<string | null>(null)
+const initialRelationId = ref<string | null>(null)
+const initialRelationValue = ref<string | null>(null)
+const pendingWorkId = ref<string | null>(null)
+const pendingWorkCls = ref<string | null>(null)
+const pendingWorkName = ref<string>('')
+const editingRow = ref<WorkTableRow | null>(null)
+
+const isEditMode = computed(() => dialogMode.value === 'edit')
+const isRelationStep = computed(() => dialogStep.value === 'relation')
+const dialogTitle = computed(() => {
+  if (isRelationStep.value) return 'Назначить тип объекта'
+  return isEditMode.value ? 'Изменить работу' : 'Создать работу'
+})
+
+const sourceFormOptions = computed(() =>
+  Array.from(sourceDirectory.values())
+    .map((item) => ({ label: item.label, value: item.id }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru')),
+)
+
+const periodTypeFormOptions = computed(() =>
+  Array.from(periodTypeDirectory.values())
+    .map((item) => ({ label: item.label, value: item.fvId }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ru')),
+)
+
+const relationSelectOptions = computed(() =>
+  objectTypeSelectOptions.value.map((option) => ({ label: option.label, value: option.value })),
+)
+
+const primaryButtonLabel = computed(() => {
+  if (isRelationStep.value) return 'Сохранить'
+  return isEditMode.value ? 'Сохранить' : 'Далее'
+})
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
@@ -347,6 +630,28 @@ watchEffect(() => {
     pagination.page = maxPage.value
   }
 })
+
+watch(
+  () => dialogOpen.value,
+  (open, previous) => {
+    if (!open && previous) {
+      if (dialogStep.value === 'relation' && pendingWorkId.value) {
+        void loadWorks()
+      }
+      dialogStep.value = 'form'
+      resetDialogState()
+    }
+  },
+)
+
+watch(
+  () => selectedObjectTypeId.value,
+  (value) => {
+    const option = objectTypeSelectOptions.value.find((item) => item.value === value)
+    selectedObjectTypeCls.value = option?.cls ?? null
+    currentRelationId.value = option?.relationId ?? null
+  },
+)
 
 function showMore() {
   if (pagination.page < maxPage.value) pagination.page += 1
@@ -528,16 +833,417 @@ const ActionsRenderer = defineComponent({
   },
 })
 
+const toFiniteNumber = (value: string | null | undefined): number | null => {
+  if (!value) return null
+  const numeric = Number(value)
+  return Number.isFinite(numeric) ? numeric : null
+}
+
+const isTruthyFlag = (value: unknown): boolean => {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const trimmed = value.trim().toLowerCase()
+    return Boolean(trimmed && trimmed !== '0' && trimmed !== 'false' && trimmed !== 'нет')
+  }
+  return false
+}
+
+function clearFormErrors() {
+  workFormErrors.name = null
+  workFormErrors.workTypeId = null
+  workFormErrors.sourceId = null
+  workFormErrors.sourceNumber = null
+  workFormErrors.periodTypeId = null
+  workFormErrors.periodicity = null
+}
+
+function resetDialogState() {
+  workForm.name = ''
+  workForm.workTypeId = null
+  workForm.sourceId = null
+  workForm.sourceNumber = ''
+  workForm.periodTypeId = null
+  workForm.periodicity = null
+  clearFormErrors()
+  objectTypeSelectOptions.value = []
+  selectedObjectTypeId.value = null
+  selectedObjectTypeCls.value = null
+  currentRelationId.value = null
+  initialRelationId.value = null
+  initialRelationValue.value = null
+  pendingWorkId.value = null
+  pendingWorkCls.value = null
+  pendingWorkName.value = ''
+  editingRow.value = null
+}
+
+function getSourceDetails(id: string | null): SourceOptionDetails | null {
+  if (!id) return null
+  return sourceDirectory.get(id) ?? sourceDirectoryByPv.get(id) ?? null
+}
+
+function getPeriodTypeDetails(id: string | null): PeriodTypeOptionDetails | null {
+  if (!id) return null
+  return periodTypeDirectory.get(id) ?? null
+}
+
+function composeWorkFullName(name: string, numberSource: string, sourceName: string | null): string {
+  const base = name.trim()
+  const number = numberSource.trim()
+  const source = sourceName?.trim() ?? ''
+  if (base && number && source) {
+    return `${base} [тк № ${number} / ${source}]`
+  }
+  return base
+}
+
+function validateWorkForm(): boolean {
+  clearFormErrors()
+  let valid = true
+
+  if (!workForm.name.trim()) {
+    workFormErrors.name = 'Укажите наименование работы'
+    valid = false
+  }
+
+  if (!workForm.workTypeId || !workTypeDirectory.has(workForm.workTypeId)) {
+    workFormErrors.workTypeId = 'Выберите вид работы'
+    valid = false
+  }
+
+  const sourceDetails = getSourceDetails(workForm.sourceId)
+  if (!sourceDetails) {
+    workFormErrors.sourceId = 'Укажите источник'
+    valid = false
+  }
+
+  if (!workForm.sourceNumber.trim()) {
+    workFormErrors.sourceNumber = 'Заполните номер в источнике'
+    valid = false
+  }
+
+  const periodTypeDetails = getPeriodTypeDetails(workForm.periodTypeId)
+  if (!periodTypeDetails) {
+    workFormErrors.periodTypeId = 'Выберите тип периода'
+    valid = false
+  }
+
+  if (workForm.periodicity == null || Number.isNaN(workForm.periodicity)) {
+    workFormErrors.periodicity = 'Укажите число повторений'
+    valid = false
+  } else if (workForm.periodicity <= 0) {
+    workFormErrors.periodicity = 'Значение должно быть больше нуля'
+    valid = false
+  }
+
+  return valid
+}
+
+function applyRowToForm(row: WorkTableRow) {
+  workForm.name = row.name
+  workForm.workTypeId = row.workTypeId
+  workForm.sourceId = row.sourceObjId ?? row.sourcePvId ?? row.sourceId
+  workForm.sourceNumber = row.sourceNumber ?? ''
+  workForm.periodTypeId = row.periodTypeId
+  workForm.periodicity = row.periodicityValue ?? null
+}
+
+async function loadWorkObjectTypesForForm(workId: string) {
+  objectTypeSelectLoading.value = true
+  initialRelationId.value = null
+  initialRelationValue.value = null
+  currentRelationId.value = null
+  selectedObjectTypeId.value = null
+  selectedObjectTypeCls.value = null
+
+  try {
+    const response = await rpc('data/loadUch2', ['RT_Works', Number(workId), 'Typ_ObjectTyp'])
+    const records = extractRecords<RawWorkObjectTypeRecord>(response)
+
+    const options: WorkObjectTypeOption[] = []
+    let defaultOption: WorkObjectTypeOption | null = null
+
+    for (const record of records) {
+      const value =
+        toOptionalString(record.uch2 ?? record.obj ?? record.ID ?? record.id ?? record.OBJ ?? record.IDR) ?? null
+      const cls = toOptionalString(record.cls2 ?? record.cls ?? record.CLS)
+      const label = toOptionalString(record.name ?? record.NAME)
+      if (!value || !cls || !label) continue
+
+      const relationId =
+        toOptionalString(record.idro ?? record.IDRO ?? record.idr ?? record.IDR ?? record.id) ?? null
+      const option: WorkObjectTypeOption = { value, cls, label, relationId }
+      options.push(option)
+
+      if (!defaultOption && isTruthyFlag(record.checked ?? record.selected ?? record.actual ?? record.fact ?? record.exists)) {
+        defaultOption = option
+      }
+    }
+
+    options.sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+    objectTypeSelectOptions.value = options
+
+    if (defaultOption) {
+      selectedObjectTypeId.value = defaultOption.value
+      selectedObjectTypeCls.value = defaultOption.cls
+      currentRelationId.value = defaultOption.relationId ?? null
+      initialRelationId.value = defaultOption.relationId ?? null
+      initialRelationValue.value = defaultOption.value
+    } else if (options.length === 1) {
+      const only = options[0]
+      selectedObjectTypeId.value = only.value
+      selectedObjectTypeCls.value = only.cls
+    }
+  } catch (error) {
+    console.error(error)
+    objectTypeSelectOptions.value = []
+    selectedObjectTypeId.value = null
+    selectedObjectTypeCls.value = null
+    currentRelationId.value = null
+    initialRelationId.value = null
+    initialRelationValue.value = null
+    message.error('Не удалось загрузить типы объектов для работы')
+  } finally {
+    objectTypeSelectLoading.value = false
+  }
+}
+
 function openCreate() {
-  message.info('Создание работ пока недоступно в прототипе')
+  resetDialogState()
+  dialogMode.value = 'create'
+  dialogStep.value = 'form'
+  dialogOpen.value = true
 }
 
 function editWork(row: WorkTableRow) {
-  message.info(`Редактирование работы «${row.name}» пока недоступно`)
+  resetDialogState()
+  dialogMode.value = 'edit'
+  dialogStep.value = 'form'
+  editingRow.value = row
+  pendingWorkId.value = row.id
+  pendingWorkCls.value = row.cls ?? row.workTypeId
+  pendingWorkName.value = row.name
+  applyRowToForm(row)
+  dialogOpen.value = true
+  void loadWorkObjectTypesForForm(row.id)
 }
 
 function removeWork(row: WorkTableRow) {
   message.info(`Удаление работы «${row.name}» пока недоступно`)
+}
+
+async function saveWork() {
+  if (isRelationStep.value) {
+    await saveRelationStep({ closeAfter: true, reload: true })
+    return
+  }
+
+  if (!validateWorkForm()) return
+
+  if (isEditMode.value) {
+    await updateWork()
+  } else {
+    await createWork()
+  }
+}
+
+async function createWork() {
+  const workTypeId = workForm.workTypeId
+  const sourceDetails = getSourceDetails(workForm.sourceId)
+  const periodTypeDetails = getPeriodTypeDetails(workForm.periodTypeId)
+  if (!workTypeId || !sourceDetails || !periodTypeDetails) return
+
+  const name = workForm.name.trim()
+  const numberSource = workForm.sourceNumber.trim()
+  const periodicity = workForm.periodicity ?? 0
+  const fullName = composeWorkFullName(name, numberSource, sourceDetails.label)
+
+  const payload: Record<string, unknown> = {
+    accessLevel: 1,
+    cls: toFiniteNumber(workTypeId) ?? workTypeId,
+    name,
+    fullName,
+    objCollections: toFiniteNumber(sourceDetails.objId) ?? sourceDetails.objId,
+    pvCollections: toFiniteNumber(sourceDetails.pvId) ?? sourceDetails.pvId,
+    nameCollections: sourceDetails.label,
+    NumberSource: numberSource,
+    fvPeriodType: toFiniteNumber(periodTypeDetails.fvId) ?? periodTypeDetails.fvId,
+    Periodicity: periodicity.toString(),
+  }
+
+  if (periodTypeDetails.pvId) {
+    payload.pvPeriodType = toFiniteNumber(periodTypeDetails.pvId) ?? periodTypeDetails.pvId
+  }
+
+  savingWork.value = true
+  try {
+    const response = await rpc('data/saveProcessCharts', ['ins', payload])
+    const records = extractRecords<RawWorkRecord>(response)
+    const created = records[0]
+    if (!created) throw new Error('Не удалось сохранить работу')
+
+    const objId = toOptionalString(created.obj)
+    const clsId = toOptionalString(created.cls ?? workTypeId)
+    if (!objId || !clsId) throw new Error('Не удалось определить идентификаторы работы')
+
+    pendingWorkId.value = objId
+    pendingWorkCls.value = clsId
+    pendingWorkName.value = name
+
+    message.success('Работа сохранена. Выберите тип объекта')
+    dialogStep.value = 'relation'
+    await loadWorkObjectTypesForForm(objId)
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Не удалось сохранить работу')
+  } finally {
+    savingWork.value = false
+  }
+}
+
+async function updateWork() {
+  const row = editingRow.value
+  if (!row) return
+
+  const workTypeId = workForm.workTypeId
+  const sourceDetails = getSourceDetails(workForm.sourceId)
+  const periodTypeDetails = getPeriodTypeDetails(workForm.periodTypeId)
+  if (!workTypeId || !sourceDetails || !periodTypeDetails) return
+
+  const name = workForm.name.trim()
+  const numberSource = workForm.sourceNumber.trim()
+  const periodicity = workForm.periodicity ?? 0
+  const fullName = composeWorkFullName(name, numberSource, sourceDetails.label)
+
+  const payload: Record<string, unknown> = {
+    accessLevel: 1,
+    obj: toFiniteNumber(row.id) ?? row.id,
+    cls: toFiniteNumber(workTypeId) ?? workTypeId,
+    name,
+    fullName,
+    objCollections: toFiniteNumber(sourceDetails.objId) ?? sourceDetails.objId,
+    pvCollections: toFiniteNumber(sourceDetails.pvId) ?? sourceDetails.pvId,
+    nameCollections: sourceDetails.label,
+    NumberSource: numberSource,
+    fvPeriodType: toFiniteNumber(periodTypeDetails.fvId) ?? periodTypeDetails.fvId,
+    Periodicity: periodicity.toString(),
+  }
+
+  const idCollections = toFiniteNumber(row.sourceRecordId)
+  if (idCollections != null) payload.idCollections = idCollections
+
+  const idNumberSource = toFiniteNumber(row.numberSourceRecordId)
+  if (idNumberSource != null) payload.idNumberSource = idNumberSource
+
+  const idPeriodType = toFiniteNumber(row.periodTypeRecordId)
+  if (idPeriodType != null) payload.idPeriodType = idPeriodType
+
+  if (row.periodTypePvId) {
+    payload.pvPeriodType =
+      toFiniteNumber(periodTypeDetails.pvId ?? row.periodTypePvId) ?? periodTypeDetails.pvId ?? row.periodTypePvId
+  } else if (periodTypeDetails.pvId) {
+    payload.pvPeriodType = toFiniteNumber(periodTypeDetails.pvId) ?? periodTypeDetails.pvId
+  }
+
+  const idPeriodicity = toFiniteNumber(row.periodicityRecordId)
+  if (idPeriodicity != null) payload.idPeriodicity = idPeriodicity
+
+  savingWork.value = true
+  try {
+    await rpc('data/saveProcessCharts', ['upd', payload])
+    pendingWorkId.value = row.id
+    pendingWorkCls.value = workTypeId
+    pendingWorkName.value = name
+
+    const relationChanged =
+      objectTypeSelectOptions.value.length > 0 && selectedObjectTypeId.value !== initialRelationValue.value
+
+    if (relationChanged) {
+      await saveRelationStep({ closeAfter: true, reload: true })
+      message.success('Работа обновлена')
+    } else {
+      await loadWorks()
+      message.success('Работа обновлена')
+      dialogOpen.value = false
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Не удалось обновить работу')
+  } finally {
+    savingWork.value = false
+  }
+}
+
+async function saveRelationStep(options: { closeAfter?: boolean; reload?: boolean } = {}) {
+  const { closeAfter = false, reload = false } = options
+  const workId = pendingWorkId.value ?? editingRow.value?.id ?? null
+  const workCls = pendingWorkCls.value ?? workForm.workTypeId
+  const workName = pendingWorkName.value || workForm.name.trim()
+  if (!workId || !workCls) {
+    message.error('Не удалось определить работу для привязки типа объекта')
+    return
+  }
+
+  const selectedId = selectedObjectTypeId.value
+  if (!selectedId) {
+    message.error('Выберите тип объекта')
+    return
+  }
+
+  const option = objectTypeSelectOptions.value.find((item) => item.value === selectedId)
+  if (!option) {
+    message.error('Выбранный тип объекта недоступен')
+    return
+  }
+
+  relationSaving.value = true
+  try {
+    const relationName = `${workName} <=> ${option.label}`
+
+    if (initialRelationId.value && initialRelationValue.value && initialRelationValue.value !== option.value) {
+      const relationIdNumber = toFiniteNumber(initialRelationId.value)
+      if (relationIdNumber != null) {
+        try {
+          await rpc('data/deleteOwnerWithProperties', [relationIdNumber, 0])
+        } catch (error) {
+          console.error(error)
+        }
+      }
+    }
+
+    const uch1 = toFiniteNumber(workId) ?? workId
+    const cls1 = toFiniteNumber(workCls) ?? workCls
+    const uch2 = toFiniteNumber(option.value) ?? option.value
+    const cls2 = toFiniteNumber(option.cls) ?? option.cls
+
+    await rpc('data/saveRelObj', [
+      {
+        uch1,
+        cls1,
+        uch2,
+        cls2,
+        codRelTyp: 'RT_Works',
+        name: relationName,
+      },
+    ])
+
+    if (reload) {
+      await loadWorks()
+    }
+
+    currentRelationId.value = option.relationId ?? null
+    initialRelationId.value = option.relationId ?? null
+    initialRelationValue.value = option.value
+
+    message.success('Тип объекта сохранён')
+
+    if (closeAfter) {
+      dialogOpen.value = false
+    }
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Не удалось сохранить тип объекта')
+  } finally {
+    relationSaving.value = false
+  }
 }
 
 function formatPeriodicityText(value: number | null, periodTypeName: string | null): string {
@@ -591,6 +1297,12 @@ async function loadWorks() {
     directories.sources.clear()
     directories.periodTypes.clear()
     directories.objectTypes.clear()
+    workTypeDirectory.clear()
+    sourceDirectory.clear()
+    sourceDirectoryByPv.clear()
+    periodTypeDirectory.clear()
+    rawSourceRecords.clear()
+    rawPeriodTypeRecords.clear()
 
     workTypeOptions.value = workTypeRecords
       .map((item) => {
@@ -598,6 +1310,7 @@ async function loadWorks() {
         const name = toOptionalString(item.name ?? item.NAME)
         if (!id || !name) return null
         directories.workTypes.set(id, name)
+        workTypeDirectory.set(id, { id, label: name })
         return { label: name, value: id }
       })
       .filter((item): item is { label: string; value: string } => Boolean(item))
@@ -605,10 +1318,16 @@ async function loadWorks() {
 
     sourceOptions.value = sourceRecords
       .map((item) => {
-        const id = toOptionalString(item.id ?? item.ID)
+        const id = toOptionalString(item.id ?? item.ID ?? item.obj ?? item.OBJ) ?? null
         const name = toOptionalString(item.name ?? item.NAME)
-        if (!id || !name) return null
+        const objId = toOptionalString(item.obj ?? item.OBJ ?? id) ?? null
+        const pvId = toOptionalString(item.pv ?? item.PV ?? id) ?? null
+        if (!id || !name || !objId || !pvId) return null
         directories.sources.set(id, name)
+        const details: SourceOptionDetails = { id: objId, label: name, objId, pvId }
+        sourceDirectory.set(objId, details)
+        sourceDirectoryByPv.set(pvId, details)
+        rawSourceRecords.set(objId, item)
         return { label: name, value: id }
       })
       .filter((item): item is { label: string; value: string } => Boolean(item))
@@ -616,11 +1335,15 @@ async function loadWorks() {
 
     periodTypeOptions.value = periodTypeRecords
       .map((item) => {
-        const id = toOptionalString(item.id ?? item.ID)
+        const id = toOptionalString(item.id ?? item.ID ?? item.fv ?? item.FV)
         const name = toOptionalString(item.name ?? item.NAME)
-        if (!id || !name) return null
-        directories.periodTypes.set(id, name)
-        return { label: name, value: id }
+        const fvId = toOptionalString(item.fv ?? item.FV ?? id)
+        const pvId = toOptionalString(item.pv ?? item.PV ?? null)
+        if (!id || !name || !fvId) return null
+        directories.periodTypes.set(fvId, name)
+        periodTypeDirectory.set(fvId, { id: fvId, label: name, fvId, pvId: pvId ?? null })
+        rawPeriodTypeRecords.set(fvId, item)
+        return { label: name, value: fvId }
       })
       .filter((item): item is { label: string; value: string } => Boolean(item))
       .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
@@ -650,6 +1373,11 @@ async function loadWorks() {
       const workTypeId = toOptionalString(record.cls)
       const objectTypeName = directories.objectTypes.get(id) ?? null
 
+      const sourceObjId = toOptionalString(record.objCollections)
+      const sourcePvId = toOptionalString(record.pvCollections)
+      const sourceRecordId = toOptionalString(record.idCollections)
+      const numberSourceRecordId = toOptionalString(record.idNumberSource)
+
       let sourceId = toOptionalString(record.idCollections ?? record.pvCollections)
       const directorySourceName = sourceId ? directories.sources.get(sourceId) ?? null : null
       const fallbackSourceName = toOptionalString(record.nameCollections)
@@ -659,8 +1387,9 @@ async function loadWorks() {
       }
       const sourceNumber = toOptionalString(record.NumberSource)
 
-      const periodTypeId =
-        toOptionalString(record.fvPeriodType ?? record.pvPeriodType) ?? null
+      const periodTypeId = toOptionalString(record.fvPeriodType ?? record.pvPeriodType) ?? null
+      const periodTypePvId = toOptionalString(record.pvPeriodType) ?? null
+      const periodTypeRecordId = toOptionalString(record.idPeriodType) ?? null
       const periodTypeName = (periodTypeId && directories.periodTypes.get(periodTypeId)) || null
 
       const periodicityValueRaw = record.Periodicity
@@ -675,6 +1404,7 @@ async function loadWorks() {
           ? Number(periodicityValue)
           : null
       const periodicityText = formatPeriodicityText(periodicity, periodTypeName)
+      const periodicityRecordId = toOptionalString(record.idPeriodicity) ?? null
 
       rowsData.push({
         id,
@@ -686,11 +1416,47 @@ async function loadWorks() {
         sourceId,
         sourceName,
         sourceNumber,
+        sourceObjId,
+        sourcePvId,
+        sourceRecordId,
+        numberSourceRecordId,
         periodTypeId,
         periodTypeName,
+        periodTypePvId,
+        periodTypeRecordId,
         periodicityValue: periodicity,
         periodicityText,
+        periodicityRecordId,
+        cls: workTypeId,
       })
+
+      if (workTypeId && !workTypeDirectory.has(workTypeId)) {
+        const workTypeLabel = directories.workTypes.get(workTypeId)
+        if (workTypeLabel) {
+          workTypeDirectory.set(workTypeId, { id: workTypeId, label: workTypeLabel })
+        }
+      }
+
+      if (sourceObjId && sourceName && !sourceDirectory.has(sourceObjId)) {
+        const pvNormalized = sourcePvId ?? sourceId ?? sourceObjId
+        const details: SourceOptionDetails = {
+          id: sourceObjId,
+          label: sourceName,
+          objId: sourceObjId,
+          pvId: pvNormalized ?? sourceObjId,
+        }
+        sourceDirectory.set(sourceObjId, details)
+        sourceDirectoryByPv.set(details.pvId, details)
+      }
+
+      if (periodTypeId && periodTypeName && !periodTypeDirectory.has(periodTypeId)) {
+        periodTypeDirectory.set(periodTypeId, {
+          id: periodTypeId,
+          label: periodTypeName,
+          fvId: periodTypeId,
+          pvId: periodTypePvId,
+        })
+      }
     }
 
     const existingValues = new Set(sourceOptions.value.map((option) => option.value))
@@ -859,6 +1625,16 @@ onBeforeUnmount(() => {
 
 .toolbar__select {
   width: 160px;
+}
+
+.work-form :deep(.n-form-item) {
+  margin-bottom: 16px;
+}
+
+.work-relation {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .table-actions {
