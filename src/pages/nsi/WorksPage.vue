@@ -1,0 +1,585 @@
+<!-- Файл: src/pages/nsi/WorksPage.vue
+     Назначение: справочник технологических работ по содержанию и восстановлению объектов.
+     Использование: подключается в маршрутизаторе по пути /nsi/works. -->
+<template>
+  <section class="works-page">
+    <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
+      <div class="toolbar__left">
+        <h2 class="page-title">
+          Справочник «Технологические работы»
+          <NButton
+            quaternary
+            circle
+            size="small"
+            class="page-title__info"
+            aria-label="Справка о справочнике"
+            @click="infoOpen = true"
+          >
+            <template #icon>
+              <NIcon><InformationCircleOutline /></NIcon>
+            </template>
+          </NButton>
+        </h2>
+        <div class="subtext">
+          Перечень работ по текущему содержанию и восстановлению работоспособности обслуживаемых объектов
+        </div>
+      </div>
+
+      <div class="toolbar__controls">
+        <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <div class="toolbar__filters">
+          <NSelect
+            v-model:value="workTypeFilter"
+            :options="workTypeOptions"
+            placeholder="Вид работы"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+          <NSelect
+            v-model:value="objectTypeFilter"
+            :options="objectTypeOptions"
+            placeholder="Тип объекта"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+          <NSelect
+            v-model:value="sourceFilter"
+            :options="sourceOptions"
+            placeholder="Источник"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+          <NSelect
+            v-model:value="periodTypeFilter"
+            :options="periodTypeOptions"
+            placeholder="Периодичность"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+        </div>
+        <NButton type="primary" @click="openCreate">+ Добавить работу</NButton>
+      </div>
+    </NCard>
+
+    <div class="table-area">
+      <NDataTable
+        class="s360-cards table-full table-stretch"
+        :columns="columns"
+        :data="rows"
+        :loading="tableLoading"
+        :row-key="rowKey"
+        :bordered="false"
+      />
+    </div>
+
+    <NModal v-model:show="infoOpen" preset="card" title="О справочнике работ" style="max-width: 520px">
+      <p class="text-body">
+        Справочник содержит технологические работы по содержанию и восстановлению обслуживаемых объектов.
+        В таблице указаны вид работы, тип объекта, источник регламента и периодичность выполнения.
+      </p>
+      <template #footer>
+        <div class="modal-footer">
+          <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+        </div>
+      </template>
+    </NModal>
+  </section>
+</template>
+
+<script setup lang="ts">
+import { computed, h, onMounted, ref } from 'vue'
+import type { DataTableColumns } from 'naive-ui'
+import { NButton, NCard, NDataTable, NIcon, NInput, NModal, NSelect, NTooltip, useMessage } from 'naive-ui'
+import { InformationCircleOutline, PencilOutline, TrashOutline } from '@vicons/ionicons5'
+
+import { rpc } from '@shared/api'
+import { extractRecords, normalizeText, toOptionalString } from '@shared/lib'
+
+interface RawWorkTypeRecord {
+  id?: number | string
+  ID?: number | string
+  name?: string
+  NAME?: string
+}
+
+interface RawSourceRecord {
+  id?: number | string
+  ID?: number | string
+  name?: string
+  NAME?: string
+}
+
+interface RawPeriodTypeRecord {
+  id?: number | string
+  ID?: number | string
+  name?: string
+  NAME?: string
+}
+
+interface RawObjectTypeRelationRecord {
+  idrom1?: number | string
+  idrom2?: number | string
+  namerom2?: string
+}
+
+interface RawWorkRecord {
+  obj?: number | string
+  cls?: number | string
+  name?: string
+  fullName?: string
+  nameCollections?: string
+  NumberSource?: string | number
+  pvCollections?: number | string
+  idCollections?: number | string
+  fvPeriodType?: number | string
+  pvPeriodType?: number | string
+  Periodicity?: number | string
+}
+
+interface WorkTableRow {
+  id: string
+  name: string
+  fullName: string | null
+  workTypeId: string | null
+  workTypeName: string | null
+  objectTypeName: string | null
+  sourceId: string | null
+  sourceName: string | null
+  sourceNumber: string | null
+  periodTypeId: string | null
+  periodTypeName: string | null
+  periodicityValue: number | null
+  periodicityText: string
+}
+
+const tableLoading = ref(false)
+const q = ref('')
+const infoOpen = ref(false)
+const workTypeFilter = ref<string | null>(null)
+const objectTypeFilter = ref<string | null>(null)
+const sourceFilter = ref<string | null>(null)
+const periodTypeFilter = ref<string | null>(null)
+
+const workTypeOptions = ref<Array<{ label: string; value: string }>>([])
+const objectTypeOptions = ref<Array<{ label: string; value: string }>>([])
+const sourceOptions = ref<Array<{ label: string; value: string }>>([])
+const periodTypeOptions = ref<Array<{ label: string; value: string }>>([])
+
+const works = ref<WorkTableRow[]>([])
+
+const message = useMessage()
+
+const directories = {
+  workTypes: new Map<string, string>(),
+  objectTypes: new Map<string, string>(),
+  sources: new Map<string, string>(),
+  periodTypes: new Map<string, string>(),
+}
+
+const filteredRows = computed(() => {
+  const search = normalizeText(q.value)
+
+  return works.value.filter((item) => {
+    if (workTypeFilter.value && item.workTypeId !== workTypeFilter.value) return false
+    if (objectTypeFilter.value && item.objectTypeName !== objectTypeFilter.value) return false
+    if (sourceFilter.value && item.sourceId !== sourceFilter.value) return false
+    if (periodTypeFilter.value && item.periodTypeId !== periodTypeFilter.value) return false
+
+    if (search) {
+      const inName = normalizeText(item.name).includes(search)
+      const inFullName = normalizeText(item.fullName ?? '').includes(search)
+      if (!inName && !inFullName) return false
+    }
+
+    return true
+  })
+})
+
+const rows = computed(() =>
+  [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+)
+
+const columns: DataTableColumns<WorkTableRow> = [
+  {
+    title: 'Работа',
+    key: 'name',
+    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
+    render(row) {
+      if (!row.fullName) return row.name
+      return h(
+        NTooltip,
+        { placement: 'top' },
+        {
+          trigger: () => h('span', { class: 'table-cell__primary' }, row.name),
+          default: () => row.fullName,
+        },
+      )
+    },
+  },
+  {
+    title: 'Вид работы',
+    key: 'workTypeName',
+    render: (row) => row.workTypeName ?? '—',
+  },
+  {
+    title: 'Тип объекта',
+    key: 'objectTypeName',
+    render: (row) => row.objectTypeName ?? '—',
+  },
+  {
+    title: 'Источник и номер',
+    key: 'sourceName',
+    render(row) {
+      if (!row.sourceName && !row.sourceNumber) return '—'
+      if (row.sourceName && row.sourceNumber) {
+        return `${row.sourceName} №${row.sourceNumber}`
+      }
+      return row.sourceName ?? row.sourceNumber ?? '—'
+    },
+  },
+  {
+    title: 'Периодичность',
+    key: 'periodicityText',
+    render: (row) => row.periodicityText || '—',
+  },
+  {
+    title: 'Действия',
+    key: 'actions',
+    render(row) {
+      return h('div', { class: 'table-actions' }, [
+        h(
+          NButton,
+          {
+            quaternary: true,
+            size: 'small',
+            onClick: () => editWork(row),
+          },
+          {
+            icon: () =>
+              h(NIcon, null, {
+                default: () => h(PencilOutline),
+              }),
+          },
+        ),
+        h(
+          NButton,
+          {
+            quaternary: true,
+            size: 'small',
+            type: 'error',
+            onClick: () => removeWork(row),
+          },
+          {
+            icon: () =>
+              h(NIcon, null, {
+                default: () => h(TrashOutline),
+              }),
+          },
+        ),
+      ])
+    },
+  },
+]
+
+const rowKey = (row: WorkTableRow) => row.id
+
+function openCreate() {
+  message.info('Создание работ пока недоступно в прототипе')
+}
+
+function editWork(row: WorkTableRow) {
+  message.info(`Редактирование работы «${row.name}» пока недоступно`)
+}
+
+function removeWork(row: WorkTableRow) {
+  message.info(`Удаление работы «${row.name}» пока недоступно`)
+}
+
+function formatPeriodicityText(value: number | null, periodTypeName: string | null): string {
+  if (value == null && !periodTypeName) return ''
+
+  if (value == null || Number.isNaN(value)) {
+    return periodTypeName ?? ''
+  }
+
+  const abs = Math.abs(value)
+  const int = Math.trunc(abs)
+  const decimals = Math.abs(value - int) > Number.EPSILON
+  const base = decimals ? value.toString() : int.toString()
+
+  const mod10 = int % 10
+  const mod100 = int % 100
+  const ending =
+    !decimals && mod10 === 1 && mod100 !== 11
+      ? 'раз'
+      : !decimals && mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+        ? 'раза'
+        : 'раз'
+
+  const times = `${base} ${ending}`
+  if (periodTypeName) {
+    return `${times} в ${periodTypeName}`
+  }
+
+  return times
+}
+
+async function loadWorks() {
+  tableLoading.value = true
+  try {
+    const [workTypePayload, sourcePayload, periodTypePayload, objectTypePayload, worksPayload] =
+      await Promise.all([
+        rpc('data/loadClsForSelect', ['Typ_Work']),
+        rpc('data/loadFvForSelect', ['Factor_Source']),
+        rpc('data/loadFvForSelect', ['Factor_PeriodType']),
+        rpc('data/loadComponentsObject2', ['RT_Works', 'Typ_Work', 'Typ_ObjectTyp']),
+        rpc('data/loadProcessCharts', [0]),
+      ])
+
+    const workTypeRecords = extractRecords<RawWorkTypeRecord>(workTypePayload)
+    const sourceRecords = extractRecords<RawSourceRecord>(sourcePayload)
+    const periodTypeRecords = extractRecords<RawPeriodTypeRecord>(periodTypePayload)
+    const objectTypeRecords = extractRecords<RawObjectTypeRelationRecord>(objectTypePayload)
+    const workRecords = extractRecords<RawWorkRecord>(worksPayload)
+
+    directories.workTypes.clear()
+    directories.sources.clear()
+    directories.periodTypes.clear()
+    directories.objectTypes.clear()
+
+    workTypeOptions.value = workTypeRecords
+      .map((item) => {
+        const id = toOptionalString(item.id ?? item.ID)
+        const name = toOptionalString(item.name ?? item.NAME)
+        if (!id || !name) return null
+        directories.workTypes.set(id, name)
+        return { label: name, value: id }
+      })
+      .filter((item): item is { label: string; value: string } => Boolean(item))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+    sourceOptions.value = sourceRecords
+      .map((item) => {
+        const id = toOptionalString(item.id ?? item.ID)
+        const name = toOptionalString(item.name ?? item.NAME)
+        if (!id || !name) return null
+        directories.sources.set(id, name)
+        return { label: name, value: id }
+      })
+      .filter((item): item is { label: string; value: string } => Boolean(item))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+    periodTypeOptions.value = periodTypeRecords
+      .map((item) => {
+        const id = toOptionalString(item.id ?? item.ID)
+        const name = toOptionalString(item.name ?? item.NAME)
+        if (!id || !name) return null
+        directories.periodTypes.set(id, name)
+        return { label: name, value: id }
+      })
+      .filter((item): item is { label: string; value: string } => Boolean(item))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+    const uniqueObjectTypes = new Map<string, string>()
+    for (const record of objectTypeRecords) {
+      const workId = toOptionalString(record.idrom1)
+      const name = toOptionalString(record.namerom2)
+      if (workId && name) {
+        directories.objectTypes.set(workId, name)
+        uniqueObjectTypes.set(name, name)
+      }
+    }
+
+    objectTypeOptions.value = Array.from(uniqueObjectTypes.values())
+      .map((name) => ({ label: name, value: name }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+    const rowsData: WorkTableRow[] = []
+
+    for (const record of workRecords) {
+      const id = toOptionalString(record.obj)
+      if (!id) continue
+
+      const name = toOptionalString(record.name) ?? id
+      const fullName = toOptionalString(record.fullName)
+      const workTypeId = toOptionalString(record.cls)
+      const objectTypeName = directories.objectTypes.get(id) ?? null
+
+      let sourceId = toOptionalString(record.idCollections ?? record.pvCollections)
+      const directorySourceName = sourceId ? directories.sources.get(sourceId) ?? null : null
+      const fallbackSourceName = toOptionalString(record.nameCollections)
+      const sourceName = directorySourceName ?? fallbackSourceName
+      if (!sourceId && sourceName) {
+        sourceId = `name:${sourceName}`
+      }
+      const sourceNumber = toOptionalString(record.NumberSource)
+
+      const periodTypeId =
+        toOptionalString(record.fvPeriodType ?? record.pvPeriodType) ?? null
+      const periodTypeName = (periodTypeId && directories.periodTypes.get(periodTypeId)) || null
+
+      const periodicityValueRaw = record.Periodicity
+      const periodicityValue =
+        typeof periodicityValueRaw === 'number'
+          ? periodicityValueRaw
+          : periodicityValueRaw != null
+            ? Number(periodicityValueRaw)
+            : null
+      const periodicity =
+        periodicityValue != null && Number.isFinite(periodicityValue)
+          ? Number(periodicityValue)
+          : null
+      const periodicityText = formatPeriodicityText(periodicity, periodTypeName)
+
+      rowsData.push({
+        id,
+        name,
+        fullName,
+        workTypeId,
+        workTypeName: (workTypeId && directories.workTypes.get(workTypeId)) || null,
+        objectTypeName,
+        sourceId,
+        sourceName,
+        sourceNumber,
+        periodTypeId,
+        periodTypeName,
+        periodicityValue: periodicity,
+        periodicityText,
+      })
+    }
+
+    const existingValues = new Set(sourceOptions.value.map((option) => option.value))
+    let sourcesChanged = false
+    for (const row of rowsData) {
+      if (!row.sourceId || existingValues.has(row.sourceId)) continue
+      const label = row.sourceName ?? row.sourceNumber ?? row.sourceId.replace(/^name:/, '')
+      sourceOptions.value.push({ label, value: row.sourceId })
+      existingValues.add(row.sourceId)
+      sourcesChanged = true
+    }
+    if (sourcesChanged) {
+      sourceOptions.value.sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+    }
+
+    works.value = rowsData
+  } catch (error) {
+    message.error(error instanceof Error ? error.message : 'Не удалось загрузить работы')
+  } finally {
+    tableLoading.value = false
+  }
+}
+
+onMounted(() => {
+  void loadWorks()
+})
+</script>
+
+<style scoped>
+.works-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.toolbar {
+  display: flex;
+  gap: 16px;
+}
+
+.toolbar__left {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.page-title__info {
+  margin-left: 4px;
+}
+
+.subtext {
+  margin-top: 4px;
+  color: var(--text-color-3);
+  font-size: 14px;
+  max-width: 680px;
+}
+
+.toolbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  align-items: center;
+}
+
+.toolbar__search {
+  width: 240px;
+}
+
+.toolbar__filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar__select {
+  width: 160px;
+}
+
+.table-area {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.table-cell__primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.text-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 768px) {
+  .toolbar__controls {
+    justify-content: stretch;
+  }
+
+  .toolbar__search {
+    flex: 1 1 100%;
+  }
+
+  .toolbar__filters {
+    width: 100%;
+  }
+
+  .toolbar__select {
+    flex: 1 1 150px;
+  }
+}
+</style>

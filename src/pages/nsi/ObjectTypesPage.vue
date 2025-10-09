@@ -39,7 +39,7 @@
           </template>
           Ассистент
         </NButton>
-        <NButton type="primary" @click="openCreate">+ Создать</NButton>
+        <NButton type="primary" @click="openCreate">+ Добавить тип</NButton>
       </div>
     </NCard>
 

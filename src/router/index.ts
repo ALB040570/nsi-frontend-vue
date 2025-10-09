@@ -9,6 +9,7 @@ const Home = () => import('@pages/HomePage.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
 const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
+const WorksPage = () => import('@pages/nsi/WorksPage.vue')
 const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
@@ -33,6 +34,12 @@ const router = createRouter({
       path: '/nsi/object-parameters',
       name: 'object-parameters',
       component: ObjectParametersPage,
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/nsi/works',
+      name: 'works',
+      component: WorksPage,
       // meta: { requiresAuth: true },
     },
   ],
