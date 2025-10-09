@@ -28,6 +28,14 @@
 
       <div class="toolbar__controls">
         <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
         <NButton type="primary" @click="openCreate">+ Добавить параметр</NButton>
       </div>
     </NCard>
@@ -45,6 +53,7 @@
       />
 
       <div v-else class="cards">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -80,7 +89,11 @@
         </article>
       </div>
 
-      <div class="pagination-bar">
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -278,6 +291,7 @@ import {
   NInputNumber,
   NModal,
   NPagination,
+  NSelect,
   NPopconfirm,
   NSpin,
   NTag,
@@ -346,6 +360,11 @@ const q = ref('')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const isMobile = ref(false)
 const tableMaxHeight = ref<number | null>(null)
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 
 const { data: snapshot, isLoading, isFetching, error } = useObjectParametersQuery()
 const parameterMutations = useObjectParameterMutations()
@@ -894,21 +913,34 @@ const filteredRows = computed(() => {
 })
 
 const total = computed(() => filteredRows.value.length)
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize)))
 
 watch(
   () => [total.value, pagination.pageSize],
   () => {
-    const maxPage = Math.max(1, Math.ceil(total.value / pagination.pageSize))
-    if (pagination.page > maxPage) pagination.page = maxPage
+    const localMax = Math.max(1, Math.ceil(total.value / pagination.pageSize))
+    if (pagination.page > localMax) pagination.page = localMax
   },
 )
 
-const paginatedRows = computed(() => {
-  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
-  return filteredRows.value.slice(start, start + pagination.pageSize)
+function showMore() {
+  const maxPageLocal = Math.max(1, Math.ceil(total.value / pagination.pageSize))
+  if (pagination.page < maxPageLocal) pagination.page += 1
+}
+
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
 })
 
-const rows = computed(() => paginatedRows.value)
+const paginatedRows = computed(() => {
+  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
+})
+
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value))
+const visibleCount = computed(() => rows.value.length)
 const rowKey = (row: LoadedObjectParameter) => row.id
 
 const resetFormValidation = () => {
@@ -1449,7 +1481,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
 }
 
@@ -1638,6 +1670,12 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   box-sizing: border-box;
 }
 
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
+}
+
 .card__header,
 .card__actions {
   min-width: 0;
@@ -1752,5 +1790,11 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   .card__grid {
     grid-template-columns: 110px 1fr;
   }
+}
+
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

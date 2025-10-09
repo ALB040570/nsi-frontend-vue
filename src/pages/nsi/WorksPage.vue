@@ -21,7 +21,7 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Перечень работ по текущему содержанию и восстановлению работоспособности обслуживаемых объектов
+          Ведите перечень технологических работ обслуживаемых объектов: указывайте вид, тип объекта, источник и периодичность
         </div>
       </div>
 
@@ -61,6 +61,14 @@
             class="toolbar__select"
           />
         </div>
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
         <NButton type="primary" @click="openCreate">+ Добавить работу</NButton>
       </div>
     </NCard>
@@ -77,6 +85,7 @@
       />
 
       <div v-else class="cards" role="list">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -85,7 +94,10 @@
           :aria-label="primaryTitle(item)"
         >
           <header class="card__header">
-            <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+            <div class="card__title" role="heading" aria-level="4">
+              <FieldRenderer v-if="primaryField" :field="primaryField" :row="item" />
+              <span v-else class="card__title-text">{{ item.name }}</span>
+            </div>
           </header>
 
           <dl class="card__grid">
@@ -106,7 +118,11 @@
         </article>
       </div>
 
-      <div class="pagination-bar">
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -165,7 +181,7 @@ import {
   NTooltip,
   useMessage,
 } from 'naive-ui'
-import { InformationCircleOutline, PencilOutline, TrashOutline } from '@vicons/ionicons5'
+import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 
 import { rpc } from '@shared/api'
 import { extractRecords, normalizeText, toOptionalString } from '@shared/lib'
@@ -255,6 +271,11 @@ const periodTypeOptions = ref<Array<{ label: string; value: string }>>([])
 
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const works = ref<WorkTableRow[]>([])
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 
 const message = useMessage()
 
@@ -294,16 +315,19 @@ const filteredRows = computed(() => {
   })
 })
 
-const sortedRows = computed(() =>
-  [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
-)
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
 
 const total = computed(() => sortedRows.value.length)
 const paginatedRows = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
   return sortedRows.value.slice(start, start + pagination.pageSize)
 })
-const rows = computed(() => paginatedRows.value)
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value))
+const visibleCount = computed(() => rows.value.length)
 
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
 
@@ -323,6 +347,10 @@ watchEffect(() => {
     pagination.page = maxPage.value
   }
 })
+
+function showMore() {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
 
 const renderName = (row: WorkTableRow): VNodeChild => {
   if (!row.fullName) {
@@ -374,30 +402,24 @@ const renderActions = (row: WorkTableRow): VNodeChild =>
       NButton,
       {
         quaternary: true,
+        circle: true,
         size: 'small',
         onClick: () => editWork(row),
+        'aria-label': `Изменить работу ${row.name}`,
       },
-      {
-        icon: () =>
-          h(NIcon, null, {
-            default: () => h(PencilOutline),
-          }),
-      },
+      { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
     ),
     h(
       NButton,
       {
         quaternary: true,
+        circle: true,
         size: 'small',
         type: 'error',
         onClick: () => removeWork(row),
+        'aria-label': `Удалить работу ${row.name}`,
       },
-      {
-        icon: () =>
-          h(NIcon, null, {
-            default: () => h(TrashOutline),
-          }),
-      },
+      { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
     ),
   ])
 
@@ -483,26 +505,7 @@ const infoFields = computed(() =>
   cardFields.value.filter((field) => !field.isPrimary && !field.isActions),
 )
 
-const toPlainText = (value: VNodeChild | VNodeChild[]): string => {
-  if (value == null || typeof value === 'boolean') return ''
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => toPlainText(item as VNodeChild | VNodeChild[]))
-      .filter(Boolean)
-      .join(' ')
-  }
-  if (typeof value === 'object') {
-    const childContainer = value as { children?: unknown }
-    const { children } = childContainer
-    if (Array.isArray(children)) return toPlainText(children as VNodeChild[])
-    if (children != null) return toPlainText(children as VNodeChild)
-    return ''
-  }
-  return String(value)
-}
-
-const primaryTitle = (row: WorkTableRow) =>
-  toPlainText(primaryField.value ? primaryField.value.render(row) : '')
+const primaryTitle = (row: WorkTableRow) => row.name || ''
 
 const FieldRenderer = defineComponent({
   name: 'FieldRenderer',
@@ -795,6 +798,8 @@ onBeforeUnmount(() => {
 
 .toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 16px;
 }
 
@@ -816,10 +821,20 @@ onBeforeUnmount(() => {
   margin-left: 4px;
 }
 
+.page-title__info:hover,
+.page-title__info:focus {
+  background: #edf1f7;
+  color: var(--n-text-color);
+}
+
+.page-title__info:active {
+  background: #e2e8f0;
+}
+
 .subtext {
   margin-top: 4px;
   color: var(--text-color-3);
-  font-size: 14px;
+  font-size: 12px;
   max-width: 680px;
 }
 
@@ -832,7 +847,8 @@ onBeforeUnmount(() => {
 }
 
 .toolbar__search {
-  width: 240px;
+  width: 280px;
+  max-width: 100%;
 }
 
 .toolbar__filters {
@@ -901,10 +917,22 @@ onBeforeUnmount(() => {
   color: var(--n-text-color-3);
 }
 
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .cards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
 }
 
 .card {

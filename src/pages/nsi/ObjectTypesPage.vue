@@ -33,6 +33,14 @@
           <NRadioButton :value="'линия'">Линия</NRadioButton>
           <NRadioButton :value="'полигон'">Полигон</NRadioButton>
         </NRadioGroup>
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
             <NIcon><ChatbubblesOutline /></NIcon>
@@ -55,6 +63,7 @@
       />
 
       <div v-else class="cards">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -87,7 +96,11 @@
         </article>
       </div>
 
-      <div class="pagination-bar">
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -308,6 +321,7 @@ import {
   NPopconfirm,
   NRadioButton,
   NRadioGroup,
+  NSelect,
   NTag,
   useDialog,
   useMessage,
@@ -350,6 +364,11 @@ const isMobile = ref(false)
 if (typeof window !== 'undefined') {
   isMobile.value = window.matchMedia('(max-width: 768px)').matches
 }
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 // аккуратные массовые пересчёты
 
 onMounted(() => {
@@ -1138,11 +1157,17 @@ const filteredRows = computed(() => {
 })
 
 const total = computed(() => filteredRows.value.length)
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
 const paginatedRows = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
-  return filteredRows.value.slice(start, start + pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
 })
-const rows = computed(() => paginatedRows.value || [])
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value) || [])
+const visibleCount = computed(() => rows.value.length)
 const rowKey = (row: ObjectType) => row.id
 
 const MAX_CHIPS = 4
@@ -1374,6 +1399,10 @@ watch(
 watchEffect(() => {
   if (pagination.page > maxPage.value) pagination.page = maxPage.value
 })
+
+function showMore() {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
 
 /* ---------- CRUD формы ---------- */
 
@@ -1780,6 +1809,7 @@ const removeRow = async (id: string | number) => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  font-size: 20px;
 }
 
 .page-title__info {
@@ -1894,6 +1924,12 @@ const removeRow = async (id: string | number) => {
   gap: 10px;
 }
 
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
+}
+
 .card {
   border: 1px solid #eee;
   border-radius: 14px;
@@ -1982,6 +2018,12 @@ const removeRow = async (id: string | number) => {
   .card__grid {
     grid-template-columns: 96px 1fr;
   }
+}
+
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-footer {

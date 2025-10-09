@@ -46,6 +46,14 @@
             class="toolbar__select"
           />
         </div>
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
             <NIcon><ChatbubblesOutline /></NIcon>
@@ -68,6 +76,7 @@
       />
 
       <div v-else class="cards">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -100,7 +109,11 @@
         </article>
       </div>
 
-      <div class="pagination-bar">
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -492,6 +505,11 @@ const fetchState = computed<FetchState>(() => ({
 }))
 
 const tableLoading = computed(() => fetchState.value.isLoading || fetchState.value.isFetching)
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 
 const { create } = useObjectDefectMutations()
 const queryClient = useQueryClient()
@@ -1354,11 +1372,17 @@ const filteredRows = computed(() => {
 })
 
 const total = computed(() => filteredRows.value.length)
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
 const paginatedRows = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
-  return filteredRows.value.slice(start, start + pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
 })
-const rows = computed(() => paginatedRows.value || [])
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value) || [])
+const visibleCount = computed(() => rows.value.length)
 const rowKey = (row: LoadedObjectDefect) => row.id
 
 function renderCategory(row: LoadedObjectDefect): VNodeChild {
@@ -1593,6 +1617,10 @@ watch(
 watchEffect(() => {
   if (pagination.page > maxPage.value) pagination.page = maxPage.value
 })
+
+function showMore() {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
 
 const dialog = ref(false)
 const infoOpen = ref(false)
@@ -1919,7 +1947,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
 }
 
 .toolbar__left {
@@ -2033,6 +2061,12 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   box-sizing: border-box;
 }
 
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
+}
+
 .card__header,
 .card__actions {
   min-width: 0;
@@ -2115,6 +2149,12 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   .card__grid {
     grid-template-columns: 100px 1fr;
   }
+}
+
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-footer {

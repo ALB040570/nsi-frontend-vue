@@ -7,7 +7,7 @@
       <NCard size="small" class="home-card hero" :segmented="{ content: true }">
         <div class="hero__content">
           <header class="hero__header">
-            <h1 class="hero__title">Рабочее пространство справочников</h1>
+            <h1 class="hero__title">Справочники системы Service360</h1>
             <p class="hero__subtitle">
               Управляйте типами объектов, их параметрами и дефектами. Здесь собраны быстрые действия и последние изменения,
               чтобы быстрее ориентироваться в структуре данных.
@@ -25,6 +25,10 @@
             <div class="stat">
               <span class="stat__value">{{ stats.defects }}</span>
               <span class="stat__label">дефектов</span>
+            </div>
+            <div class="stat">
+              <span class="stat__value">{{ stats.works }}</span>
+              <span class="stat__label">работ</span>
             </div>
           </div>
         </div>
@@ -83,6 +87,7 @@
             <router-link class="updates__link" to="/nsi/object-types">Все типы</router-link>
             <router-link class="updates__link" to="/nsi/object-parameters">Все параметры</router-link>
             <router-link class="updates__link" to="/nsi/object-defects">Все дефекты</router-link>
+            <router-link class="updates__link" to="/nsi/works">Все работы</router-link>
           </div>
         </template>
       </NCard>
@@ -106,14 +111,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, type Component } from 'vue'
+import { computed, ref, onMounted, type Component } from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { NCard, NIcon, NSkeleton, NEmpty } from 'naive-ui'
-import { ConstructOutline, OptionsOutline, BugOutline, ArrowForward, AlbumsOutline } from '@vicons/ionicons5'
+import { ConstructOutline, OptionsOutline, BugOutline, ArrowForward, AlbumsOutline, HammerOutline } from '@vicons/ionicons5'
 
 import { useObjectTypesQuery } from '@features/object-type-crud'
 import { useObjectParametersQuery } from '@features/object-parameter-crud'
 import { useObjectDefectsQuery } from '@features/object-defect-crud'
+import { rpc } from '@shared/api'
+import { extractRecords, toOptionalString } from '@shared/lib'
 
 const router = useRouter()
 
@@ -121,10 +128,36 @@ const { data: typesSnapshot, isLoading: typesLoading } = useObjectTypesQuery()
 const { data: parametersSnapshot, isLoading: parametersLoading } = useObjectParametersQuery()
 const { data: defectsSnapshot, isLoading: defectsLoading } = useObjectDefectsQuery()
 
+// Упрощенная загрузка работ (для статистики и ленты)
+interface RawWorkRecord { obj?: number | string; name?: string }
+const works = ref<{ id: string; name: string }[]>([])
+const worksLoading = ref(false)
+
+async function loadWorks() {
+  worksLoading.value = true
+  try {
+    const payload = await rpc('data/loadProcessCharts', [0])
+    const records = extractRecords<RawWorkRecord>(payload)
+    const items: { id: string; name: string }[] = []
+    for (const rec of records) {
+      const id = toOptionalString(rec.obj)
+      const name = toOptionalString(rec.name)
+      if (!id || !name) continue
+      items.push({ id, name })
+    }
+    works.value = items
+  } finally {
+    worksLoading.value = false
+  }
+}
+
+onMounted(() => { void loadWorks() })
+
 const stats = computed(() => ({
   types: typesSnapshot.value?.items.length ?? 0,
   parameters: parametersSnapshot.value?.items.length ?? 0,
   defects: defectsSnapshot.value?.items.length ?? 0,
+  works: works.value.length,
 }))
 
 interface QuickAction {
@@ -157,6 +190,13 @@ const quickActions: QuickAction[] = [
     icon: BugOutline,
     to: { name: 'object-defects', query: { action: 'create' } },
   },
+  {
+    key: 'create-work',
+    title: 'Добавить работу',
+    description: 'Укажите вид, источник и периодичность',
+    icon: HammerOutline,
+    to: { name: 'works', query: { action: 'create' } },
+  },
 ]
 
 const handleAction = (action: QuickAction) => {
@@ -165,14 +205,16 @@ const handleAction = (action: QuickAction) => {
 
 interface RecentItem {
   id: string
-  kind: 'type' | 'parameter' | 'defect'
+  kind: 'type' | 'parameter' | 'defect' | 'work'
   kindLabel: string
   title: string
   subtitle: string | null
   timestamp: string | null
 }
 
-const updatesLoading = computed(() => typesLoading.value || parametersLoading.value || defectsLoading.value)
+const updatesLoading = computed(
+  () => typesLoading.value || parametersLoading.value || defectsLoading.value || worksLoading.value,
+)
 
 const recentItems = computed<RecentItem[]>(() => {
   const limit = 9
@@ -211,6 +253,14 @@ const recentItems = computed<RecentItem[]>(() => {
       kindLabel: 'Дефект',
       title: item.name,
       subtitle: item.componentName ?? item.categoryName ?? null,
+      timestamp: null,
+    })),
+    createSegment(works.value, (item) => ({
+      id: `work-${item.id}`,
+      kind: 'work',
+      kindLabel: 'Работа',
+      title: item.name,
+      subtitle: null,
       timestamp: null,
     })),
   ]
