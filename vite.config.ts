@@ -5,6 +5,7 @@
 import { fileURLToPath, URL } from 'node:url'
 
 import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
+import type { Server as ProxyServer } from 'http-proxy'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 import { VitePWA } from 'vite-plugin-pwa'
@@ -37,6 +38,33 @@ function normalizeRewriteBase(pathname: string): string {
 
   const withoutTrailing = pathname.replace(/\/+$/, '')
   return withoutTrailing || '/'
+}
+
+function withMetaProxyGuards(options: ProxyOptions): ProxyOptions {
+  const originalConfigure = options.configure
+
+  return {
+    ...options,
+    configure(proxyServer: ProxyServer, proxyOptions) {
+      proxyServer.on('proxyReq', (proxyReq) => {
+        if (typeof proxyReq.removeHeader === 'function') {
+          proxyReq.removeHeader('cookie')
+        } else if (typeof proxyReq.setHeader === 'function') {
+          proxyReq.setHeader('cookie', '')
+        }
+      })
+
+      proxyServer.on('proxyRes', (proxyRes) => {
+        if (proxyRes.headers['set-cookie']) {
+          delete proxyRes.headers['set-cookie']
+        }
+      })
+
+      if (typeof originalConfigure === 'function') {
+        originalConfigure(proxyServer, proxyOptions)
+      }
+    },
+  }
 }
 
 function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
@@ -83,11 +111,11 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
       const rewriteBase = normalizeRewriteBase(metaURL.pathname)
       const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
 
-      proxies[metaProxyBase] = {
+      proxies[metaProxyBase] = withMetaProxyGuards({
         target,
         changeOrigin: true,
         rewrite: (path) => path.replace(pattern, rewriteBase),
-      }
+      })
     } catch {
       // Ignore
     }
@@ -95,11 +123,11 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
 
   if (!proxies[metaProxyBase]) {
     const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
-    proxies[metaProxyBase] = {
+    proxies[metaProxyBase] = withMetaProxyGuards({
       target: 'http://45.8.116.32',
       changeOrigin: true,
       rewrite: (path) => path.replace(pattern, '/dtj/meta/api'),
-    }
+    })
   }
 
   return proxies

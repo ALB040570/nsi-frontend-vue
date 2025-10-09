@@ -738,26 +738,35 @@ async function createMeasureOption(name: string) {
   // Небольшая пауза, чтобы бэкенд успел обновить данные для data/loadMeasure
   await new Promise((resolve) => setTimeout(resolve, 250))
 
+  let nextOptions: ParameterMeasureOption[] | null = null
   try {
     // Важно: используем репозиторий с rpc (не меняем слой сети)
     const response = await loadParameterMeasures()
-
-    // иммутабельно обновляем опции
-    measureOptions.value = [...response]
-  } catch {
-    // Если не удалось перезагрузить, хотя бы добавим локально
-    if (!measureOptions.value.some((m) => Number(m.id) === Number(created.id))) {
-      measureOptions.value = [...measureOptions.value, created].sort((a, b) =>
-        a.name.localeCompare(b.name, 'ru'),
-      )
-    }
+    nextOptions = [...response]
+  } catch (error) {
+    console.error('[object-parameters] Не удалось обновить список единиц измерения', error)
+    nextOptions = [...measureOptions.value]
   }
 
+  const createdId = Number(created.id)
+  const createdPv = Number(created.pv)
+
+  const hasCreated = nextOptions.some(
+    (m) => Number(m.id) === createdId || Number(m.pv) === createdPv,
+  )
+
+  if (!hasCreated) {
+    nextOptions = [...nextOptions, created].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  }
+
+  measureOptions.value = nextOptions
+
   const picked =
-    measureOptions.value.find((m) => Number(m.id) === Number(created.id)) ||
+    measureOptions.value.find((m) => Number(m.id) === createdId) ||
+    measureOptions.value.find((m) => Number(m.pv) === createdPv) ||
     measureOptions.value.find((m) => normalizeText(m.name) === normalizeText(name))
 
-  const nextValue = String(picked?.id ?? created.id)
+  const nextValue = String(picked?.id ?? createdId)
   // Зафиксируем выбор в форме, даже если селект уже проставил значение ранее
   creationForm.measureId = nextValue
 
