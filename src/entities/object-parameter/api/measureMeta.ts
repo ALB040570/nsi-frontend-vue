@@ -7,7 +7,7 @@ import type { ParameterMeasureOption } from '../model/types'
 
 type Nullable<T> = T | null | undefined
 
-const TRUTHY_FLAGS = new Set(['1', 'true', 'yes', 'y', 'checked'])
+const FALSY_FLAGS = new Set(['0', 'false', 'no', 'n', 'off', 'unchecked', ''])
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {}
@@ -42,8 +42,12 @@ function pickNumber(source: Record<string, unknown>, keys: string[]): number | n
 function isChecked(value: unknown): boolean {
   if (typeof value === 'boolean') return value
   if (typeof value === 'number') return value !== 0
-  if (typeof value === 'string') return TRUTHY_FLAGS.has(value.trim().toLowerCase())
-  return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (FALSY_FLAGS.has(normalized)) return false
+    return normalized.length > 0
+  }
+  return Boolean(value)
 }
 
 function ensureCheckedRecord(record: MetaPropRecord): MetaPropRecord {

@@ -2,10 +2,9 @@ import { fileURLToPath } from 'node:url'
 import { mergeConfig, defineConfig, configDefaults } from 'vitest/config'
 import viteConfig from './vite.config'
 
-const resolvedViteConfig =
-  typeof viteConfig === 'function'
-    ? viteConfig({ command: 'serve', mode: 'test' })
-    : viteConfig
+const resolvedViteConfig = await (typeof viteConfig === 'function'
+  ? viteConfig({ command: 'serve', mode: 'test' })
+  : viteConfig)
 
 export default mergeConfig(
   resolvedViteConfig,
