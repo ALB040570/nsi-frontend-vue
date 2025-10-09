@@ -354,6 +354,8 @@ const createModalOpen = ref(false)
 const directoriesLoading = ref(false)
 const directoriesLoaded = ref(false)
 let directoriesRequestToken = 0
+let measureRefreshToken = 0
+let componentRefreshToken = 0
 const measureOptions = ref<ParameterMeasureOption[]>([])
 const sourceOptions = ref<ParameterSourceOption[]>([])
 const componentOptions = ref<ParameterComponentOption[]>([])
@@ -582,6 +584,72 @@ function upsertComponentOptions(
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, MEASURE_SORT_LOCALE))
 }
 
+function mergeMeasureOptions(...batches: ParameterMeasureOption[][]) {
+  const normalized: ParameterMeasureOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  measureOptions.value = upsertMeasureOptions(measureOptions.value, normalized)
+}
+
+function mergeSourceOptions(...batches: ParameterSourceOption[][]) {
+  const normalized: ParameterSourceOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  sourceOptions.value = upsertSourceOptions(sourceOptions.value, normalized)
+}
+
+function mergeComponentOptions(...batches: ParameterComponentOption[][]) {
+  const normalized: ParameterComponentOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  componentOptions.value = upsertComponentOptions(componentOptions.value, normalized)
+}
+
+async function refreshMeasureDirectory(
+  fallback: ParameterMeasureOption,
+): Promise<void> {
+  const refreshToken = ++measureRefreshToken
+  try {
+    const refreshed = await loadParameterMeasures()
+    if (refreshToken !== measureRefreshToken) return
+    mergeMeasureOptions([fallback], refreshed)
+  } catch (error) {
+    if (refreshToken !== measureRefreshToken) return
+    console.error('[object-parameters] Не удалось обновить единицы измерения', error)
+    mergeMeasureOptions([fallback])
+  }
+}
+
+async function refreshComponentDirectory(
+  fallback: ParameterComponentOption,
+): Promise<void> {
+  const refreshToken = ++componentRefreshToken
+  try {
+    const refreshed = await loadParameterComponents()
+    if (refreshToken !== componentRefreshToken) return
+    mergeComponentOptions([fallback], refreshed)
+  } catch (error) {
+    if (refreshToken !== componentRefreshToken) return
+    console.error('[object-parameters] Не удалось обновить список компонентов', error)
+    mergeComponentOptions([fallback])
+  }
+}
+
 const loadCreationDirectories = async (force = false) => {
   if (directoriesLoading.value) return
   if (directoriesLoaded.value && !force) return
@@ -596,9 +664,9 @@ const loadCreationDirectories = async (force = false) => {
     ])
 
     if (requestToken === directoriesRequestToken) {
-      measureOptions.value = upsertMeasureOptions(measureOptions.value, measures)
-      sourceOptions.value = upsertSourceOptions(sourceOptions.value, sources)
-      componentOptions.value = upsertComponentOptions(componentOptions.value, components)
+      mergeMeasureOptions(measures)
+      mergeSourceOptions(sources)
+      mergeComponentOptions(components)
       directoriesLoaded.value = true
     }
   } catch (err) {
@@ -875,34 +943,26 @@ function computeTableHeight() {
 async function createMeasureOption(name: string) {
   const created = await createMeasureAndSelect(name)
 
-  // Небольшая пауза, чтобы бэкенд успел обновить данные для data/loadMeasure
-  await new Promise((resolve) => setTimeout(resolve, 250))
-
-  let refreshed: ParameterMeasureOption[] = []
-  try {
-    // Важно: используем репозиторий с rpc (не меняем слой сети)
-    refreshed = await loadParameterMeasures()
-  } catch (error) {
-    console.error('[object-parameters] Не удалось обновить список единиц измерения', error)
-  }
-
   const fallbackOption: ParameterMeasureOption = {
     id: Number(created.id),
     pv: Number(created.pv),
-    name: created.name,
+    name: normalizeOptionName(created.name, name),
   }
 
-  measureOptions.value = upsertMeasureOptions(measureOptions.value, [fallbackOption, ...refreshed])
+  mergeMeasureOptions([fallbackOption])
 
   const resolved =
     measureOptions.value.find((m) => Number(m.id) === fallbackOption.id) ??
     measureOptions.value.find((m) => Number(m.pv) === fallbackOption.pv) ??
-    measureOptions.value.find((m) => normalizeText(m.name) === normalizeText(name)) ??
     fallbackOption
 
   const nextValue = String(resolved.id)
-  // Зафиксируем выбор в форме, даже если селект уже проставил значение ранее
   creationForm.measureId = nextValue
+
+  void (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refreshMeasureDirectory(resolved)
+  })()
 
   return { label: resolved.name, value: nextValue }
 }
@@ -929,15 +989,13 @@ async function handleComponentCreated(payload: ComponentCreatedPayload) {
     name: payload.name,
   }
 
-  componentOptions.value = upsertComponentOptions(componentOptions.value, [fallbackOption])
+  mergeComponentOptions([fallbackOption])
   creationForm.componentEnt = String(fallbackOption.ent)
 
-  try {
-    const refreshed = await loadParameterComponents()
-    componentOptions.value = upsertComponentOptions(componentOptions.value, refreshed)
-  } catch (error) {
-    console.error('[object-parameters] Не удалось обновить список компонентов', error)
-  }
+  void (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refreshComponentDirectory(fallbackOption)
+  })()
 }
 
 const renderTooltipLines = (value: string) =>
