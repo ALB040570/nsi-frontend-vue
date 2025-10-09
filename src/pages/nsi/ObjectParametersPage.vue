@@ -738,20 +738,21 @@ async function createMeasureOption(name: string) {
   // Небольшая пауза, чтобы бэкенд успел обновить данные для data/loadMeasure
   await new Promise((resolve) => setTimeout(resolve, 250))
 
+  let nextOptions: ParameterMeasureOption[] | null = null
   try {
     // Важно: используем репозиторий с rpc (не меняем слой сети)
     const response = await loadParameterMeasures()
-
-    // иммутабельно обновляем опции
-    measureOptions.value = [...response]
-  } catch {
-    // Если не удалось перезагрузить, хотя бы добавим локально
-    if (!measureOptions.value.some((m) => Number(m.id) === Number(created.id))) {
-      measureOptions.value = [...measureOptions.value, created].sort((a, b) =>
-        a.name.localeCompare(b.name, 'ru'),
-      )
-    }
+    nextOptions = [...response]
+  } catch (error) {
+    console.error('[object-parameters] Не удалось обновить список единиц измерения', error)
+    nextOptions = [...measureOptions.value]
   }
+
+  if (!nextOptions.some((m) => Number(m.id) === Number(created.id))) {
+    nextOptions = [...nextOptions, created].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  }
+
+  measureOptions.value = nextOptions
 
   const picked =
     measureOptions.value.find((m) => Number(m.id) === Number(created.id)) ||
