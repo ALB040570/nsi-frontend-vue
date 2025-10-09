@@ -181,6 +181,7 @@
               :value-kind="'id'"
               :placeholder="'Выберите компонент'"
               :disabled="isEditMode"
+              @created="handleComponentCreated"
               @update:value="(v) => (creationForm.componentEnt = typeof v === 'string' ? v : null)"
             />
             <p class="field-hint">
@@ -352,6 +353,9 @@ const parameterMutations = useObjectParameterMutations()
 const createModalOpen = ref(false)
 const directoriesLoading = ref(false)
 const directoriesLoaded = ref(false)
+let directoriesRequestToken = 0
+let measureRefreshToken = 0
+let componentRefreshToken = 0
 const measureOptions = ref<ParameterMeasureOption[]>([])
 const sourceOptions = ref<ParameterSourceOption[]>([])
 const componentOptions = ref<ParameterComponentOption[]>([])
@@ -445,11 +449,213 @@ const resetCreationForm = () => {
   creationForm.comment = ''
 }
 
+const MEASURE_SORT_LOCALE = 'ru'
+const COMPONENT_RELCLS = 1074
+const COMPONENT_RCM = 1149
+
+const normalizeOptionName = (name: string | null | undefined, fallback: string): string => {
+  const trimmed = name?.trim()
+  return trimmed && trimmed.length > 0 ? trimmed : fallback
+}
+
+const toMeasureKey = (option: ParameterMeasureOption): string | null => {
+  const id = Number(option?.id)
+  const pv = Number(option?.pv)
+  if (!Number.isFinite(id) && !Number.isFinite(pv)) return null
+  return `${Number.isFinite(id) ? id : ''}|${Number.isFinite(pv) ? pv : ''}`
+}
+
+const toSourceKey = (option: ParameterSourceOption): string | null => {
+  const id = Number(option?.id)
+  const pv = Number(option?.pv)
+  if (!Number.isFinite(id) && !Number.isFinite(pv)) return null
+  return `${Number.isFinite(id) ? id : ''}|${Number.isFinite(pv) ? pv : ''}`
+}
+
+const toComponentKey = (option: ParameterComponentOption): string | null => {
+  const ent = Number(option?.ent)
+  if (!Number.isFinite(ent) || ent === 0) return null
+  return String(ent)
+}
+
+const normalizeMeasureOption = (option: ParameterMeasureOption): ParameterMeasureOption | null => {
+  const id = Number(option?.id)
+  const pv = Number(option?.pv)
+  if (!Number.isFinite(id) || !Number.isFinite(pv)) return null
+  return {
+    id,
+    pv,
+    name: normalizeOptionName(option?.name, String(id || pv)),
+  }
+}
+
+const normalizeSourceOption = (option: ParameterSourceOption): ParameterSourceOption | null => {
+  const id = Number(option?.id)
+  const pv = Number(option?.pv)
+  if (!Number.isFinite(id) || !Number.isFinite(pv)) return null
+  return {
+    id,
+    pv,
+    name: normalizeOptionName(option?.name, String(id || pv)),
+  }
+}
+
+const normalizeComponentOption = (
+  option: ParameterComponentOption,
+): ParameterComponentOption | null => {
+  const ent = Number(option?.ent)
+  const cls = Number(option?.cls)
+  const relcls = Number(option?.relcls)
+  const rcm = Number(option?.rcm)
+  if (!Number.isFinite(ent) || ent === 0) return null
+  if (!Number.isFinite(cls) || !Number.isFinite(relcls) || !Number.isFinite(rcm)) return null
+  return {
+    ent,
+    cls,
+    relcls,
+    rcm,
+    name: normalizeOptionName(option?.name, String(ent)),
+  }
+}
+
+function upsertMeasureOptions(
+  base: ParameterMeasureOption[],
+  updates: ParameterMeasureOption[],
+): ParameterMeasureOption[] {
+  const map = new Map<string, ParameterMeasureOption>()
+  for (const option of base) {
+    const normalized = normalizeMeasureOption(option)
+    if (!normalized) continue
+    const key = toMeasureKey(normalized)
+    if (!key || map.has(key)) continue
+    map.set(key, normalized)
+  }
+  for (const option of updates) {
+    const normalized = normalizeMeasureOption(option)
+    if (!normalized) continue
+    const key = toMeasureKey(normalized)
+    if (!key) continue
+    map.set(key, normalized)
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, MEASURE_SORT_LOCALE))
+}
+
+function upsertSourceOptions(
+  base: ParameterSourceOption[],
+  updates: ParameterSourceOption[],
+): ParameterSourceOption[] {
+  const map = new Map<string, ParameterSourceOption>()
+  for (const option of base) {
+    const normalized = normalizeSourceOption(option)
+    if (!normalized) continue
+    const key = toSourceKey(normalized)
+    if (!key || map.has(key)) continue
+    map.set(key, normalized)
+  }
+  for (const option of updates) {
+    const normalized = normalizeSourceOption(option)
+    if (!normalized) continue
+    const key = toSourceKey(normalized)
+    if (!key) continue
+    map.set(key, normalized)
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, MEASURE_SORT_LOCALE))
+}
+
+function upsertComponentOptions(
+  base: ParameterComponentOption[],
+  updates: ParameterComponentOption[],
+): ParameterComponentOption[] {
+  const map = new Map<string, ParameterComponentOption>()
+  for (const option of base) {
+    const normalized = normalizeComponentOption(option)
+    if (!normalized) continue
+    const key = toComponentKey(normalized)
+    if (!key || map.has(key)) continue
+    map.set(key, normalized)
+  }
+  for (const option of updates) {
+    const normalized = normalizeComponentOption(option)
+    if (!normalized) continue
+    const key = toComponentKey(normalized)
+    if (!key) continue
+    map.set(key, normalized)
+  }
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, MEASURE_SORT_LOCALE))
+}
+
+function mergeMeasureOptions(...batches: ParameterMeasureOption[][]) {
+  const normalized: ParameterMeasureOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  measureOptions.value = upsertMeasureOptions(measureOptions.value, normalized)
+}
+
+function mergeSourceOptions(...batches: ParameterSourceOption[][]) {
+  const normalized: ParameterSourceOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  sourceOptions.value = upsertSourceOptions(sourceOptions.value, normalized)
+}
+
+function mergeComponentOptions(...batches: ParameterComponentOption[][]) {
+  const normalized: ParameterComponentOption[] = []
+  for (const batch of batches) {
+    for (const option of batch) {
+      if (!option) continue
+      normalized.push(option)
+    }
+  }
+  if (normalized.length === 0) return
+  componentOptions.value = upsertComponentOptions(componentOptions.value, normalized)
+}
+
+async function refreshMeasureDirectory(
+  fallback: ParameterMeasureOption,
+): Promise<void> {
+  const refreshToken = ++measureRefreshToken
+  try {
+    const refreshed = await loadParameterMeasures()
+    if (refreshToken !== measureRefreshToken) return
+    mergeMeasureOptions([fallback], refreshed)
+  } catch (error) {
+    if (refreshToken !== measureRefreshToken) return
+    console.error('[object-parameters] Не удалось обновить единицы измерения', error)
+    mergeMeasureOptions([fallback])
+  }
+}
+
+async function refreshComponentDirectory(
+  fallback: ParameterComponentOption,
+): Promise<void> {
+  const refreshToken = ++componentRefreshToken
+  try {
+    const refreshed = await loadParameterComponents()
+    if (refreshToken !== componentRefreshToken) return
+    mergeComponentOptions([fallback], refreshed)
+  } catch (error) {
+    if (refreshToken !== componentRefreshToken) return
+    console.error('[object-parameters] Не удалось обновить список компонентов', error)
+    mergeComponentOptions([fallback])
+  }
+}
+
 const loadCreationDirectories = async (force = false) => {
   if (directoriesLoading.value) return
   if (directoriesLoaded.value && !force) return
 
   directoriesLoading.value = true
+  const requestToken = ++directoriesRequestToken
   try {
     const [measures, sources, components] = await Promise.all([
       loadParameterMeasures(),
@@ -457,10 +663,12 @@ const loadCreationDirectories = async (force = false) => {
       loadParameterComponents(),
     ])
 
-    measureOptions.value = measures
-    sourceOptions.value = sources
-    componentOptions.value = components
-    directoriesLoaded.value = true
+    if (requestToken === directoriesRequestToken) {
+      mergeMeasureOptions(measures)
+      mergeSourceOptions(sources)
+      mergeComponentOptions(components)
+      directoriesLoaded.value = true
+    }
   } catch (err) {
     message.error(getErrorMessage(err) ?? 'Не удалось загрузить справочники')
   } finally {
@@ -735,46 +943,59 @@ function computeTableHeight() {
 async function createMeasureOption(name: string) {
   const created = await createMeasureAndSelect(name)
 
-  // Небольшая пауза, чтобы бэкенд успел обновить данные для data/loadMeasure
-  await new Promise((resolve) => setTimeout(resolve, 250))
-
-  let nextOptions: ParameterMeasureOption[] | null = null
-  try {
-    // Важно: используем репозиторий с rpc (не меняем слой сети)
-    const response = await loadParameterMeasures()
-    nextOptions = [...response]
-  } catch (error) {
-    console.error('[object-parameters] Не удалось обновить список единиц измерения', error)
-    nextOptions = [...measureOptions.value]
+  const fallbackOption: ParameterMeasureOption = {
+    id: Number(created.id),
+    pv: Number(created.pv),
+    name: normalizeOptionName(created.name, name),
   }
 
-  const createdId = Number(created.id)
-  const createdPv = Number(created.pv)
+  mergeMeasureOptions([fallbackOption])
 
-  const hasCreated = nextOptions.some(
-    (m) => Number(m.id) === createdId || Number(m.pv) === createdPv,
-  )
+  const resolved =
+    measureOptions.value.find((m) => Number(m.id) === fallbackOption.id) ??
+    measureOptions.value.find((m) => Number(m.pv) === fallbackOption.pv) ??
+    fallbackOption
 
-  if (!hasCreated) {
-    nextOptions = [...nextOptions, created].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  }
-
-  measureOptions.value = nextOptions
-
-  const picked =
-    measureOptions.value.find((m) => Number(m.id) === createdId) ||
-    measureOptions.value.find((m) => Number(m.pv) === createdPv) ||
-    measureOptions.value.find((m) => normalizeText(m.name) === normalizeText(name))
-
-  const nextValue = String(picked?.id ?? createdId)
-  // Зафиксируем выбор в форме, даже если селект уже проставил значение ранее
+  const nextValue = String(resolved.id)
   creationForm.measureId = nextValue
 
-  return { label: picked?.name ?? created.name, value: nextValue }
+  void (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refreshMeasureDirectory(resolved)
+  })()
+
+  return { label: resolved.name, value: nextValue }
 }
 
 function handleMeasureCreated() {
   // Доп. хук при создании (если нужно) — сейчас не требуется
+}
+
+interface ComponentCreatedPayload {
+  id: string
+  cls: number
+  name: string
+}
+
+async function handleComponentCreated(payload: ComponentCreatedPayload) {
+  const ent = Number(payload.id)
+  if (!Number.isFinite(ent)) return
+
+  const fallbackOption: ParameterComponentOption = {
+    ent,
+    cls: Number(payload.cls),
+    relcls: COMPONENT_RELCLS,
+    rcm: COMPONENT_RCM,
+    name: payload.name,
+  }
+
+  mergeComponentOptions([fallbackOption])
+  creationForm.componentEnt = String(fallbackOption.ent)
+
+  void (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refreshComponentDirectory(fallbackOption)
+  })()
 }
 
 const renderTooltipLines = (value: string) =>
