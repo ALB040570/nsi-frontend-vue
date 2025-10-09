@@ -748,17 +748,25 @@ async function createMeasureOption(name: string) {
     nextOptions = [...measureOptions.value]
   }
 
-  if (!nextOptions.some((m) => Number(m.id) === Number(created.id))) {
+  const createdId = Number(created.id)
+  const createdPv = Number(created.pv)
+
+  const hasCreated = nextOptions.some(
+    (m) => Number(m.id) === createdId || Number(m.pv) === createdPv,
+  )
+
+  if (!hasCreated) {
     nextOptions = [...nextOptions, created].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
   }
 
   measureOptions.value = nextOptions
 
   const picked =
-    measureOptions.value.find((m) => Number(m.id) === Number(created.id)) ||
+    measureOptions.value.find((m) => Number(m.id) === createdId) ||
+    measureOptions.value.find((m) => Number(m.pv) === createdPv) ||
     measureOptions.value.find((m) => normalizeText(m.name) === normalizeText(name))
 
-  const nextValue = String(picked?.id ?? created.id)
+  const nextValue = String(picked?.id ?? createdId)
   // Зафиксируем выбор в форме, даже если селект уже проставил значение ранее
   creationForm.measureId = nextValue
 
