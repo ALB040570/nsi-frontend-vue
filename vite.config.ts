@@ -4,10 +4,10 @@
  */
 import { fileURLToPath, URL } from 'node:url'
 
-import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv, type PluginOption, type ProxyOptions } from 'vite'
+import type { Server as ProxyServer } from 'http-proxy'
 import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
-import { VitePWA } from 'vite-plugin-pwa'
 
 const ABSOLUTE_URL_PATTERN = /^([a-z][a-z\d+\-.]*:)?\/\//i
 
@@ -37,6 +37,33 @@ function normalizeRewriteBase(pathname: string): string {
 
   const withoutTrailing = pathname.replace(/\/+$/, '')
   return withoutTrailing || '/'
+}
+
+function withMetaProxyGuards(options: ProxyOptions): ProxyOptions {
+  const originalConfigure = options.configure
+
+  return {
+    ...options,
+    configure(proxyServer: ProxyServer, proxyOptions) {
+      proxyServer.on('proxyReq', (proxyReq) => {
+        if (typeof proxyReq.removeHeader === 'function') {
+          proxyReq.removeHeader('cookie')
+        } else if (typeof proxyReq.setHeader === 'function') {
+          proxyReq.setHeader('cookie', '')
+        }
+      })
+
+      proxyServer.on('proxyRes', (proxyRes) => {
+        if (proxyRes.headers['set-cookie']) {
+          delete proxyRes.headers['set-cookie']
+        }
+      })
+
+      if (typeof originalConfigure === 'function') {
+        originalConfigure(proxyServer, proxyOptions)
+      }
+    },
+  }
 }
 
 function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
@@ -83,11 +110,11 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
       const rewriteBase = normalizeRewriteBase(metaURL.pathname)
       const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
 
-      proxies[metaProxyBase] = {
+      proxies[metaProxyBase] = withMetaProxyGuards({
         target,
         changeOrigin: true,
         rewrite: (path) => path.replace(pattern, rewriteBase),
-      }
+      })
     } catch {
       // Ignore
     }
@@ -95,60 +122,72 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
 
   if (!proxies[metaProxyBase]) {
     const pattern = new RegExp(`^${escapeForRegex(metaProxyBase)}`)
-    proxies[metaProxyBase] = {
+    proxies[metaProxyBase] = withMetaProxyGuards({
       target: 'http://45.8.116.32',
       changeOrigin: true,
       rewrite: (path) => path.replace(pattern, '/dtj/meta/api'),
-    }
+    })
   }
 
   return proxies
 }
 
+async function resolvePwaPlugin(): Promise<PluginOption | null> {
+  try {
+    const mod = await import('vite-plugin-pwa')
+    if (typeof mod?.VitePWA !== 'function') return null
+    return mod.VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: false,
+      includeAssets: ['favicon.ico'],
+      manifest: {
+        name: 'NSI',
+        short_name: 'NSI',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#006d77',
+        theme_color: '#006d77',
+        icons: [
+          {
+            src: '/icons/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/icons/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/icons/maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      },
+    })
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    console.warn(`[vite-config] vite-plugin-pwa unavailable: ${reason}`)
+    return null
+  }
+}
+
 // https://vite.dev/config/
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const pwaPlugin = await resolvePwaPlugin()
+
+  const plugins: PluginOption[] = [vue(), vueDevTools()]
+  if (pwaPlugin) plugins.push(pwaPlugin)
 
   return {
-    plugins: [
-      vue(),
-      vueDevTools(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        injectRegister: false,
-        includeAssets: ['favicon.ico'],
-        manifest: {
-          name: 'NSI',
-          short_name: 'NSI',
-          start_url: '/',
-          display: 'standalone',
-          background_color: '#006d77',
-          theme_color: '#006d77',
-          icons: [
-            {
-              src: '/icons/pwa-192x192.png',
-              sizes: '192x192',
-              type: 'image/png',
-            },
-            {
-              src: '/icons/pwa-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-            },
-            {
-              src: '/icons/maskable-icon-512x512.png',
-              sizes: '512x512',
-              type: 'image/png',
-              purpose: 'maskable',
-            },
-          ],
-        },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        },
-      }),
-    ],
+    plugins,
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
