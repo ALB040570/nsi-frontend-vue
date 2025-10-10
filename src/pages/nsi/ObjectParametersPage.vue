@@ -140,10 +140,10 @@
           ref="formRef"
           :model="creationForm"
           :rules="creationRules"
-          label-width="200px"
-          label-placement="left"
           size="small"
-          class="creation-form"
+          :label-width="isMobile ? undefined : 200"
+          :label-placement="isMobile ? 'top' : 'left'"
+          :class="['creation-form', { 'creation-form--mobile': isMobile }]"
         >
           <NFormItem label="Наименование параметра" path="name">
             <NInput
@@ -197,13 +197,10 @@
               @created="handleComponentCreated"
               @update:value="(v) => (creationForm.componentEnt = typeof v === 'string' ? v : null)"
             />
-            <p class="field-hint">
-              Показываются компоненты с признаками rcm = 1149.
-              <span v-if="isEditMode">Компонент пока нельзя изменить.</span>
-            </p>
+
           </NFormItem>
 
-          <NFormItem label="Предельные значения">
+          <NFormItem label="Предельные значения (если применимо)">
             <div class="limits-grid">
               <div class="limits-grid__item">
                 <span class="limits-grid__label">Максимум</span>
@@ -233,8 +230,9 @@
                 />
               </div>
             </div>
-            <p class="field-hint">Оставьте пустыми, если значение не требуется.</p>
+
           </NFormItem>
+
 
           <NFormItem label="Комментарий">
             <NInput
@@ -1548,6 +1546,39 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   gap: 12px;
 }
 
+.creation-form :deep(.n-form-item-blank) {
+  width: 100%;
+}
+
+.creation-form :deep(.n-input),
+.creation-form :deep(.n-input-number),
+.creation-form :deep(.n-input-number .n-input),
+.creation-form :deep(.n-base-selection),
+.creation-form :deep(.n-select),
+.creation-form :deep(textarea) {
+  width: 100%;
+}
+
+.creation-form--mobile {
+  gap: 16px;
+}
+
+.creation-form--mobile :deep(.n-form-item) {
+  margin: 0;
+  padding: 0;
+}
+
+.creation-form--mobile :deep(.n-form-item-label) {
+  padding-bottom: 4px;
+  line-height: 1.3;
+  white-space: normal;
+  font-size: 14px;
+}
+
+.creation-form--mobile :deep(.n-form-item-feedback) {
+  margin: 4px 0 0;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -1769,6 +1800,21 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   padding: 2px 8px;
   border-radius: 999px;
   background: #f3f4f6;
+}
+
+@media (max-width: 768px) {
+  .modal-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .modal-footer :deep(.n-button) {
+    width: 100%;
+  }
+
+  .limits-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
