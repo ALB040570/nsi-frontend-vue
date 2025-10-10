@@ -145,93 +145,20 @@
       :title="dialogTitle"
       style="width: min(620px, 96vw)"
     >
-      <template v-if="!isRelationStep">
-        <NForm :model="workForm" label-width="180px" class="work-form">
-          <NFormItem
-            label="Наименование"
-            :feedback="workFormErrors.name ?? undefined"
-            :validation-status="workFormErrors.name ? 'error' : undefined"
-          >
-            <NInput v-model:value="workForm.name" placeholder="Введите наименование" />
-          </NFormItem>
+      <NForm :model="workForm" label-width="180px" class="work-form">
+        <NFormItem
+          label="Наименование"
+          :feedback="workFormErrors.name ?? undefined"
+          :validation-status="workFormErrors.name ? 'error' : undefined"
+        >
+          <NInput v-model:value="workForm.name" placeholder="Введите наименование" />
+        </NFormItem>
 
-          <NFormItem
-            label="Вид работы"
-            :feedback="workFormErrors.workTypeId ?? undefined"
-            :validation-status="workFormErrors.workTypeId ? 'error' : undefined"
-          >
-            <NSelect
-              v-model:value="workForm.workTypeId"
-              :options="workTypeOptions"
-              placeholder="Выберите вид работы"
-              filterable
-            />
-          </NFormItem>
-
-          <NFormItem
-            label="Источник"
-            :feedback="workFormErrors.sourceId ?? undefined"
-            :validation-status="workFormErrors.sourceId ? 'error' : undefined"
-          >
-            <CreatableSelect
-              :value="workForm.sourceId"
-              :options="sourceFormOptions"
-              :loading="sourceOptionsLoading"
-              :multiple="false"
-              :placeholder="'Выберите источник данных'"
-              @update:value="(v) => (workForm.sourceId = typeof v === 'string' ? v : null)"
-            />
-          </NFormItem>
-
-          <NFormItem
-            label="Номер в источнике"
-            :feedback="workFormErrors.sourceNumber ?? undefined"
-            :validation-status="workFormErrors.sourceNumber ? 'error' : undefined"
-          >
-            <NInput v-model:value="workForm.sourceNumber" placeholder="Например, 99" />
-          </NFormItem>
-
-          <NFormItem
-            label="Тип периода"
-            :feedback="workFormErrors.periodTypeId ?? undefined"
-            :validation-status="workFormErrors.periodTypeId ? 'error' : undefined"
-          >
-            <NSelect
-              v-model:value="workForm.periodTypeId"
-              :options="periodTypeFormOptions"
-              placeholder="Выберите тип периода"
-              filterable
-            />
-          </NFormItem>
-
-          <NFormItem
-            label="Число повторений"
-            :feedback="workFormErrors.periodicity ?? undefined"
-            :validation-status="workFormErrors.periodicity ? 'error' : undefined"
-          >
-            <NInputNumber v-model:value="workForm.periodicity" :min="1" placeholder="1" />
-          </NFormItem>
-
-          <NFormItem v-if="isEditMode" label="Тип объекта">
-            <NSpin :show="objectTypeSelectLoading">
-              <NSelect
-                v-model:value="selectedObjectTypeId"
-                :options="relationSelectOptions"
-                placeholder="Выберите тип объекта"
-                :disabled="!relationSelectOptions.length"
-                filterable
-                clearable
-              />
-            </NSpin>
-            <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
-              Для работы пока нет доступных типов объектов.
-            </p>
-          </NFormItem>
-        </NForm>
-      </template>
-      <template v-else>
-        <div class="work-relation">
-          <p class="text-body">Выберите тип обслуживаемого объекта, с которым связана новая работа.</p>
+        <NFormItem
+          label="Тип объекта"
+          :feedback="workFormErrors.objectTypeId ?? undefined"
+          :validation-status="workFormErrors.objectTypeId ? 'error' : undefined"
+        >
           <NSpin :show="objectTypeSelectLoading">
             <NSelect
               v-model:value="selectedObjectTypeId"
@@ -239,25 +166,78 @@
               placeholder="Выберите тип объекта"
               :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
               filterable
+              clearable
+              @focus="() => loadWorkObjectTypesForForm(isEditMode ? editingRow?.id ?? null : null)"
             />
           </NSpin>
           <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
-            Нет доступных типов объектов для назначения. Попробуйте добавить их позже через редактирование работы.
+            Для работы пока нет доступных типов объектов.
           </p>
-          <p class="text-small">Связь можно изменить позже через кнопку редактирования в таблице.</p>
-        </div>
-      </template>
+        </NFormItem>
+
+        <NFormItem
+          label="Вид работы"
+          :feedback="workFormErrors.workTypeId ?? undefined"
+          :validation-status="workFormErrors.workTypeId ? 'error' : undefined"
+        >
+          <NSelect
+            v-model:value="workForm.workTypeId"
+            :options="workTypeOptions"
+            placeholder="Выберите вид работы"
+            filterable
+          />
+        </NFormItem>
+
+        <NFormItem
+          label="Источник"
+          :feedback="workFormErrors.sourceId ?? undefined"
+          :validation-status="workFormErrors.sourceId ? 'error' : undefined"
+        >
+          <CreatableSelect
+            :value="workForm.sourceId"
+            :options="sourceFormOptions"
+            :loading="sourceOptionsLoading"
+            :multiple="false"
+            :placeholder="'Выберите источник данных'"
+            @update:value="(v) => (workForm.sourceId = typeof v === 'string' ? v : null)"
+          />
+        </NFormItem>
+
+        <NFormItem
+          label="Номер в источнике"
+          :feedback="workFormErrors.sourceNumber ?? undefined"
+          :validation-status="workFormErrors.sourceNumber ? 'error' : undefined"
+        >
+          <NInput v-model:value="workForm.sourceNumber" placeholder="Например, 99" />
+        </NFormItem>
+
+        <NFormItem
+          label="Тип периода"
+          :feedback="workFormErrors.periodTypeId ?? undefined"
+          :validation-status="workFormErrors.periodTypeId ? 'error' : undefined"
+        >
+          <NSelect
+            v-model:value="workForm.periodTypeId"
+            :options="periodTypeFormOptions"
+            placeholder="Выберите тип периода"
+            filterable
+          />
+        </NFormItem>
+
+        <NFormItem
+          label="Число повторений"
+          :feedback="workFormErrors.periodicity ?? undefined"
+          :validation-status="workFormErrors.periodicity ? 'error' : undefined"
+        >
+          <NInputNumber v-model:value="workForm.periodicity" :min="1" placeholder="1" />
+        </NFormItem>
+      </NForm>
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="dialogOpen = false" :disabled="savingWork || relationSaving">Отмена</NButton>
-          <NButton
-            type="primary"
-            class="btn-primary"
-            :loading="isRelationStep ? relationSaving : savingWork"
-            @click="saveWork"
-          >
-            {{ primaryButtonLabel }}
+          <NButton @click="dialogOpen = false" :disabled="savingWork">Отмена</NButton>
+          <NButton type="primary" class="btn-primary" :loading="savingWork" @click="saveWork">
+            {{ isEditMode ? 'Сохранить' : 'Создать' }}
           </NButton>
         </div>
       </template>
@@ -469,6 +449,7 @@ interface WorkFormState {
 
 interface WorkFormErrors {
   name: string | null
+  objectTypeId: string | null
   workTypeId: string | null
   sourceId: string | null
   sourceNumber: string | null
@@ -672,10 +653,8 @@ async function loadSourceDirectory(force = false): Promise<void> {
 }
 
 const dialogOpen = ref(false)
-const dialogStep = ref<'form' | 'relation'>('form')
 const dialogMode = ref<'create' | 'edit'>('create')
 const savingWork = ref(false)
-const relationSaving = ref(false)
 const objectTypeSelectLoading = ref(false)
 
 const workForm = reactive<WorkFormState>({
@@ -689,6 +668,7 @@ const workForm = reactive<WorkFormState>({
 
 const workFormErrors = reactive<WorkFormErrors>({
   name: null,
+  objectTypeId: null,
   workTypeId: null,
   sourceId: null,
   sourceNumber: null,
@@ -697,20 +677,16 @@ const workFormErrors = reactive<WorkFormErrors>({
 })
 
 const objectTypeSelectOptions = ref<WorkObjectTypeOption[]>([])
+const objectTypeOptionsOwnerKey = ref<string | null>(null)
 const selectedObjectTypeId = ref<string | null>(null)
 const selectedObjectTypeCls = ref<string | null>(null)
 const currentRelationId = ref<string | null>(null)
 const initialRelationId = ref<string | null>(null)
 const initialRelationValue = ref<string | null>(null)
-const pendingWorkId = ref<string | null>(null)
-const pendingWorkCls = ref<string | null>(null)
-const pendingWorkName = ref<string>('')
 const editingRow = ref<WorkTableRow | null>(null)
 
 const isEditMode = computed(() => dialogMode.value === 'edit')
-const isRelationStep = computed(() => dialogStep.value === 'relation')
 const dialogTitle = computed(() => {
-  if (isRelationStep.value) return 'Назначить тип объекта'
   return isEditMode.value ? 'Изменить работу' : 'Создать работу'
 })
 
@@ -729,11 +705,6 @@ const periodTypeFormOptions = computed(() =>
 const relationSelectOptions = computed(() =>
   objectTypeSelectOptions.value.map((option) => ({ label: option.label, value: option.value })),
 )
-
-const primaryButtonLabel = computed(() => {
-  if (isRelationStep.value) return 'Сохранить'
-  return isEditMode.value ? 'Сохранить' : 'Далее'
-})
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
@@ -801,10 +772,6 @@ watch(
   () => dialogOpen.value,
   (open, previous) => {
     if (!open && previous) {
-      if (dialogStep.value === 'relation' && pendingWorkId.value) {
-        void loadWorks()
-      }
-      dialogStep.value = 'form'
       resetDialogState()
     }
   },
@@ -816,6 +783,9 @@ watch(
     const option = objectTypeSelectOptions.value.find((item) => item.value === value)
     selectedObjectTypeCls.value = option?.cls ?? null
     currentRelationId.value = option?.relationId ?? null
+    if (value && workFormErrors.objectTypeId) {
+      workFormErrors.objectTypeId = null
+    }
   },
 )
 
@@ -1020,6 +990,7 @@ const isTruthyFlag = (value: unknown): boolean => {
 
 function clearFormErrors() {
   workFormErrors.name = null
+  workFormErrors.objectTypeId = null
   workFormErrors.workTypeId = null
   workFormErrors.sourceId = null
   workFormErrors.sourceNumber = null
@@ -1036,14 +1007,12 @@ function resetDialogState() {
   workForm.periodicity = null
   clearFormErrors()
   objectTypeSelectOptions.value = []
+  objectTypeOptionsOwnerKey.value = null
   selectedObjectTypeId.value = null
   selectedObjectTypeCls.value = null
   currentRelationId.value = null
   initialRelationId.value = null
   initialRelationValue.value = null
-  pendingWorkId.value = null
-  pendingWorkCls.value = null
-  pendingWorkName.value = ''
   editingRow.value = null
 }
 
@@ -1073,6 +1042,11 @@ function validateWorkForm(): boolean {
 
   if (!workForm.name.trim()) {
     workFormErrors.name = 'Укажите наименование работы'
+    valid = false
+  }
+
+  if (!selectedObjectTypeId.value) {
+    workFormErrors.objectTypeId = 'Выберите тип объекта'
     valid = false
   }
 
@@ -1118,7 +1092,16 @@ function applyRowToForm(row: WorkTableRow) {
   workForm.periodicity = row.periodicityValue ?? null
 }
 
-async function loadWorkObjectTypesForForm(workId: string) {
+async function loadWorkObjectTypesForForm(workId: string | null, options: { force?: boolean } = {}) {
+  const { force = false } = options
+  const ownerKey = workId ?? '__new__'
+
+  if (!force && objectTypeOptionsOwnerKey.value === ownerKey && objectTypeSelectOptions.value.length > 0) {
+    return
+  }
+
+  if (objectTypeSelectLoading.value) return
+
   objectTypeSelectLoading.value = true
   initialRelationId.value = null
   initialRelationValue.value = null
@@ -1127,7 +1110,9 @@ async function loadWorkObjectTypesForForm(workId: string) {
   selectedObjectTypeCls.value = null
 
   try {
-    const response = await rpc('data/loadUch2', ['RT_Works', Number(workId), 'Typ_ObjectTyp'])
+    const numericId = workId != null ? Number(workId) : NaN
+    const ownerParam = workId == null ? 0 : Number.isFinite(numericId) ? numericId : workId
+    const response = await rpc('data/loadUch2', ['RT_Works', ownerParam, 'Typ_ObjectTyp'])
     const records = extractRecords<RawWorkObjectTypeRecord>(response)
 
     const options: WorkObjectTypeOption[] = []
@@ -1152,6 +1137,7 @@ async function loadWorkObjectTypesForForm(workId: string) {
 
     options.sort((a, b) => a.label.localeCompare(b.label, 'ru'))
     objectTypeSelectOptions.value = options
+    objectTypeOptionsOwnerKey.value = ownerKey
 
     if (defaultOption) {
       selectedObjectTypeId.value = defaultOption.value
@@ -1167,6 +1153,7 @@ async function loadWorkObjectTypesForForm(workId: string) {
   } catch (error) {
     console.error(error)
     objectTypeSelectOptions.value = []
+    objectTypeOptionsOwnerKey.value = null
     selectedObjectTypeId.value = null
     selectedObjectTypeCls.value = null
     currentRelationId.value = null
@@ -1181,19 +1168,15 @@ async function loadWorkObjectTypesForForm(workId: string) {
 function openCreate() {
   resetDialogState()
   dialogMode.value = 'create'
-  dialogStep.value = 'form'
   dialogOpen.value = true
   void loadSourceDirectory(!sourceOptionsLoaded.value)
+  void loadWorkObjectTypesForForm(null)
 }
 
 function editWork(row: WorkTableRow) {
   resetDialogState()
   dialogMode.value = 'edit'
-  dialogStep.value = 'form'
   editingRow.value = row
-  pendingWorkId.value = row.id
-  pendingWorkCls.value = row.cls ?? row.workTypeId
-  pendingWorkName.value = row.name
   applyRowToForm(row)
   dialogOpen.value = true
   void loadSourceDirectory(true)
@@ -1257,11 +1240,6 @@ async function removeWork(row: WorkTableRow) {
 }
 
 async function saveWork() {
-  if (isRelationStep.value) {
-    await saveRelationStep({ closeAfter: true, reload: true })
-    return
-  }
-
   if (!validateWorkForm()) return
 
   if (isEditMode.value) {
@@ -1276,6 +1254,8 @@ async function createWork() {
   const sourceDetails = getSourceDetails(workForm.sourceId)
   const periodTypeDetails = getPeriodTypeDetails(workForm.periodTypeId)
   if (!workTypeId || !sourceDetails || !periodTypeDetails) return
+  const objectTypeId = selectedObjectTypeId.value
+  if (!objectTypeId) return
 
   const name = workForm.name.trim()
   const numberSource = workForm.sourceNumber.trim()
@@ -1310,13 +1290,10 @@ async function createWork() {
     const clsId = toOptionalString(created.cls ?? workTypeId)
     if (!objId || !clsId) throw new Error('Не удалось определить идентификаторы работы')
 
-    pendingWorkId.value = objId
-    pendingWorkCls.value = clsId
-    pendingWorkName.value = name
-
-    message.success('Работа сохранена. Выберите тип объекта')
-    dialogStep.value = 'relation'
-    await loadWorkObjectTypesForForm(objId)
+    await saveSelectedObjectType({ workId: objId, workCls: clsId, workName: name })
+    await loadWorks()
+    message.success('Работа создана')
+    dialogOpen.value = false
   } catch (error) {
     message.error(error instanceof Error ? error.message : 'Не удалось сохранить работу')
   } finally {
@@ -1374,21 +1351,16 @@ async function updateWork() {
   savingWork.value = true
   try {
     await rpc('data/saveProcessCharts', ['upd', payload])
-    pendingWorkId.value = row.id
-    pendingWorkCls.value = workTypeId
-    pendingWorkName.value = name
-
     const relationChanged =
       objectTypeSelectOptions.value.length > 0 && selectedObjectTypeId.value !== initialRelationValue.value
 
     if (relationChanged) {
-      await saveRelationStep({ closeAfter: true, reload: true })
-      message.success('Работа обновлена')
-    } else {
-      await loadWorks()
-      message.success('Работа обновлена')
-      dialogOpen.value = false
+      await saveSelectedObjectType({ workId: row.id, workCls: workTypeId, workName: name })
     }
+
+    await loadWorks()
+    message.success('Работа обновлена')
+    dialogOpen.value = false
   } catch (error) {
     message.error(error instanceof Error ? error.message : 'Не удалось обновить работу')
   } finally {
@@ -1396,77 +1368,54 @@ async function updateWork() {
   }
 }
 
-async function saveRelationStep(options: { closeAfter?: boolean; reload?: boolean } = {}) {
-  const { closeAfter = false, reload = false } = options
-  const workId = pendingWorkId.value ?? editingRow.value?.id ?? null
-  const workCls = pendingWorkCls.value ?? workForm.workTypeId
-  const workName = pendingWorkName.value || workForm.name.trim()
+async function saveSelectedObjectType(options: { workId: string; workCls: string | null; workName: string }) {
+  const { workId, workCls, workName } = options
   if (!workId || !workCls) {
-    message.error('Не удалось определить работу для привязки типа объекта')
-    return
+    throw new Error('Не удалось определить работу для привязки типа объекта')
   }
 
   const selectedId = selectedObjectTypeId.value
   if (!selectedId) {
-    message.error('Выберите тип объекта')
-    return
+    throw new Error('Выберите тип объекта')
   }
 
   const option = objectTypeSelectOptions.value.find((item) => item.value === selectedId)
   if (!option) {
-    message.error('Выбранный тип объекта недоступен')
-    return
+    throw new Error('Выбранный тип объекта недоступен')
   }
 
-  relationSaving.value = true
-  try {
-    const relationName = `${workName} <=> ${option.label}`
+  const relationName = `${workName} <=> ${option.label}`
 
-    if (initialRelationId.value && initialRelationValue.value && initialRelationValue.value !== option.value) {
-      const relationIdNumber = toFiniteNumber(initialRelationId.value)
-      if (relationIdNumber != null) {
-        try {
-          await rpc('data/deleteOwnerWithProperties', [relationIdNumber, 0])
-        } catch (error) {
-          console.error(error)
-        }
+  if (initialRelationId.value && initialRelationValue.value && initialRelationValue.value !== option.value) {
+    const relationIdNumber = toFiniteNumber(initialRelationId.value)
+    if (relationIdNumber != null) {
+      try {
+        await rpc('data/deleteOwnerWithProperties', [relationIdNumber, 0])
+      } catch (error) {
+        console.error(error)
       }
     }
-
-    const uch1 = toFiniteNumber(workId) ?? workId
-    const cls1 = toFiniteNumber(workCls) ?? workCls
-    const uch2 = toFiniteNumber(option.value) ?? option.value
-    const cls2 = toFiniteNumber(option.cls) ?? option.cls
-
-    await rpc('data/saveRelObj', [
-      {
-        uch1,
-        cls1,
-        uch2,
-        cls2,
-        codRelTyp: 'RT_Works',
-        name: relationName,
-      },
-    ])
-
-    if (reload) {
-      await loadWorks()
-    }
-
-    currentRelationId.value = option.relationId ?? null
-    initialRelationId.value = option.relationId ?? null
-    initialRelationValue.value = option.value
-
-    message.success('Тип объекта сохранён')
-
-    if (closeAfter) {
-      dialogOpen.value = false
-    }
-  } catch (error) {
-    message.error(error instanceof Error ? error.message : 'Не удалось сохранить тип объекта')
-  } finally {
-    relationSaving.value = false
   }
+
+  const uch1 = toFiniteNumber(workId) ?? workId
+  const cls1 = toFiniteNumber(workCls) ?? workCls
+  const uch2 = toFiniteNumber(option.value) ?? option.value
+  const cls2 = toFiniteNumber(option.cls) ?? option.cls
+
+  await rpc('data/saveRelObj', [
+    {
+      uch1,
+      cls1,
+      uch2,
+      cls2,
+      codRelTyp: 'RT_Works',
+      name: relationName,
+    },
+  ])
+
+  currentRelationId.value = option.relationId ?? null
+  initialRelationId.value = option.relationId ?? null
+  initialRelationValue.value = option.value
 }
 
 function formatPeriodicityText(value: number | null, periodTypeName: string | null): string {
@@ -1841,12 +1790,6 @@ onBeforeUnmount(() => {
 
 .work-form :deep(.n-form-item) {
   margin-bottom: 16px;
-}
-
-.work-relation {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .table-actions {
