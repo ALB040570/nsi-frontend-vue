@@ -307,6 +307,7 @@ import {
   NSpin,
   NTag,
   NTooltip,
+  useDialog,
   useMessage,
 } from 'naive-ui'
 import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
@@ -462,6 +463,14 @@ interface WorkFormErrors {
   periodicity: string | null
 }
 
+interface ConfirmDialogOptions {
+  title?: string
+  content: string
+  positiveText?: string
+  negativeText?: string
+  html?: boolean
+}
+
 const tableLoading = ref(false)
 const q = ref('')
 const infoOpen = ref(false)
@@ -492,7 +501,44 @@ const sortOptions = [
   { label: 'Я-А', value: 'desc' },
 ]
 
+const removingWorkId = ref<string | null>(null)
+
 const message = useMessage()
+const discreteDialog = useDialog()
+
+const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
+  return new Promise((resolve) => {
+    let resolved = false
+
+    const finish = (result: boolean) => {
+      if (resolved) return
+
+      resolved = true
+
+      resolve(result)
+    }
+
+    discreteDialog.warning({
+      title: options.title ?? 'Подтверждение',
+      content: options.html ? () => h('div', { innerHTML: options.content }) : options.content,
+      positiveText: options.positiveText ?? 'Подтвердить',
+      negativeText: options.negativeText ?? 'Отмена',
+      maskClosable: false,
+
+      onPositiveClick: () => {
+        finish(true)
+      },
+
+      onNegativeClick: () => {
+        finish(false)
+      },
+
+      onClose: () => {
+        finish(false)
+      },
+    })
+  })
+}
 
 const directories = {
   workTypes: new Map<string, string>(),
@@ -817,6 +863,7 @@ const renderActions = (row: WorkTableRow): VNodeChild =>
         circle: true,
         size: 'small',
         onClick: () => editWork(row),
+        disabled: removingWorkId.value === row.id,
         'aria-label': `Изменить работу ${row.name}`,
       },
       { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
@@ -829,6 +876,8 @@ const renderActions = (row: WorkTableRow): VNodeChild =>
         size: 'small',
         type: 'error',
         onClick: () => removeWork(row),
+        loading: removingWorkId.value === row.id,
+        disabled: removingWorkId.value === row.id,
         'aria-label': `Удалить работу ${row.name}`,
       },
       { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
@@ -1138,8 +1187,57 @@ function editWork(row: WorkTableRow) {
   void loadWorkObjectTypesForForm(row.id)
 }
 
-function removeWork(row: WorkTableRow) {
-  message.info(`Удаление работы «${row.name}» пока недоступно`)
+async function removeWork(row: WorkTableRow) {
+  if (removingWorkId.value) return
+
+  const confirmed = await confirmDialog({
+    title: 'Подтверждение',
+    content: 'Удалить работу и все её связи с типами объектов?',
+    positiveText: 'Удалить',
+    negativeText: 'Отмена',
+  })
+  if (!confirmed) return
+
+  const workIdNumber = toFiniteNumber(row.id)
+  if (workIdNumber == null) {
+    message.error('Некорректный идентификатор работы')
+    return
+  }
+
+  removingWorkId.value = row.id
+
+  try {
+    const relationsResponse = await rpc('data/loadUch2', ['RT_Works', workIdNumber, 'Typ_ObjectTyp'])
+    const relationRecords = extractRecords<RawWorkObjectTypeRecord>(relationsResponse)
+    const relationIds = new Set<number>()
+
+    for (const record of relationRecords) {
+      const relationIdString =
+        toOptionalString(record.idro ?? record.IDRO ?? record.idr ?? record.IDR ?? record.id ?? record.ID) ?? null
+      const relationIdNumber = toFiniteNumber(relationIdString)
+      if (relationIdNumber != null) {
+        relationIds.add(relationIdNumber)
+      }
+    }
+
+    if (relationIds.size) {
+      await Promise.all(
+        Array.from(relationIds.values()).map((relationId) =>
+          rpc('data/deleteOwnerWithProperties', [relationId, 0]),
+        ),
+      )
+    }
+
+    await rpc('data/deleteOwnerWithProperties', [workIdNumber, 1])
+
+    await loadWorks()
+    message.success('Работа удалена')
+  } catch (error) {
+    console.error(error)
+    message.error('Не удалось удалить работу')
+  } finally {
+    removingWorkId.value = null
+  }
 }
 
 async function saveWork() {
