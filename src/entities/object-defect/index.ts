@@ -3,4 +3,5 @@
  *  Использование: импортируйте из этого файла в фичах и страницах.
  */
 export * from './api/repository'
+export * from './api/categoryMeta'
 export * from './model/types'

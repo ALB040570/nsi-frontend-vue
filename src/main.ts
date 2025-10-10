@@ -2,7 +2,8 @@
  *  Назначение: точка входа приложения Vue, подключает плагины и монтирует App.
  *  Использование: выполняется Vite при старте и в продакшн-сборке.
  */
-import './assets/main.css'
+import '@shared/styles/tokens.css'
+import '@shared/styles/globals.css'
 import './assets/styles/service360.css'
 
 import { createApp, h } from 'vue'
@@ -21,7 +22,8 @@ import {
 import type { ConfigProviderProps, GlobalThemeOverrides } from 'naive-ui'
 
 import App from './App.vue'
-import router from './router'
+import { router } from '@app/router'
+import { registerPWA } from './pwa'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
@@ -83,3 +85,4 @@ app.use(VueQueryPlugin, { queryClient })
 app.use(router)
 
 app.mount('#app')
+registerPWA()

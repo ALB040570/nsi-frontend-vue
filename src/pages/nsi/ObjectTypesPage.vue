@@ -20,7 +20,9 @@
             </template>
           </NButton>
         </h2>
-        <div class="subtext">Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты</div>
+        <div class="subtext">
+          Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты
+        </div>
       </div>
 
       <div class="toolbar__controls">
@@ -31,7 +33,21 @@
           <NRadioButton :value="'линия'">Линия</NRadioButton>
           <NRadioButton :value="'полигон'">Полигон</NRadioButton>
         </NRadioGroup>
-        <NButton type="primary" @click="openCreate">+ Создать</NButton>
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
+        <NButton quaternary class="toolbar__assistant" @click="openAssistant">
+          <template #icon>
+            <NIcon><ChatbubblesOutline /></NIcon>
+          </template>
+          Ассистент
+        </NButton>
+        <NButton type="primary" @click="openCreate">+ Добавить тип</NButton>
       </div>
     </NCard>
 
@@ -47,6 +63,7 @@
       />
 
       <div v-else class="cards">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -62,7 +79,10 @@
           </header>
 
           <dl class="card__grid">
-            <template v-for="(field, fieldIndex) in infoFields" :key="`${item.id}:${field.key || field.label || fieldIndex}`">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
               <dt>{{ field.label }}</dt>
               <dd>
                 <FieldRenderer :field="field" :row="item" />
@@ -76,7 +96,11 @@
         </article>
       </div>
 
-      <div class="pagination-bar">
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -124,6 +148,8 @@
             <ComponentsSelect
               :value="form.component"
               :options="componentSelectOptions"
+              :multiple="true"
+              value-kind="name"
               :placeholder="'Начните вводить, чтобы найти компонент'"
               @update:value="handleUpdateComponentValue"
               @blur="handleComponentBlur"
@@ -148,12 +174,116 @@
     </NModal>
 
     <NModal
+      v-model:show="assistantOpen"
+      preset="card"
+      title="Голосовой ассистент"
+      :show-mask="false"
+      :trap-focus="false"
+      :block-scroll-on-open="false"
+      style="max-width: 520px; width: min(92vw, 520px); margin: 0 20px 20px auto"
+    >
+      <div class="assistant">
+        <div ref="assistantMessagesRef" class="assistant__messages">
+          <div
+            v-for="message in assistantMessages"
+            :key="message.id"
+            class="assistant-message"
+            :class="`assistant-message--${message.role}`"
+          >
+            <span class="assistant-message__text">{{ message.content }}</span>
+            <button
+              v-if="canUndoMessage(message)"
+              type="button"
+              class="assistant-message__undo"
+              aria-label="Отменить ответ"
+              @click="undoAssistantStep(message.historyId!)"
+            >
+              ×
+            </button>
+          </div>
+          <div
+            v-if="assistantMessages.length === 0"
+            class="assistant-message assistant-message--assistant"
+          >
+            <span class="assistant-message__text"
+              >Подскажите, как назвать тип обслуживаемого объекта.</span
+            >
+          </div>
+        </div>
+
+        <div class="assistant__controls">
+          <NInput
+            v-model:value="assistantInput"
+            type="textarea"
+            rows="2"
+            placeholder="Можете ответить голосом или написать текст"
+            :disabled="assistantProcessing || assistantListening"
+          />
+          <div class="assistant__actions">
+            <NButton
+              tertiary
+              class="assistant__voice"
+              :type="assistantListening ? 'error' : 'default'"
+              :disabled="!speechRecognitionSupported || assistantProcessing"
+              @click="toggleAssistantVoice"
+            >
+              <template #icon>
+                <NIcon>
+                  <component :is="assistantListening ? MicOffOutline : MicOutline" />
+                </NIcon>
+              </template>
+              {{ assistantListening ? 'Стоп' : 'Говорить' }}
+            </NButton>
+
+            <NButton
+              type="primary"
+              :disabled="!assistantInput.trim() || assistantProcessing"
+              :loading="assistantProcessing"
+              @click="sendAssistantText"
+            >
+              Ответить
+            </NButton>
+          </div>
+          <div class="assistant__hint">
+            <span v-if="assistantListening"
+              >Запись идёт… скажите ответ и дождитесь завершения.</span
+            >
+            <span v-else-if="!speechRecognitionSupported">
+              Голосовой ввод недоступен в этом браузере, используйте текст.
+            </span>
+            <span v-else>Нажмите «Говорить», чтобы отвечать голосом.</span>
+          </div>
+        </div>
+      </div>
+
+      <template #footer>
+        <div class="assistant__footer">
+          <NButton tertiary :disabled="assistantProcessing" @click="restartAssistant"
+            >Сбросить диалог</NButton
+          >
+          <NButton :disabled="assistantListening" @click="assistantOpen = false">Закрыть</NButton>
+        </div>
+      </template>
+    </NModal>
+
+    <NModal
       v-model:show="infoOpen"
       preset="card"
       title="О справочнике"
       style="max-width: 640px; width: 92vw"
     >
-      <p>Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать, планировать и учитывать работы.</p> <p>Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или полигон) и добавьте компоненты.</p> <p>Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и работ. В этом случае вы можете менять название, форму на карте и состав компонентов.</p>
+      <p>
+        Это список категорий инфраструктурных объектов. Он нужен, чтобы их удобнее классифицировать,
+        планировать и учитывать работы.
+      </p>
+      <p>
+        Чтобы создать категорию: задайте название, выберите форму на карте (точка, линия или
+        полигон) и добавьте компоненты.
+      </p>
+      <p>
+        Редактировать можно только те категории, на которые ещё нет ссылок в описаниях объектов и
+        работ. В этом случае вы можете менять название, форму на карте и состав компонентов.
+      </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
       </template>
@@ -169,9 +299,11 @@ import {
   watchEffect,
   onMounted,
   onBeforeUnmount,
+  nextTick,
   h,
   defineComponent,
 } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import type { PropType, VNodeChild } from 'vue'
 
@@ -191,18 +323,32 @@ import {
   NPopconfirm,
   NRadioButton,
   NRadioGroup,
+  NSelect,
   NTag,
   useDialog,
   useMessage,
 } from 'naive-ui'
 import type { DataTableColumn } from 'naive-ui'
 
-import { CreateOutline, TrashOutline, InformationCircleOutline } from '@vicons/ionicons5'
+import {
+  CreateOutline,
+  TrashOutline,
+  InformationCircleOutline,
+  ChatbubblesOutline,
+  MicOutline,
+  MicOffOutline,
+} from '@vicons/ionicons5'
 
 import { debounce } from 'lodash-es'
 
 import { ComponentsSelect } from '@features/components-select'
-import { useObjectTypeMutations, useObjectTypesQuery, ensureComponentObjects, resolveRemoveLinkIds, type LinkEntry } from '@features/object-type-crud'
+import {
+  useObjectTypeMutations,
+  useObjectTypesQuery,
+  ensureComponentObjects,
+  resolveRemoveLinkIds,
+  type LinkEntry,
+} from '@features/object-type-crud'
 import {
   type GeometryKind,
   type GeometryPair,
@@ -213,10 +359,18 @@ import {
 import { createComponentIfMissing, type ComponentOption } from '@entities/component'
 import { getErrorMessage, normalizeText } from '@shared/lib'
 
+const router = useRouter()
+const route = useRoute()
+
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
   isMobile.value = window.matchMedia('(max-width: 768px)').matches
 }
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 // аккуратные массовые пересчёты
 
 onMounted(() => {
@@ -234,6 +388,26 @@ onBeforeUnmount(() => {
     mediaQueryList = null
   }
 })
+
+const clearActionQuery = () => {
+  if (!route.query.action) return
+  const nextQuery = { ...route.query }
+  delete nextQuery.action
+  void router.replace({ path: route.path, query: nextQuery, hash: route.hash })
+}
+
+watch(
+  () => route.query.action,
+  (value) => {
+    const matches = Array.isArray(value) ? value.includes('create') : value === 'create'
+    if (!matches) return
+    nextTick(() => {
+      openCreate()
+      clearActionQuery()
+    })
+  },
+  { immediate: true },
+)
 
 /* ---------- типы и утилиты ---------- */
 
@@ -350,6 +524,574 @@ const renameWithMigrationMutation = mutations.renameWithMigration
 const updateComponentsDiffMutation = mutations.updateComponentsDiff
 const removeCascadeMutation = mutations.removeCascade
 
+type AssistantRole = 'assistant' | 'user'
+interface AssistantMessage {
+  id: string
+  role: AssistantRole
+  content: string
+  step?: AssistantStep
+  historyId?: string | null
+}
+
+type AssistantStep = 'ask-name' | 'ask-geometry' | 'ask-components' | 'confirm'
+
+const assistantOpen = ref(false)
+const assistantMessagesRef = ref<HTMLDivElement | null>(null)
+const assistantMessages = ref<AssistantMessage[]>([])
+const assistantInput = ref('')
+const assistantStep = ref<AssistantStep>('ask-name')
+const assistantProcessing = ref(false)
+const assistantListening = ref(false)
+
+const assistantSession = reactive({
+  name: '',
+  geometry: null as GeometryKind | null,
+  components: [] as string[],
+})
+
+interface AssistantHistoryEntry {
+  id: string
+  step: AssistantStep
+  messageIds: string[]
+  rollback: () => void
+}
+
+const assistantHistory = ref<AssistantHistoryEntry[]>([])
+
+interface AssistantSpeechRecognitionResult {
+  readonly isFinal: boolean
+  readonly 0: { transcript: string }
+}
+
+interface AssistantSpeechRecognitionEvent extends Event {
+  readonly resultIndex: number
+  readonly results: ArrayLike<AssistantSpeechRecognitionResult>
+}
+
+interface AssistantSpeechRecognitionErrorEvent extends Event {
+  readonly error: string
+}
+
+interface AssistantSpeechRecognition extends EventTarget {
+  lang: string
+  interimResults: boolean
+  maxAlternatives: number
+  onresult: ((event: AssistantSpeechRecognitionEvent) => void) | null
+  onerror: ((event: AssistantSpeechRecognitionErrorEvent) => void) | null
+  onend: (() => void) | null
+  start: () => void
+  stop: () => void
+  abort: () => void
+}
+
+type AssistantSpeechRecognitionConstructor = new () => AssistantSpeechRecognition
+type WindowWithSpeechRecognition = Window &
+  typeof globalThis & {
+    SpeechRecognition?: AssistantSpeechRecognitionConstructor
+    webkitSpeechRecognition?: AssistantSpeechRecognitionConstructor
+  }
+
+type SpeechRecognitionWithStop = AssistantSpeechRecognition
+
+const speechRecognitionSupported = computed(() => {
+  if (typeof window === 'undefined') return false
+  const w = window as WindowWithSpeechRecognition
+  return Boolean(w.SpeechRecognition ?? w.webkitSpeechRecognition)
+})
+
+const speechSynthesisSupported = computed(
+  () => typeof window !== 'undefined' && 'speechSynthesis' in window,
+)
+
+let recognition: SpeechRecognitionWithStop | null = null
+
+const createMessageId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const ensureChatScroll = () => {
+  nextTick(() => {
+    const el = assistantMessagesRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+const cancelSpeech = () => {
+  if (!speechSynthesisSupported.value) return
+  const synth = window.speechSynthesis
+  if (!synth) return
+  synth.cancel()
+}
+
+const speakMessage = (text: string) => {
+  if (!speechSynthesisSupported.value) return
+  const synth = window.speechSynthesis
+  if (!synth) return
+  cancelSpeech()
+  const utterance = new SpeechSynthesisUtterance(text)
+  utterance.lang = 'ru-RU'
+  synth.speak(utterance)
+}
+
+const pushAssistantMessage = (
+  content: string,
+  options: { step?: AssistantStep; speak?: boolean; historyId?: string | null } = {},
+) => {
+  const id = createMessageId()
+  assistantMessages.value.push({
+    id,
+    role: 'assistant',
+    content,
+    step: options.step,
+    historyId: options.historyId ?? null,
+  })
+  if (options.speak) speakMessage(content)
+  ensureChatScroll()
+  return id
+}
+
+const pushUserMessage = (content: string, options: { step: AssistantStep; historyId: string }) => {
+  const id = createMessageId()
+  assistantMessages.value.push({
+    id,
+    role: 'user',
+    content,
+    step: options.step,
+    historyId: options.historyId,
+  })
+  ensureChatScroll()
+  return id
+}
+
+const stopAssistantVoice = () => {
+  if (!recognition) return
+  try {
+    recognition.stop()
+    recognition.abort()
+  } catch (error) {
+    console.warn('failed to stop recognition', error)
+  }
+  recognition = null
+  assistantListening.value = false
+}
+
+const resetAssistantConversation = () => {
+  stopAssistantVoice()
+  cancelSpeech()
+  assistantMessages.value = []
+  assistantInput.value = ''
+  assistantSession.name = ''
+  assistantSession.geometry = null
+  assistantSession.components = []
+  assistantStep.value = 'ask-name'
+  assistantHistory.value = []
+}
+
+const goToStep = (step: AssistantStep, options: { repeat?: boolean; intro?: string } = {}) => {
+  cancelSpeech()
+  assistantStep.value = step
+  let text = ''
+  switch (step) {
+    case 'ask-name': {
+      if (options.intro) {
+        text = options.intro
+      } else {
+        text = options.repeat
+          ? 'Повторите, пожалуйста, название типа обслуживаемого объекта.'
+          : 'Как назовём тип обслуживаемого объекта?'
+      }
+      break
+    }
+    case 'ask-geometry': {
+      text = options.repeat
+        ? 'Напомните форму на карте: точка, линия или полигон.'
+        : 'Укажите форму на карте: точка, линия или полигон.'
+      break
+    }
+    case 'ask-components': {
+      const hasComponents = assistantSession.components.length > 0
+      if (!hasComponents) {
+        text = options.repeat
+          ? 'Назовите компонент или скажите, что компонентов нет.'
+          : 'Назовите компоненты по одному. Когда закончите, скажите «стоп» или «нет компонентов».'
+      } else {
+        const listed = assistantSession.components.join(', ')
+        text = options.repeat
+          ? `Нужен следующий компонент. Уже записаны: ${listed}.`
+          : `Если есть ещё компоненты, назовите следующий. Сейчас записаны: ${listed}.`
+      }
+      break
+    }
+    case 'confirm': {
+      const geometryTitle = geometryLabel(assistantSession.geometry ?? DEFAULT_GEOMETRY)
+      const componentsText = assistantSession.components.length
+        ? `компоненты: ${assistantSession.components.join(', ')}`
+        : 'без компонентов'
+      text = `Создать тип «${assistantSession.name.trim()}» с формой «${geometryTitle}», ${componentsText}? Скажите «да» для подтверждения или «нет», чтобы начать заново.`
+      break
+    }
+  }
+  if (!text) return null
+  return pushAssistantMessage(text, { step, speak: true })
+}
+
+const startAssistantSession = (
+  introMessage = 'Здравствуйте! Давайте создадим новый тип обслуживаемого объекта. Как его назовём?',
+) => {
+  resetAssistantConversation()
+  void goToStep('ask-name', { intro: introMessage })
+}
+
+const openAssistant = () => {
+  assistantOpen.value = true
+}
+
+const restartAssistant = () => {
+  startAssistantSession('Начнём заново. Как назовём тип обслуживаемого объекта?')
+}
+
+const parseGeometryFromText = (value: string): GeometryKind | null => {
+  const n = normalizeText(value)
+  if (n.includes('точк')) return 'точка'
+  if (n.includes('лини')) return 'линия'
+  if (n.includes('полигон') || n.includes('многоугол')) return 'полигон'
+  return null
+}
+
+const parseComponentsFromText = (value: string): string[] => {
+  const replaced = value
+    .replace(/\bзапятая\b/giu, ',')
+    .replace(/\bточка\b/giu, ',')
+    .replace(/\bи так далее\b/giu, '')
+  return replaced
+    .split(/[,;]|\bи\b/iu)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+const isAffirmative = (value: string) => {
+  const n = normalizeText(value)
+  return ['да', 'подтверждаю', 'создать', 'готово', 'ок', 'окей'].some((word) => n.includes(word))
+}
+
+const isNegative = (value: string) => {
+  const n = normalizeText(value)
+  return ['нет', 'не нужно', 'отмена', 'стоп'].some((word) => n.includes(word))
+}
+
+const handleAssistantResponse = (raw: string) => {
+  const text = raw.trim()
+  if (!text) return
+  const currentStep = assistantStep.value
+  const historyId = createMessageId()
+  const messageIds: string[] = []
+  const userMessageId = pushUserMessage(text, { step: currentStep, historyId })
+  messageIds.push(userMessageId)
+
+  const addHistoryEntry = (rollback: () => void) => {
+    assistantHistory.value = [
+      ...assistantHistory.value,
+      { id: historyId, step: currentStep, messageIds: [...messageIds], rollback },
+    ]
+  }
+
+  switch (currentStep) {
+    case 'ask-name': {
+      if (text.length < 2) {
+        pushAssistantMessage('Название должно содержать минимум два символа. Попробуйте ещё раз.')
+        void goToStep('ask-name', { repeat: true })
+        return
+      }
+      assistantSession.name = text
+      assistantSession.geometry = null
+      assistantSession.components = []
+
+      const maybeExisting = checkExistingTypeName(text)
+      if (maybeExisting) {
+        pushAssistantMessage(
+          `Тип с таким названием уже существует (форма: ${geometryLabel(maybeExisting.geometry)}). Если хотите создать новый вариант, просто продолжим.`,
+        )
+      }
+      const nextId = goToStep('ask-geometry')
+      if (nextId) messageIds.push(nextId)
+      addHistoryEntry(() => {
+        assistantSession.name = ''
+        assistantSession.geometry = null
+        assistantSession.components = []
+        assistantStep.value = 'ask-name'
+      })
+      break
+    }
+    case 'ask-geometry': {
+      const geometry = parseGeometryFromText(text)
+      if (!geometry) {
+        pushAssistantMessage(
+          'Не удалось распознать форму на карте. Скажите «точка», «линия» или «полигон».',
+        )
+        void goToStep('ask-geometry', { repeat: true })
+        return
+      }
+      assistantSession.geometry = geometry
+      const nextId = goToStep('ask-components')
+      if (nextId) messageIds.push(nextId)
+      addHistoryEntry(() => {
+        assistantSession.geometry = null
+        assistantStep.value = 'ask-geometry'
+      })
+      break
+    }
+    case 'ask-components': {
+      const normalized = normalizeText(text)
+      const stopPhrases = [
+        'стоп',
+        'нет',
+        'нет компонент',
+        'нет компонентов',
+        'без компонент',
+        'без компонентов',
+        'всё',
+        'все',
+        'готово',
+        'хватит',
+      ]
+      const isStop =
+        stopPhrases.some(
+          (phrase) =>
+            normalized === phrase ||
+            normalized.startsWith(`${phrase} `) ||
+            normalized.endsWith(` ${phrase}`),
+        ) || ['без компонент', 'без компонентов'].some((phrase) => normalized.includes(phrase))
+
+      if (isStop) {
+        const nextId = goToStep('confirm')
+        if (nextId) messageIds.push(nextId)
+        addHistoryEntry(() => {
+          assistantStep.value = 'ask-components'
+        })
+        return
+      }
+
+      const componentsRaw = parseComponentsFromText(text)
+      if (!componentsRaw.length) {
+        pushAssistantMessage('Не удалось выделить компоненты. Попробуйте назвать их по одному.')
+        void goToStep('ask-components', { repeat: true })
+        return
+      }
+
+      const previous = [...assistantSession.components]
+      const existing = new Set(previous.map((name) => normalizeText(name)))
+      const added: string[] = []
+      for (const candidate of componentsRaw) {
+        const trimmed = candidate.trim()
+        if (!trimmed) continue
+        const norm = normalizeText(trimmed)
+        if (existing.has(norm)) continue
+        existing.add(norm)
+        added.push(trimmed)
+      }
+
+      if (!added.length) {
+        pushAssistantMessage(
+          'Эти компоненты уже записаны. Назовите другой вариант или скажите «стоп».',
+        )
+        void goToStep('ask-components', { repeat: true })
+        return
+      }
+
+      assistantSession.components = [...previous, ...added]
+      const summary =
+        added.length === 1
+          ? `Добавила компонент: ${added[0]}.`
+          : `Добавила компоненты: ${added.join(', ')}.`
+      const summaryId = pushAssistantMessage(summary)
+      messageIds.push(summaryId)
+      const nextId = goToStep('ask-components', { repeat: true })
+      if (nextId) messageIds.push(nextId)
+      addHistoryEntry(() => {
+        assistantSession.components = previous
+        assistantStep.value = 'ask-components'
+      })
+      break
+    }
+    case 'confirm': {
+      if (isAffirmative(text)) {
+        void createTypeViaAssistant()
+        return
+      }
+      if (isNegative(text)) {
+        startAssistantSession('Хорошо, начнём заново. Как назовём тип обслуживаемого объекта?')
+        return
+      }
+      pushAssistantMessage('Ответьте, пожалуйста, «да» или «нет».')
+      void goToStep('confirm')
+      break
+    }
+    default:
+      break
+  }
+}
+
+const createRecognition = (): SpeechRecognitionWithStop | null => {
+  if (!speechRecognitionSupported.value || typeof window === 'undefined') return null
+  const w = window as WindowWithSpeechRecognition
+  const Ctor = w.SpeechRecognition ?? w.webkitSpeechRecognition
+  if (!Ctor) return null
+  const instance = new Ctor() as SpeechRecognitionWithStop
+  instance.lang = 'ru-RU'
+  instance.interimResults = false
+  instance.maxAlternatives = 1
+  return instance
+}
+
+const toggleAssistantVoice = () => {
+  if (assistantListening.value) {
+    stopAssistantVoice()
+    return
+  }
+  const instance = createRecognition()
+  if (!instance) {
+    message.warning('Голосовой ввод недоступен в этом браузере')
+    return
+  }
+
+  recognition = instance
+
+  cancelSpeech()
+
+  instance.onresult = (event: AssistantSpeechRecognitionEvent) => {
+    const result = event.results[event.resultIndex]
+    if (result?.isFinal) {
+      const transcript = result[0]?.transcript?.trim() ?? ''
+      if (transcript) {
+        handleAssistantResponse(transcript)
+      }
+    }
+  }
+
+  instance.onerror = (event: AssistantSpeechRecognitionErrorEvent) => {
+    if (event.error !== 'aborted') {
+      message.error('Не удалось распознать речь')
+    }
+    stopAssistantVoice()
+  }
+
+  instance.onend = () => {
+    stopAssistantVoice()
+  }
+
+  try {
+    instance.start()
+    assistantListening.value = true
+  } catch (error) {
+    console.error(error)
+    message.error('Не удалось начать запись')
+    stopAssistantVoice()
+  }
+}
+
+const sendAssistantText = () => {
+  const text = assistantInput.value.trim()
+  if (!text) return
+  assistantInput.value = ''
+  handleAssistantResponse(text)
+}
+
+const createTypeViaAssistant = async () => {
+  if (assistantProcessing.value) return
+
+  const nameTrimmed = assistantSession.name.trim()
+  if (nameTrimmed.length < 2) {
+    pushAssistantMessage('Название слишком короткое. Назовите тип ещё раз.')
+    assistantStep.value = 'ask-name'
+    return
+  }
+
+  const geometry = assistantSession.geometry ?? DEFAULT_GEOMETRY
+  const componentNames = Array.from(
+    new Set(assistantSession.components.map((item) => item.trim()).filter(Boolean)),
+  )
+
+  const existingType = checkExistingTypeName(nameTrimmed)
+  if (
+    existingType &&
+    isTypeCompletelyIdentical(
+      { name: nameTrimmed, geometry, component: componentNames },
+      existingType,
+    )
+  ) {
+    startAssistantSession(
+      'Полностью идентичный тип уже существует. Давайте попробуем другое название?',
+    )
+    return
+  }
+
+  const geometryPair = getGeometryPair(geometry)
+  if (geometryPair.fv == null && geometryPair.pv == null) {
+    pushAssistantMessage('Не удалось определить форму на карте. Попробуйте выбрать другую форму.')
+    assistantStep.value = 'ask-geometry'
+    return
+  }
+
+  assistantProcessing.value = true
+  try {
+    await createTypeMutation.mutateAsync({
+      name: nameTrimmed,
+      geometry,
+      geometryPair,
+      componentNames,
+    })
+    pushAssistantMessage(
+      `Готово! Тип «${nameTrimmed}» создан. Если нужен ещё один, просто скажите его название.`,
+      { speak: true },
+    )
+    assistantSession.name = ''
+    assistantSession.geometry = null
+    assistantSession.components = []
+    void goToStep('ask-name', { intro: 'Если хотите создать ещё один тип, скажите его название.' })
+  } catch (error) {
+    console.error(error)
+    pushAssistantMessage('Не получилось создать тип. Попробуйте ещё раз.')
+  } finally {
+    assistantProcessing.value = false
+  }
+}
+
+const canUndoMessage = (message: AssistantMessage) => {
+  if (message.role !== 'user' || !message.historyId) return false
+  if (assistantProcessing.value) return false
+  const history = assistantHistory.value
+  if (!history.length) return false
+  const lastEntry = history[history.length - 1]
+  return lastEntry.id === message.historyId
+}
+
+const undoAssistantStep = (historyId: string) => {
+  const history = assistantHistory.value
+  if (!history.length) return
+  const lastEntry = history[history.length - 1]
+  if (lastEntry.id !== historyId) return
+
+  cancelSpeech()
+  stopAssistantVoice()
+
+  assistantHistory.value = history.slice(0, -1)
+  assistantMessages.value = assistantMessages.value.filter(
+    (message) => !lastEntry.messageIds.includes(message.id),
+  )
+  lastEntry.rollback()
+  assistantInput.value = ''
+  assistantProcessing.value = false
+
+  void goToStep(assistantStep.value, { repeat: true })
+}
+
+watch(assistantOpen, (value) => {
+  if (value) {
+    startAssistantSession()
+  } else {
+    stopAssistantVoice()
+    cancelSpeech()
+  }
+})
+
 watch(
   () => fetchState.value.errorMessage,
   (m, p) => {
@@ -386,18 +1128,22 @@ const componentMapByName = computed(() => {
 const getGeometryPair = (kind: GeometryKind): GeometryPair =>
   geometryPairByKind.value[kind] ?? { fv: null, pv: null }
 
+const toComponentNames = (value: string[] | string | null): string[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim().length > 0) return [value]
+  return []
+}
 
-
-
-
-
-const handleUpdateComponentValue = (nextNames: string[]) => {
-  form.value.component = nextNames
+const handleUpdateComponentValue = (nextValue: string[] | string | null) => {
+  form.value.component = toComponentNames(nextValue)
 }
 
 const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {
   if (!createdComponents.value.some((item) => item.id === component.id)) {
-    createdComponents.value = [...createdComponents.value, { id: component.id, name: component.name }]
+    createdComponents.value = [
+      ...createdComponents.value,
+      { id: component.id, name: component.name },
+    ]
   }
   if (!form.value.component.includes(component.name)) {
     form.value.component = [...form.value.component, component.name]
@@ -419,11 +1165,17 @@ const filteredRows = computed(() => {
 })
 
 const total = computed(() => filteredRows.value.length)
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
 const paginatedRows = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
-  return filteredRows.value.slice(start, start + pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
 })
-const rows = computed(() => paginatedRows.value || [])
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value) || [])
+const visibleCount = computed(() => rows.value.length)
 const rowKey = (row: ObjectType) => row.id
 
 const MAX_CHIPS = 4
@@ -465,7 +1217,13 @@ function renderComponents(row: ObjectType): VNodeChild {
 const renderActions = (row: ObjectType): VNodeChild => {
   const editBtn = h(
     NButton,
-    { quaternary: true, circle: true, size: 'small', onClick: () => openEdit(row), 'aria-label': 'Изменить тип' },
+    {
+      quaternary: true,
+      circle: true,
+      size: 'small',
+      onClick: () => openEdit(row),
+      'aria-label': 'Изменить тип',
+    },
     { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
   )
 
@@ -480,7 +1238,13 @@ const renderActions = (row: ObjectType): VNodeChild => {
       trigger: () =>
         h(
           NButton,
-          { quaternary: true, circle: true, size: 'small', type: 'error', 'aria-label': 'Удалить тип' },
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            'aria-label': 'Удалить тип',
+          },
           { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
         ),
       default: () => 'Удалить тип и все связи?',
@@ -643,6 +1407,10 @@ watch(
 watchEffect(() => {
   if (pagination.page > maxPage.value) pagination.page = maxPage.value
 })
+
+function showMore() {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
 
 /* ---------- CRUD формы ---------- */
 
@@ -870,7 +1638,10 @@ async function save() {
           const existingIds = new Set(allComponentOptions.value.map((option) => String(option.id)))
           const createdOptions = addComponents
             .filter((component) => !existingIds.has(String(component.id)))
-            .map<ComponentOption>((component) => ({ id: String(component.id), name: component.name }))
+            .map<ComponentOption>((component) => ({
+              id: String(component.id),
+              name: component.name,
+            }))
           if (createdOptions.length) {
             createdComponents.value = [...createdComponents.value, ...createdOptions]
           }
@@ -1002,7 +1773,6 @@ const removeRow = async (id: string | number) => {
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
-
 :deep(.n-pagination) {
   font-size: 14px;
 }
@@ -1047,6 +1817,7 @@ const removeRow = async (id: string | number) => {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  font-size: 20px;
 }
 
 .page-title__info {
@@ -1061,7 +1832,9 @@ const removeRow = async (id: string | number) => {
   border: none;
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
   cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
 }
 
 .page-title__info :deep(.n-button__content) {
@@ -1153,11 +1926,16 @@ const removeRow = async (id: string | number) => {
   gap: 12px;
 }
 
-
 .cards {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+}
+
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
 }
 
 .card {
@@ -1216,6 +1994,7 @@ const removeRow = async (id: string | number) => {
 
 .card__actions .table-actions {
   justify-content: flex-start;
+  opacity: 1;
 }
 
 .cards .chips-row {
@@ -1249,6 +2028,11 @@ const removeRow = async (id: string | number) => {
   }
 }
 
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 
 .modal-footer {
   display: flex;
@@ -1266,5 +2050,143 @@ const removeRow = async (id: string | number) => {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+}
+
+.toolbar__assistant {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar__assistant :deep(.n-icon) {
+  font-size: 18px;
+}
+
+.assistant {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 320px;
+}
+
+.assistant__messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 4px;
+  background: #f8fafc;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant-message {
+  position: relative;
+  display: inline-flex;
+  margin: 0;
+  max-width: 85%;
+  padding: 8px 32px 8px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.assistant-message__text {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.assistant-message__undo {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.assistant-message__undo:hover,
+.assistant-message__undo:focus-visible {
+  color: #1f2937;
+}
+
+.assistant-message__undo:focus-visible {
+  outline: 2px solid #818cf8;
+  border-radius: 4px;
+}
+
+.assistant-message--assistant {
+  align-self: flex-start;
+  background: #eef2ff;
+}
+
+.assistant-message--user {
+  align-self: flex-end;
+  background: #d1fae5;
+  text-align: right;
+}
+
+.assistant__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.assistant__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.assistant__actions :deep(.n-button) {
+  width: 100%;
+}
+
+.assistant__voice {
+  width: 100%;
+  min-height: clamp(120px, 24vh, 220px);
+  font-size: clamp(18px, 3.2vw, 24px);
+  border-radius: 20px;
+  padding: clamp(14px, 3vw, 24px);
+}
+
+.assistant__voice :deep(.n-button__content) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 14px);
+  width: 100%;
+}
+
+.assistant__voice :deep(.n-icon) {
+  font-size: clamp(44px, 10vw, 80px);
+}
+
+.assistant__voice:focus-visible {
+  outline: 3px solid #4c6ef5;
+  outline-offset: 4px;
+}
+
+.assistant__hint {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+}
+
+.assistant__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>

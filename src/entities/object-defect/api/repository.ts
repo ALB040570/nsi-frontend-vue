@@ -314,6 +314,14 @@ export async function listObjectDefects(): Promise<ObjectDefect[]> {
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 }
 
+/** Загрузить только список категорий дефектов (Factor_Defects) */
+export async function listDefectCategories(): Promise<DefectCategoryOption[]> {
+  const response = await rpc(LOAD_CATEGORIES_METHOD, FACTOR_DEFECTS)
+  const raw = extractRecords<RawDefectCategoryRecord>(response)
+  const { options } = buildCategoryOptions(raw)
+  return options
+}
+
 export async function createDefect(
   payload: CreateObjectDefectPayload,
 ): Promise<LoadedObjectDefect> {

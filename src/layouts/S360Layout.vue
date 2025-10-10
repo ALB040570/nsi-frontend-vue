@@ -6,7 +6,7 @@
     <header class="s360-top-bar">
       <div class="s360-top-left">
         <button
-          v-if="showNavigation"
+          v-if="showDesktopNavigation"
           type="button"
           class="s360-toggle"
           :aria-label="toggleAriaLabel"
@@ -48,7 +48,7 @@
 
     <div class="s360-body">
       <aside
-        v-if="showNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation && !isAsideCollapsed"
         class="s360-aside sider"
         :style="{ width: siderWidth + 'px', flexBasis: siderWidth + 'px' }"
       >
@@ -60,7 +60,7 @@
       </aside>
 
       <div
-        v-if="showNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation && !isAsideCollapsed"
         class="sider-resizer"
         @mousedown="startResize"
         @touchstart="startResize"
@@ -70,11 +70,26 @@
         <slot />
       </main>
     </div>
+
+    <nav v-if="showMobileNavigation" class="s360-bottom-nav" aria-label="Основная навигация">
+      <button
+        v-for="item in bottomNavItems"
+        :key="item.key"
+        type="button"
+        class="bottom-nav-item"
+        :class="{ active: item.isActive }"
+        :aria-label="item.label"
+        @click="handleMenuSelect(item.key)"
+      >
+        <NIcon :component="item.icon" />
+        <span class="bottom-nav-label">{{ item.mobileLabel }}</span>
+      </button>
+    </nav>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, ref, watch, type Component as VueComponent } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -87,7 +102,9 @@ import {
   HomeOutline,
   AlbumsOutline,
   BugOutline,
+  OptionsOutline,
   ConstructOutline,
+  ClipboardOutline,
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
@@ -114,13 +131,13 @@ const route = useRoute()
 
 const renderIcon = (icon: VueComponent) => () => h(NIcon, null, { default: () => h(icon) })
 
-const withTooltip = (text: string) => () =>
+const withTooltip = (text: string, tooltip?: string) => () =>
   h(
     NTooltip,
     { placement: 'right' },
     {
-      trigger: () => h('span', { class: 'menu-title', title: text }, text),
-      default: () => text,
+      trigger: () => h('span', { class: 'menu-title', title: tooltip ?? text }, text),
+      default: () => tooltip ?? text,
     },
   )
 
@@ -128,23 +145,67 @@ const menuRouteByKey: Record<string, string> = {
   dashboard: '/',
   'object-types': '/nsi/object-types',
   'object-defects': '/nsi/object-defects',
+  'object-parameters': '/nsi/object-parameters',
+  works: '/nsi/works',
   components: '/nsi/components',
 }
 
-const menuOptions: MenuOption[] = [
-  { label: withTooltip('Главная панель'), key: 'dashboard', icon: renderIcon(HomeOutline) },
+const MENU_ITEMS = [
   {
-    label: withTooltip('Справочник типов объектов'),
+    key: 'dashboard',
+    icon: HomeOutline,
+    menuLabel: 'Главная',
+    mobileLabel: 'Главная',
+    tooltip: 'Главная панель',
+  },
+  {
     key: 'object-types',
-    icon: renderIcon(AlbumsOutline),
+    icon: AlbumsOutline,
+    menuLabel: 'Типы',
+    mobileLabel: 'Типы',
+    tooltip: 'Справочник типов обслуживаемых объектов',
   },
   {
-    label: withTooltip('Справочник дефектов обслуживаемых объектов'),
     key: 'object-defects',
-    icon: renderIcon(BugOutline),
+    icon: BugOutline,
+    menuLabel: 'Дефекты',
+    mobileLabel: 'Дефекты',
+    tooltip: 'Справочник дефектов обслуживаемых объектов',
   },
-  { label: withTooltip('Компоненты объектов'), key: 'components', icon: renderIcon(ConstructOutline) },
-]
+  {
+    key: 'object-parameters',
+    icon: OptionsOutline,
+    menuLabel: 'Параметры',
+    mobileLabel: 'Параметры',
+    tooltip: 'Справочник параметров обслуживаемых объектов',
+  },
+  {
+    key: 'works',
+    icon: ClipboardOutline,
+    menuLabel: 'Работы',
+    mobileLabel: 'Работы',
+    tooltip: 'Справочник технологических работ',
+  },
+  {
+    key: 'components',
+    icon: ConstructOutline,
+    menuLabel: 'Компоненты',
+    mobileLabel: 'Компоненты',
+    tooltip: 'Справочник компонентов обслуживаемых объектов',
+  },
+] satisfies Array<{
+  key: string
+  icon: VueComponent
+  menuLabel: string
+  mobileLabel: string
+  tooltip: string
+}>
+
+const menuOptions: MenuOption[] = MENU_ITEMS.map((item) => ({
+  label: withTooltip(item.menuLabel, item.tooltip),
+  key: item.key,
+  icon: renderIcon(item.icon),
+}))
 
 const MIN_W = 200
 const MAX_W = 360
@@ -226,13 +287,34 @@ const user = auth.user
 
 const isAsideCollapsed = ref(false)
 
+const showNavigation = computed(() => isAuthenticated.value)
+
+const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
+const updateViewportWidth = () => {
+  if (typeof window === 'undefined') return
+  viewportWidth.value = window.innerWidth
+}
+
+const isMobile = computed(() => viewportWidth.value <= 768)
+const showDesktopNavigation = computed(() => showNavigation.value && !isMobile.value)
+const showMobileNavigation = computed(() => showNavigation.value && isMobile.value)
+
+const bottomNavItems = computed(() =>
+  MENU_ITEMS.map((item) => ({
+    key: item.key,
+    label: item.tooltip,
+    mobileLabel: item.mobileLabel,
+    icon: item.icon,
+    isActive: menuValue.value === item.key,
+  })),
+)
+
 const toggleAriaLabel = computed(() =>
   isAsideCollapsed.value ? 'Открыть навигацию' : 'Скрыть навигацию',
 )
 
-const showNavigation = computed(() => isAuthenticated.value)
-
 const toggleAside = () => {
+  if (isMobile.value) return
   isAsideCollapsed.value = !isAsideCollapsed.value
 }
 
@@ -359,8 +441,18 @@ watch(
   { immediate: true },
 )
 
+onMounted(() => {
+  updateViewportWidth()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateViewportWidth)
+  }
+})
+
 onBeforeUnmount(() => {
   stopResizeTracking()
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateViewportWidth)
+  }
 })
 </script>
 
@@ -610,9 +702,104 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
+.s360-bottom-nav {
+  display: none;
+}
+
+.bottom-nav-item {
+  appearance: none;
+}
+
+.bottom-nav-label {
+  font-size: 12px;
+}
+
 @media (max-width: 900px) {
   .sider-resizer {
     display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .s360-top-bar {
+    min-height: 56px;
+    padding: 0 16px;
+  }
+
+  .s360-top-left {
+    gap: 12px;
+  }
+
+  .s360-top-right {
+    gap: 8px;
+  }
+
+  .s360-lang-switcher,
+  .s360-icon-btn {
+    display: none;
+  }
+
+  .logo-text {
+    display: none;
+  }
+
+  .s360-body {
+    flex-direction: column;
+  }
+
+  .s360-main {
+    padding: 16px;
+    padding-bottom: calc(16px + 72px + env(safe-area-inset-bottom));
+  }
+
+  .s360-bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 8px;
+    padding: 8px 12px calc(env(safe-area-inset-bottom) + 12px);
+    background: #ffffff;
+    border-top: 1px solid #e6eaea;
+    box-shadow: 0 -4px 16px rgba(15, 62, 68, 0.12);
+    z-index: 1100;
+  }
+
+  .bottom-nav-item {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border-radius: 12px;
+    color: #5f7f84;
+    background: transparent;
+    border: none;
+    font-size: 11px;
+    font-weight: 600;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+  }
+
+  .bottom-nav-item.active {
+    color: #006d77;
+    background: rgba(0, 109, 119, 0.14);
+  }
+
+  .bottom-nav-item:focus-visible {
+    outline: 2px solid #006d77;
+    outline-offset: 2px;
+  }
+
+  .bottom-nav-label {
+    font-size: 11px;
+    line-height: 1;
   }
 }
 </style>

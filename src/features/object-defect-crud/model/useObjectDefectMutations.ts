@@ -9,6 +9,8 @@ import {
   updateDefect,
   type CreateObjectDefectPayload,
   type UpdateObjectDefectPayload,
+  type ObjectDefectsSnapshot,
+  type LoadedObjectDefect,
 } from '@entities/object-defect'
 
 export interface RemoveObjectDefectPayload {
@@ -21,7 +23,16 @@ export function useObjectDefectMutations() {
 
   const create = useMutation({
     mutationFn: (payload: CreateObjectDefectPayload) => createDefect(payload),
-    onSuccess: () => invalidate(),
+    onSuccess: (created: LoadedObjectDefect) => {
+      // Пытаемся обновить кеш без полного рефетча, чтобы не дёргать data/loadComponentDefect
+      const prev = qc.getQueryData<ObjectDefectsSnapshot>(['object-defects'])
+      if (prev) {
+        const nextItems = [created, ...prev.items].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+        qc.setQueryData<ObjectDefectsSnapshot>(['object-defects'], { ...prev, items: nextItems })
+      } else {
+        invalidate()
+      }
+    },
   })
 
   const update = useMutation({

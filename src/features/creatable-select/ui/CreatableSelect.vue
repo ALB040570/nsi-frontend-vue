@@ -1,73 +1,55 @@
-<!-- Файл: features/components-select/ui/ComponentsSelect.vue
-     Назначение: селект компонентов с режимами multiple/name и single/id.
-     Использование:
-       - По умолчанию multiple + valueKind='name' (совместимо с страницей типов).
-       - Для одиночного выбора по id: :multiple="false" :value-kind="'id'". -->
+<!-- Файл: features/creatable-select/ui/CreatableSelect.vue
+     Назначение: универсальный селект с возможностью создания опций по вводу.
+     Использование: пробросьте :create для создания на бэкенде; если не задано — кнопка создания скрыта. -->
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { NButton, NSelect, useDialog, useMessage } from 'naive-ui'
 import type { SelectOption } from 'naive-ui'
 import { normalizeText } from '@shared/lib'
-import { createComponentIfMissing } from '@entities/component'
 
-interface ComponentCreatedPayload {
-  id: string
-  cls: number
-  name: string
+export interface CreateResult {
+  label: string
+  value: string
 }
 
-const props = withDefaults(
-  defineProps<{
-    value: string[] | string | null
-    options: SelectOption[]
-    placeholder?: string
-    disabled?: boolean
-    multiple?: boolean
-    valueKind?: 'name' | 'id'
-    clearable?: boolean
-    loading?: boolean
-  }>(),
-  {
-    multiple: true,
-    valueKind: 'name',
-  },
-)
+const props = defineProps<{
+  value: string[] | string | null
+  options: SelectOption[]
+  placeholder?: string
+  disabled?: boolean
+  multiple?: boolean
+  clearable?: boolean
+  loading?: boolean
+  create?: (name: string) => Promise<CreateResult>
+}>()
 
 const emit = defineEmits<{
   (event: 'update:value', value: string[] | string | null): void
   (event: 'blur', payload: FocusEvent): void
-  (event: 'created', component: ComponentCreatedPayload): void
+  (event: 'created', option: CreateResult): void
 }>()
+
+const dialog = useDialog()
+const message = useMessage()
 
 const selectRef = ref<InstanceType<typeof NSelect> | null>(null)
 const selectVisible = ref(false)
 const search = ref('')
 const creating = ref(false)
 
-const dialog = useDialog()
-const message = useMessage()
+const isMultiple = computed(() => props.multiple !== false)
 
 const extraOptions = ref<SelectOption[]>([])
 
-const isMultiple = computed(() => props.multiple !== false)
-const valueKind = computed(() => props.valueKind)
-const isIdMode = computed(() => valueKind.value === 'id')
-
-const normalizedName = (value: string) => normalizeText(value ?? '')
-const normalizedId = (value: string) => String(value ?? '').trim()
-const toArray = (value: string[] | string | null | undefined): string[] => {
-  if (Array.isArray(value)) return [...value]
-  if (typeof value === 'string' && value.length > 0) return [value]
-  return []
-}
+const normalized = (value: string) => normalizeText(value ?? '')
 
 watch(
   () => props.options,
   () => {
     const base = props.options ?? []
     extraOptions.value = extraOptions.value.filter((option) => {
-      const optionKey = normalizedId(String(option.value))
-      return !base.some((baseOption) => normalizedId(String(baseOption.value)) === optionKey)
+      const optionKey = String(option.value)
+      return !base.some((baseOption) => String(baseOption.value) === optionKey)
     })
   },
   { deep: true },
@@ -76,12 +58,12 @@ watch(
 const combinedOptions = computed<SelectOption[]>(() => {
   const map = new Map<string, SelectOption>()
   for (const option of props.options ?? []) {
-    const key = normalizedId(String(option?.value))
+    const key = String(option?.value ?? '')
     if (!key) continue
     map.set(key, option)
   }
   for (const option of extraOptions.value) {
-    const key = normalizedId(String(option?.value))
+    const key = String(option?.value ?? '')
     if (!key || map.has(key)) continue
     map.set(key, option)
   }
@@ -93,17 +75,17 @@ const combinedOptions = computed<SelectOption[]>(() => {
 const optionsByNormalizedLabel = computed(() => {
   const map = new Map<string, SelectOption>()
   for (const option of combinedOptions.value) {
-    map.set(normalizedName(String(option.label ?? '')), option)
+    map.set(normalized(String(option.label ?? '')), option)
   }
   return map
 })
 
 const trimmedQuery = computed(() => search.value.trim())
-const normalizedQuery = computed(() => normalizedName(trimmedQuery.value))
+const normalizedQuery = computed(() => normalized(trimmedQuery.value))
 
 const canCreate = computed(() => {
+  if (!props.create) return false
   if (normalizedQuery.value.length < 2) return false
-  // Проверяем дубликаты по имени (label), чтобы в режиме id не запрещать создание по value
   return !optionsByNormalizedLabel.value.has(normalizedQuery.value)
 })
 
@@ -112,24 +94,13 @@ watch(selectVisible, (open) => {
 })
 
 const emitValue = (next: string[] | string | null) => {
-  if (Array.isArray(next)) {
-    emit('update:value', Array.from(new Set(next)))
-    return
-  }
-  if (next == null) {
-    emit('update:value', next)
-    return
-  }
-  emit('update:value', next)
+  if (Array.isArray(next)) emit('update:value', Array.from(new Set(next)))
+  else emit('update:value', next)
 }
 
-const handleUpdateValue = (value: string[] | string | null) => {
-  emitValue(value)
-}
+const handleUpdateValue = (value: string[] | string | null) => emitValue(value)
 
-const handleBlur = (payload: FocusEvent) => {
-  emit('blur', payload)
-}
+const handleBlur = (payload: FocusEvent) => emit('blur', payload)
 
 const keepFocus = async () => {
   await nextTick()
@@ -146,10 +117,9 @@ const confirmCreate = (name: string) => {
       settled = true
       resolve(value)
     }
-
     dialog.warning({
-      title: 'Создать компонент',
-      content: `Создать компонент «${name}»?`,
+      title: 'Создать запись',
+      content: `Создать «${name}»?`,
       positiveText: 'Создать',
       negativeText: 'Отмена',
       maskClosable: false,
@@ -161,58 +131,39 @@ const confirmCreate = (name: string) => {
 }
 
 const handleCreate = async () => {
-  if (!canCreate.value || creating.value) return
+  if (!canCreate.value || creating.value || !props.create) return
   const name = trimmedQuery.value
   const ok = await confirmCreate(name)
   if (!ok) return
 
   creating.value = true
   try {
-    const created = await createComponentIfMissing(name)
-    const payload: ComponentCreatedPayload = {
-      id: String(created.id),
-      cls: created.cls,
-      name: created.name,
-    }
-    const option: SelectOption = {
-      label: payload.name,
-      value: isIdMode.value ? payload.id : payload.name,
-    }
+    const created = await props.create(name)
+    const option: SelectOption = { label: created.label, value: created.value }
     const existsInExtras = extraOptions.value.some(
-      (item) => normalizedId(String(item.value)) === normalizedId(String(option.value)),
+      (item) => String(item.value) === String(option.value),
     )
     const existsInProps = (props.options ?? []).some(
-      (item) => normalizedId(String(item.value)) === normalizedId(String(option.value)),
+      (item) => String(item.value) === String(option.value),
     )
     if (!existsInExtras && !existsInProps) {
       extraOptions.value = [...extraOptions.value, option]
     }
-    emit('created', payload)
-    if (isMultiple.value && !isIdMode.value) {
-      const current = toArray(props.value)
-      const normalizedExisting = new Set(current.map((name) => normalizedName(name)))
-      const nextName = payload.name.trim()
-      const result = normalizedExisting.has(normalizedName(nextName))
-        ? current
-        : [...current, nextName]
-      emit('update:value', result)
-    } else if (isMultiple.value) {
-      const current = toArray(props.value)
-      const normalizedExisting = new Set(current.map((value) => normalizedId(value)))
+    emit('created', created)
+
+    if (isMultiple.value) {
+      const current = Array.isArray(props.value) ? props.value : []
       const nextValue = String(option.value)
-      emit(
-        'update:value',
-        normalizedExisting.has(normalizedId(nextValue)) ? current : [...current, nextValue],
-      )
+      if (!current.includes(nextValue)) emitValue([...current, nextValue])
     } else {
       emitValue(String(option.value))
     }
-    message.success('Компонент создан')
+    message.success('Создано')
     search.value = ''
     await keepFocus()
   } catch (error) {
     console.error(error)
-    message.error('Не удалось создать компонент')
+    message.error('Не удалось создать запись')
   } finally {
     creating.value = false
   }
@@ -243,7 +194,7 @@ const inputProps = computed(() => ({
     :input-props="inputProps"
     :loading="creating || !!loading"
     :disabled="disabled"
-    :placeholder="placeholder ?? 'Начните вводить, чтобы найти компонент'"
+    :placeholder="placeholder ?? 'Выберите значение'"
     v-model:show="selectVisible"
     @update:value="handleUpdateValue"
     @search="handleSearch"
@@ -267,6 +218,7 @@ const inputProps = computed(() => ({
       <div class="select-empty">Нет совпадений</div>
     </template>
   </NSelect>
+  
 </template>
 
 <style scoped>
@@ -280,3 +232,4 @@ const inputProps = computed(() => ({
   color: var(--n-text-color-3);
 }
 </style>
+
