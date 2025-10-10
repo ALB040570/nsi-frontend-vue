@@ -382,6 +382,19 @@ interface RawWorkObjectTypeRecord {
   IDR?: number | string
 }
 
+interface RawWorkRelationRecord {
+  idro?: number | string
+  IDRO?: number | string
+  idrom1?: number | string
+  IDROM1?: number | string
+  idrom?: number | string
+  IDROM?: number | string
+  obj?: number | string
+  OBJ?: number | string
+  id?: number | string
+  ID?: number | string
+}
+
 interface WorkTableRow {
   id: string
   name: string
@@ -1190,6 +1203,12 @@ function editWork(row: WorkTableRow) {
 async function removeWork(row: WorkTableRow) {
   if (removingWorkId.value) return
 
+  const obj = toFiniteNumber(row.id)
+  if (obj == null) {
+    message.error('Некорректный идентификатор работы')
+    return
+  }
+
   const confirmed = await confirmDialog({
     title: 'Подтверждение',
     content: 'Удалить работу и все её связи с типами объектов?',
@@ -1198,37 +1217,34 @@ async function removeWork(row: WorkTableRow) {
   })
   if (!confirmed) return
 
-  const workIdNumber = toFiniteNumber(row.id)
-  if (workIdNumber == null) {
-    message.error('Некорректный идентификатор работы')
-    return
-  }
-
   removingWorkId.value = row.id
 
   try {
-    const relationsResponse = await rpc('data/loadUch2', ['RT_Works', workIdNumber, 'Typ_ObjectTyp'])
-    const relationRecords = extractRecords<RawWorkObjectTypeRecord>(relationsResponse)
-    const relationIds = new Set<number>()
+    const relationsResponse = await rpc('data/loadComponentsObject2', [
+      'RT_Works',
+      'Typ_Work',
+      'Typ_ObjectTyp',
+    ])
+    const relationRecords = extractRecords<RawWorkRelationRecord>(relationsResponse)
 
+    const relationIds: number[] = []
     for (const record of relationRecords) {
-      const relationIdString =
-        toOptionalString(record.idro ?? record.IDRO ?? record.idr ?? record.IDR ?? record.id ?? record.ID) ?? null
-      const relationIdNumber = toFiniteNumber(relationIdString)
-      if (relationIdNumber != null) {
-        relationIds.add(relationIdNumber)
+      const ownerRaw = record.idrom1 ?? record.IDROM1 ?? record.idrom ?? record.IDROM ?? record.obj ?? record.OBJ
+      const ownerId = toFiniteNumber(toOptionalString(ownerRaw))
+      if (ownerId !== obj) continue
+
+      const relationRaw = record.idro ?? record.IDRO ?? record.id ?? record.ID
+      const relationId = toFiniteNumber(toOptionalString(relationRaw))
+      if (relationId != null) {
+        relationIds.push(relationId)
       }
     }
 
-    if (relationIds.size) {
-      await Promise.all(
-        Array.from(relationIds.values()).map((relationId) =>
-          rpc('data/deleteOwnerWithProperties', [relationId, 0]),
-        ),
-      )
+    for (const relationId of relationIds) {
+      await rpc('data/deleteOwnerWithProperties', [relationId, 0])
     }
 
-    await rpc('data/deleteOwnerWithProperties', [workIdNumber, 1])
+    await rpc('data/deleteOwnerWithProperties', [obj, 1])
 
     await loadWorks()
     message.success('Работа удалена')
