@@ -148,6 +148,8 @@
             <ComponentsSelect
               :value="form.component"
               :options="componentSelectOptions"
+              :multiple="true"
+              value-kind="name"
               :placeholder="'Начните вводить, чтобы найти компонент'"
               @update:value="handleUpdateComponentValue"
               @blur="handleComponentBlur"
@@ -1126,8 +1128,14 @@ const componentMapByName = computed(() => {
 const getGeometryPair = (kind: GeometryKind): GeometryPair =>
   geometryPairByKind.value[kind] ?? { fv: null, pv: null }
 
-const handleUpdateComponentValue = (nextNames: string[]) => {
-  form.value.component = nextNames
+const toComponentNames = (value: string[] | string | null): string[] => {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string' && value.trim().length > 0) return [value]
+  return []
+}
+
+const handleUpdateComponentValue = (nextValue: string[] | string | null) => {
+  form.value.component = toComponentNames(nextValue)
 }
 
 const handleComponentCreated = async (component: { id: string; cls: number; name: string }) => {

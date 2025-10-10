@@ -16,16 +16,22 @@ interface ComponentCreatedPayload {
   name: string
 }
 
-const props = defineProps<{
-  value: string[] | string | null
-  options: SelectOption[]
-  placeholder?: string
-  disabled?: boolean
-  multiple?: boolean
-  valueKind?: 'name' | 'id'
-  clearable?: boolean
-  loading?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    value: string[] | string | null
+    options: SelectOption[]
+    placeholder?: string
+    disabled?: boolean
+    multiple?: boolean
+    valueKind?: 'name' | 'id'
+    clearable?: boolean
+    loading?: boolean
+  }>(),
+  {
+    multiple: true,
+    valueKind: 'name',
+  },
+)
 
 const emit = defineEmits<{
   (event: 'update:value', value: string[] | string | null): void
@@ -44,11 +50,16 @@ const message = useMessage()
 const extraOptions = ref<SelectOption[]>([])
 
 const isMultiple = computed(() => props.multiple !== false)
-const valueKind = computed(() => props.valueKind ?? 'name')
+const valueKind = computed(() => props.valueKind)
 const isIdMode = computed(() => valueKind.value === 'id')
 
 const normalizedName = (value: string) => normalizeText(value ?? '')
 const normalizedId = (value: string) => String(value ?? '').trim()
+const toArray = (value: string[] | string | null | undefined): string[] => {
+  if (Array.isArray(value)) return [...value]
+  if (typeof value === 'string' && value.length > 0) return [value]
+  return []
+}
 
 watch(
   () => props.options,
@@ -103,9 +114,13 @@ watch(selectVisible, (open) => {
 const emitValue = (next: string[] | string | null) => {
   if (Array.isArray(next)) {
     emit('update:value', Array.from(new Set(next)))
-  } else {
-    emit('update:value', next)
+    return
   }
+  if (next == null) {
+    emit('update:value', next)
+    return
+  }
+  emit('update:value', next)
 }
 
 const handleUpdateValue = (value: string[] | string | null) => {
@@ -173,10 +188,22 @@ const handleCreate = async () => {
       extraOptions.value = [...extraOptions.value, option]
     }
     emit('created', payload)
-    if (isMultiple.value) {
-      const current = Array.isArray(props.value) ? props.value : []
+    if (isMultiple.value && !isIdMode.value) {
+      const current = toArray(props.value)
+      const normalizedExisting = new Set(current.map((name) => normalizedName(name)))
+      const nextName = payload.name.trim()
+      const result = normalizedExisting.has(normalizedName(nextName))
+        ? current
+        : [...current, nextName]
+      emit('update:value', result)
+    } else if (isMultiple.value) {
+      const current = toArray(props.value)
+      const normalizedExisting = new Set(current.map((value) => normalizedId(value)))
       const nextValue = String(option.value)
-      if (!current.includes(nextValue)) emitValue([...current, nextValue])
+      emit(
+        'update:value',
+        normalizedExisting.has(normalizedId(nextValue)) ? current : [...current, nextValue],
+      )
     } else {
       emitValue(String(option.value))
     }
