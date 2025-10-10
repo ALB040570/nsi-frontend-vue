@@ -3,7 +3,7 @@
  *  Использование: подключать в формах/страницах для вызова готовых мутаций и инвалидации кэша.
  */
 import { useMutation, useQueryClient } from '@tanstack/vue-query'
-import { normalizeText, toNumericOrUndefined, toRpcId } from '@shared/lib'
+import { normalizeText, toNumericOrUndefined } from '@shared/lib'
 import type { GeometryPair, GeometryKind } from '@entities/object-type'
 import * as objectTypeRepo from '@entities/object-type'
 import * as componentRepo from '@entities/component'
@@ -51,10 +51,14 @@ async function linkComponents(params: {
   await Promise.all(
     params.components.map((component) =>
       (async () => {
+        const componentId = Number(component.id)
+        if (!Number.isFinite(componentId)) {
+          throw new Error(`Некорректный идентификатор компонента: ${component.id}`)
+        }
         await objectTypeRepo.linkComponent({
-          uch1: toRpcId(params.typeId),
-          cls1: toRpcId(params.typeCls),
-          uch2: toRpcId(component.id),
+          uch1: params.typeId,
+          cls1: params.typeCls,
+          uch2: componentId,
           cls2: 1027,
           codRelTyp: 'RT_Components',
           name: `${params.typeName} <=> ${component.name}`,
