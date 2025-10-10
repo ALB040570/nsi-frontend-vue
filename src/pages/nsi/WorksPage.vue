@@ -173,11 +173,13 @@
             :feedback="workFormErrors.sourceId ?? undefined"
             :validation-status="workFormErrors.sourceId ? 'error' : undefined"
           >
-            <NSelect
-              v-model:value="workForm.sourceId"
+            <CreatableSelect
+              :value="workForm.sourceId"
               :options="sourceFormOptions"
-              placeholder="Выберите источник"
-              filterable
+              :loading="sourceOptionsLoading"
+              :multiple="false"
+              :placeholder="'Выберите источник данных'"
+              @update:value="(v) => (workForm.sourceId = typeof v === 'string' ? v : null)"
             />
           </NFormItem>
 
@@ -311,23 +313,15 @@ import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/i
 
 import { rpc } from '@shared/api'
 import { extractRecords, normalizeText, toOptionalString } from '@shared/lib'
+import { loadParameterSources } from '@entities/object-parameter'
+import type { ParameterSourceOption } from '@entities/object-parameter'
+import { CreatableSelect } from '@features/creatable-select'
 
 interface RawWorkTypeRecord {
   id?: number | string
   ID?: number | string
   name?: string
   NAME?: string
-}
-
-interface RawSourceRecord {
-  id?: number | string
-  ID?: number | string
-  name?: string
-  NAME?: string
-  obj?: number | string
-  OBJ?: number | string
-  pv?: number | string
-  PV?: number | string
 }
 
 interface RawPeriodTypeRecord {
@@ -479,13 +473,15 @@ const periodTypeFilter = ref<string | null>(null)
 const workTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const objectTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const sourceOptions = ref<Array<{ label: string; value: string }>>([])
+const sourceOptionsLoading = ref(false)
+const sourceOptionsLoaded = ref(false)
+let sourceOptionsRequestToken = 0
 const periodTypeOptions = ref<Array<{ label: string; value: string }>>([])
 
 const workTypeDirectory = new Map<string, WorkTypeOptionDetails>()
 const sourceDirectory = new Map<string, SourceOptionDetails>()
 const sourceDirectoryByPv = new Map<string, SourceOptionDetails>()
 const periodTypeDirectory = new Map<string, PeriodTypeOptionDetails>()
-const rawSourceRecords = new Map<string, RawSourceRecord>()
 const rawPeriodTypeRecords = new Map<string, RawPeriodTypeRecord>()
 
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
@@ -503,6 +499,117 @@ const directories = {
   objectTypes: new Map<string, string>(),
   sources: new Map<string, string>(),
   periodTypes: new Map<string, string>(),
+}
+
+function normalizeSourceDetails(option: SourceOptionDetails | null): SourceOptionDetails | null {
+  if (!option) return null
+  const label = String(option.label ?? '').trim()
+  const objId = String(option.objId ?? option.id ?? '').trim()
+  if (!label || !objId) return null
+  const pvIdRaw = option.pvId ?? option.id ?? objId
+  const pvId = String(pvIdRaw ?? '').trim() || objId
+
+  return {
+    id: String(option.id ?? objId),
+    label,
+    objId,
+    pvId,
+  }
+}
+
+function fromParameterSourceOption(option: ParameterSourceOption): SourceOptionDetails | null {
+  if (!option) return null
+  const objId = option.id != null ? String(option.id) : ''
+  const pvId = option.pv != null ? String(option.pv) : ''
+  const rawLabel = option.name ?? ''
+  const label = rawLabel.trim() || rawLabel
+  if (!objId || !pvId || !label) return null
+
+  return {
+    id: objId,
+    label,
+    objId,
+    pvId,
+  }
+}
+
+function mergeSourceDirectory(...batches: SourceOptionDetails[][]): void {
+  const byObj = new Map<string, SourceOptionDetails>()
+  const byPv = new Map<string, SourceOptionDetails>()
+
+  for (const batch of batches) {
+    for (const option of batch) {
+      const normalized = normalizeSourceDetails(option)
+      if (!normalized) continue
+      byObj.set(normalized.objId, normalized)
+      byPv.set(normalized.pvId, normalized)
+    }
+  }
+
+  if (byObj.size === 0 && byPv.size === 0) return
+
+  const sorted = Array.from(byObj.values()).sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+  sourceDirectory.clear()
+  sourceDirectoryByPv.clear()
+  directories.sources.clear()
+
+  for (const detail of sorted) {
+    sourceDirectory.set(detail.objId, detail)
+    sourceDirectoryByPv.set(detail.pvId, detail)
+    directories.sources.set(detail.objId, detail.label)
+    directories.sources.set(detail.pvId, detail.label)
+  }
+
+  const baseOptions = sorted.map((detail) => ({ label: detail.label, value: detail.objId }))
+  const seen = new Set(baseOptions.map((item) => item.value))
+  const extras = sourceOptions.value.filter((option) => {
+    const key = String(option.value ?? '')
+    if (!key || seen.has(key)) return false
+    return true
+  })
+
+  const combined = [...baseOptions]
+  for (const option of extras) {
+    const key = String(option.value ?? '')
+    if (!key || seen.has(key)) continue
+    const label = String(option.label ?? '').trim()
+    if (!label) continue
+    combined.push({ label, value: key })
+    seen.add(key)
+  }
+
+  combined.sort((a, b) => String(a.label).localeCompare(String(b.label), 'ru'))
+  sourceOptions.value = combined
+}
+
+async function loadSourceDirectory(force = false): Promise<void> {
+  if (sourceOptionsLoading.value) return
+  if (sourceOptionsLoaded.value && !force) return
+
+  sourceOptionsLoading.value = true
+  const requestToken = ++sourceOptionsRequestToken
+  try {
+    const response = await loadParameterSources()
+    if (requestToken !== sourceOptionsRequestToken) return
+
+    const updates: SourceOptionDetails[] = []
+    for (const option of response) {
+      const details = fromParameterSourceOption(option)
+      if (details) updates.push(details)
+    }
+
+    mergeSourceDirectory(Array.from(sourceDirectory.values()), updates)
+    sourceOptionsLoaded.value = sourceDirectory.size > 0
+  } catch (error) {
+    if (requestToken !== sourceOptionsRequestToken) return
+    console.error(error)
+    message.error('Не удалось загрузить источники')
+  } finally {
+    if (requestToken === sourceOptionsRequestToken) {
+      sourceOptionsLoading.value = false
+    }
+  }
 }
 
 const dialogOpen = ref(false)
@@ -1014,6 +1121,7 @@ function openCreate() {
   dialogMode.value = 'create'
   dialogStep.value = 'form'
   dialogOpen.value = true
+  void loadSourceDirectory(!sourceOptionsLoaded.value)
 }
 
 function editWork(row: WorkTableRow) {
@@ -1026,6 +1134,7 @@ function editWork(row: WorkTableRow) {
   pendingWorkName.value = row.name
   applyRowToForm(row)
   dialogOpen.value = true
+  void loadSourceDirectory(true)
   void loadWorkObjectTypesForForm(row.id)
 }
 
@@ -1278,30 +1387,26 @@ function formatPeriodicityText(value: number | null, periodTypeName: string | nu
 async function loadWorks() {
   tableLoading.value = true
   try {
-    const [workTypePayload, sourcePayload, periodTypePayload, objectTypePayload, worksPayload] =
-      await Promise.all([
-        rpc('data/loadClsForSelect', ['Typ_Work']),
-        rpc('data/loadFvForSelect', ['Factor_Source']),
-        rpc('data/loadFvForSelect', ['Factor_PeriodType']),
-        rpc('data/loadComponentsObject2', ['RT_Works', 'Typ_Work', 'Typ_ObjectTyp']),
-        rpc('data/loadProcessCharts', [0]),
-      ])
+    const sourcePromise = loadSourceDirectory(true)
+    const [workTypePayload, periodTypePayload, objectTypePayload, worksPayload] = await Promise.all([
+      rpc('data/loadClsForSelect', ['Typ_Work']),
+      rpc('data/loadFvForSelect', ['Factor_PeriodType']),
+      rpc('data/loadComponentsObject2', ['RT_Works', 'Typ_Work', 'Typ_ObjectTyp']),
+      rpc('data/loadProcessCharts', [0]),
+    ])
+
+    await sourcePromise
 
     const workTypeRecords = extractRecords<RawWorkTypeRecord>(workTypePayload)
-    const sourceRecords = extractRecords<RawSourceRecord>(sourcePayload)
     const periodTypeRecords = extractRecords<RawPeriodTypeRecord>(periodTypePayload)
     const objectTypeRecords = extractRecords<RawObjectTypeRelationRecord>(objectTypePayload)
     const workRecords = extractRecords<RawWorkRecord>(worksPayload)
 
     directories.workTypes.clear()
-    directories.sources.clear()
-    directories.periodTypes.clear()
     directories.objectTypes.clear()
+    directories.periodTypes.clear()
     workTypeDirectory.clear()
-    sourceDirectory.clear()
-    sourceDirectoryByPv.clear()
     periodTypeDirectory.clear()
-    rawSourceRecords.clear()
     rawPeriodTypeRecords.clear()
 
     workTypeOptions.value = workTypeRecords
@@ -1311,23 +1416,6 @@ async function loadWorks() {
         if (!id || !name) return null
         directories.workTypes.set(id, name)
         workTypeDirectory.set(id, { id, label: name })
-        return { label: name, value: id }
-      })
-      .filter((item): item is { label: string; value: string } => Boolean(item))
-      .sort((a, b) => a.label.localeCompare(b.label, 'ru'))
-
-    sourceOptions.value = sourceRecords
-      .map((item) => {
-        const id = toOptionalString(item.id ?? item.ID ?? item.obj ?? item.OBJ) ?? null
-        const name = toOptionalString(item.name ?? item.NAME)
-        const objId = toOptionalString(item.obj ?? item.OBJ ?? id) ?? null
-        const pvId = toOptionalString(item.pv ?? item.PV ?? id) ?? null
-        if (!id || !name || !objId || !pvId) return null
-        directories.sources.set(id, name)
-        const details: SourceOptionDetails = { id: objId, label: name, objId, pvId }
-        sourceDirectory.set(objId, details)
-        sourceDirectoryByPv.set(pvId, details)
-        rawSourceRecords.set(objId, item)
         return { label: name, value: id }
       })
       .filter((item): item is { label: string; value: string } => Boolean(item))
@@ -1378,9 +1466,14 @@ async function loadWorks() {
       const sourceRecordId = toOptionalString(record.idCollections)
       const numberSourceRecordId = toOptionalString(record.idNumberSource)
 
-      let sourceId = toOptionalString(record.idCollections ?? record.pvCollections)
-      const directorySourceName = sourceId ? directories.sources.get(sourceId) ?? null : null
+      let sourceId =
+        sourceObjId ?? toOptionalString(record.idCollections ?? record.pvCollections) ?? sourcePvId ?? null
       const fallbackSourceName = toOptionalString(record.nameCollections)
+      const directorySourceName =
+        (sourceId && directories.sources.get(sourceId)) ||
+        (sourceObjId && directories.sources.get(sourceObjId)) ||
+        (sourcePvId && directories.sources.get(sourcePvId)) ||
+        null
       const sourceName = directorySourceName ?? fallbackSourceName
       if (!sourceId && sourceName) {
         sourceId = `name:${sourceName}`
@@ -1435,6 +1528,11 @@ async function loadWorks() {
         if (workTypeLabel) {
           workTypeDirectory.set(workTypeId, { id: workTypeId, label: workTypeLabel })
         }
+      }
+
+      if (sourceObjId && sourceName) {
+        directories.sources.set(sourceObjId, sourceName)
+        if (sourcePvId) directories.sources.set(sourcePvId, sourceName)
       }
 
       if (sourceObjId && sourceName && !sourceDirectory.has(sourceObjId)) {
