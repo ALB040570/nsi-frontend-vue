@@ -40,6 +40,17 @@ export function firstRecord<T>(payload: unknown): T | null {
   if (Array.isArray(records) && records.length > 0) {
     return records[0] as T
   }
+
+  if (isRecord(payload)) {
+    const candidates = [payload.result, payload]
+
+    for (const candidate of candidates) {
+      if (isRecord(candidate)) {
+        return candidate as T
+      }
+    }
+  }
+
   return null
 }
 
