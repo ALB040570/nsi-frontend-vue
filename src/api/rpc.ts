@@ -1,5 +1,5 @@
 import { rpc } from '@shared/api'
-import { extractRecords } from '@shared/lib'
+import { extractRecords, firstRecord } from '@shared/lib'
 
 export interface DepartmentRecord {
   id: number
@@ -142,17 +142,26 @@ export async function loadDepartmentsWithFile(sourceId: number): Promise<SourceD
 }
 
 export async function saveSourceCollectionIns(payload: SaveSourceCollectionInsPayload): Promise<SourceCollectionRecord> {
-  const response = await rpc<SourceCollectionRecord | { result: SourceCollectionRecord }>(
-    'data/saveSourceCollections',
-    ['ins', payload],
-  )
+  const response = await rpc<unknown>('data/saveSourceCollections', ['ins', payload])
 
-  const normalized =
-    response && typeof response === 'object' && 'result' in response
-      ? (response.result as SourceCollectionRecord)
-      : (response as SourceCollectionRecord)
+  const record = firstRecord<SourceCollectionRecord>(response)
+  if (record && typeof record.id === 'number') {
+    return record
+  }
 
-  return normalized
+  if (response && typeof response === 'object') {
+    const direct = response as Record<string, unknown>
+    if (typeof direct.id === 'number') {
+      return direct as SourceCollectionRecord
+    }
+
+    const result = (direct['result'] ?? null) as Record<string, unknown> | null
+    if (result && typeof result.id === 'number') {
+      return result as SourceCollectionRecord
+    }
+  }
+
+  throw new Error('Не удалось сохранить документ: отсутствует идентификатор')
 }
 
 export async function saveSourceCollectionUpd(payload: SaveSourceCollectionUpdPayload): Promise<SourceCollectionRecord> {

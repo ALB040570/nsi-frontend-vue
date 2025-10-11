@@ -32,14 +32,16 @@ export function isoDateToTimestamp(value: string | null | undefined): number | n
   const month = Number.parseInt(monthRaw ?? '', 10)
   const day = Number.parseInt(dayRaw ?? '', 10)
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null
-  return Date.UTC(year, month - 1, day)
+  const date = new Date(year, month - 1, day)
+  return Number.isNaN(date.getTime()) ? null : date.getTime()
 }
 
 export function timestampToIsoDate(value: number | null | undefined): string | null {
   if (value == null) return null
   const date = new Date(value)
-  const year = date.getUTCFullYear()
-  const month = String(date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(date.getUTCDate()).padStart(2, '0')
+  if (Number.isNaN(date.getTime())) return null
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
