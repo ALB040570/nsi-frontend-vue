@@ -105,6 +105,7 @@ import {
   OptionsOutline,
   ConstructOutline,
   ClipboardOutline,
+  BookOutline,
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
@@ -147,6 +148,7 @@ const menuRouteByKey: Record<string, string> = {
   'object-defects': '/nsi/object-defects',
   'object-parameters': '/nsi/object-parameters',
   works: '/nsi/works',
+  sources: '/nsi/sources',
   components: '/nsi/components',
 }
 
@@ -185,6 +187,13 @@ const MENU_ITEMS = [
     menuLabel: 'Работы',
     mobileLabel: 'Работы',
     tooltip: 'Справочник технологических работ',
+  },
+  {
+    key: 'sources',
+    icon: BookOutline,
+    menuLabel: 'Источники',
+    mobileLabel: 'Источники',
+    tooltip: 'Справочник нормативных документов',
   },
   {
     key: 'components',
