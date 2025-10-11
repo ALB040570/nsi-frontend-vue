@@ -1282,10 +1282,10 @@ onMounted(() => {
     min-width: 0;
   }
 
-  .card-title {
-    font-size: 15px;
+  .toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
   }
-}
 
 @media (max-width: 360px) {
   .card-section {
