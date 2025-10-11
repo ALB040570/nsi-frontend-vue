@@ -204,7 +204,8 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, watch, watchEffect, type VNodeChild } from 'vue'
-import { useBreakpoints } from '@vueuse/core'
+import { useIsMobile } from '@/shared/composables/useIsMobile'
+
 import {
   NButton,
   NCard,
@@ -247,6 +248,7 @@ import {
 } from '@/api/rpc'
 import { formatDateIsoToRu, formatPeriod, getErrorMessage, timestampToIsoDate } from '@shared/lib'
 
+
 interface FiltersModel {
   search: string
   author: string | null
@@ -286,8 +288,8 @@ interface SourceRow extends SourceCollectionRecord {
   periodText: string
 }
 
-const breakpoints = useBreakpoints({ tablet: 720 })
-const isMobile = breakpoints.smaller('tablet')
+const { isMobile } = useIsMobile('(max-width: 720px)')
+
 
 const message = useMessage()
 const dialog = useDialog()
@@ -443,12 +445,7 @@ watch(
   },
 )
 
-watchEffect(() => {
-  const maxPage = Math.max(1, Math.ceil((sortedSources.value.length || 0) / pagination.pageSize) || 1)
-  if (pagination.page > maxPage) {
-    pagination.page = maxPage
-  }
-})
+
 
 watch(
   () => appliedFilters.value.departments.slice().sort((a, b) => a - b),
@@ -532,7 +529,12 @@ const pagedSources = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
   return sortedSources.value.slice(start, start + pagination.pageSize)
 })
-
+watchEffect(() => {
+  const maxPage = Math.max(1, Math.ceil((sortedSources.value.length || 0) / pagination.pageSize) || 1)
+  if (pagination.page > maxPage) {
+    pagination.page = maxPage
+  }
+})
 watchEffect(() => {
   const ids = pagedSources.value.map((item) => item.id)
   ensureDetailsForIds(ids)

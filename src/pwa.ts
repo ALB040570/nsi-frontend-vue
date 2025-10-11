@@ -1,20 +1,22 @@
+// src/…/pwa.ts
 import { Workbox } from 'workbox-window'
 
 export function registerPWA(): void {
+  // в dev НЕ регистрируем sw, чтобы не ловить MIME 'text/html'
+  if (!import.meta.env.PROD) return
   if (!('serviceWorker' in navigator)) return
 
   const wb = new Workbox('/sw.js')
 
   const reloadOnControlling = () => {
-    console.info('[PWA] Service worker took control, reloading to apply updates')
+    // опционально: мягкая перезагрузка после обновления sw
     window.location.reload()
   }
 
   wb.addEventListener('waiting', () => {
-    console.info('[PWA] New version available (waiting). Applying update...')
     wb.addEventListener('controlling', reloadOnControlling)
     wb.messageSkipWaiting()
   })
 
-  wb.register()
+  wb.register().catch(console.warn)
 }
