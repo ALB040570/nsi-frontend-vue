@@ -1,181 +1,138 @@
 <template>
   <section class="sources-page">
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
-      <div class="toolbar__header">
-        <div class="toolbar__info">
-          <h2 class="page-title">Справочник «Источники (нормативные документы)»</h2>
-          <p class="subtext">
-            Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
-          </p>
+      <div class="toolbar__left">
+        <h2 class="page-title">
+          Справочник «Источники (нормативные документы)»
+          <NButton
+            quaternary
+            circle
+            size="small"
+            class="page-title__info"
+            aria-label="Справка о справочнике"
+            @click="infoOpen = true"
+          >
+            <template #icon>
+              <NIcon><InformationCircleOutline /></NIcon>
+            </template>
+          </NButton>
+        </h2>
+        <div class="subtext">
+          Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
         </div>
-        <NButton type="primary" class="toolbar__add" @click="openCreate">Добавить документ</NButton>
       </div>
 
-      <div class="toolbar__filters">
+      <div class="toolbar__controls">
         <NInput
           v-model:value="filterModel.search"
-          placeholder="Поиск..."
+          placeholder="Поиск…"
           clearable
           round
           class="toolbar__search"
+          :size="isMobile ? 'small' : undefined"
         />
+        <div class="toolbar__filters">
+          <NSelect
+            v-model:value="filterModel.author"
+            :options="authorOptions"
+            placeholder="Орган (регулятор)"
+            clearable
+            size="small"
+            class="toolbar__select"
+          />
+          <NDatePicker
+            v-model:value="filterModel.approvalRange"
+            type="daterange"
+            format="dd.MM.yyyy"
+            clearable
+            size="small"
+            placeholder="Дата утверждения"
+            class="toolbar__select"
+          />
+          <NDatePicker
+            v-model:value="filterModel.periodRange"
+            type="daterange"
+            format="dd.MM.yyyy"
+            clearable
+            size="small"
+            placeholder="Период действия"
+            class="toolbar__select"
+          />
+          <NSelect
+            v-model:value="filterModel.departments"
+            :options="departmentOptions"
+            placeholder="Исполнитель (подразделение)"
+            multiple
+            filterable
+            clearable
+            size="small"
+            class="toolbar__select toolbar__select--wide"
+          />
+        </div>
         <NSelect
-          v-model:value="filterModel.author"
-          :options="authorOptions"
-          placeholder="Орган (регулятор)"
-          clearable
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
           size="small"
-          class="toolbar__control"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
         />
-        <NDatePicker
-          v-model:value="filterModel.approvalRange"
-          type="daterange"
-          format="dd.MM.yyyy"
-          clearable
-          size="small"
-          placeholder="Дата утверждения"
-          class="toolbar__control"
-        />
-        <NDatePicker
-          v-model:value="filterModel.periodRange"
-          type="daterange"
-          format="dd.MM.yyyy"
-          clearable
-          size="small"
-          placeholder="Период действия"
-          class="toolbar__control"
-        />
-        <NSelect
-          v-model:value="filterModel.departments"
-          :options="departmentOptions"
-          placeholder="Исполнитель (подразделение)"
-          multiple
-          filterable
-          clearable
-          size="small"
-          class="toolbar__control toolbar__control--wide"
-        />
+        <NButton type="primary" @click="openCreate">+ Добавить документ</NButton>
       </div>
     </NCard>
 
-    <div class="table-wrapper">
-      <template v-if="isMobile">
-        <div v-if="tableLoading" class="cards-loading">Загрузка...</div>
-        <div v-else-if="!normalizedRows.length" class="empty-state">
-          <NEmpty description="Нет данных" />
-        </div>
-        <div v-else class="cards-list">
-          <NCard v-for="row in normalizedRows" :key="row.id" class="source-card">
-            <template #header>
-              <div class="card-header">
-                <span class="card-title">{{ row.name || '—' }}</span>
-              </div>
+    <div class="table-area">
+      <NDataTable
+        v-if="!isMobile"
+        class="s360-cards table-full table-stretch"
+        :columns="columns"
+        :data="normalizedRows"
+        :loading="tableLoading"
+        :row-key="rowKey"
+        :row-props="createRowProps"
+        :bordered="false"
+        size="small"
+      />
+
+      <div v-else class="cards" role="list">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <article
+          v-for="item in normalizedRows"
+          :key="item.id"
+          class="card"
+          role="group"
+          :aria-label="primaryTitle(item)"
+        >
+          <header class="card__header">
+            <div class="card__title" role="heading" aria-level="4">
+              <FieldRenderer v-if="primaryField" :field="primaryField" :row="item" />
+              <span v-else class="card__title-text">{{ item.name || '—' }}</span>
+            </div>
+          </header>
+
+          <dl class="card__grid">
+            <template
+              v-for="(field, fieldIndex) in infoFields"
+              :key="`${item.id}:${field.key || field.label || fieldIndex}`"
+            >
+              <dt>{{ field.label }}</dt>
+              <dd>
+                <FieldRenderer :field="field" :row="item" />
+              </dd>
             </template>
-            <template #header-extra>
-              <NDropdown :options="actionOptions" trigger="click" @select="(key) => handleAction(key, row)">
-                <NButton quaternary circle size="small">
-                  <template #icon>
-                    <NIcon>
-                      <EllipsisVertical />
-                    </NIcon>
-                  </template>
-                </NButton>
-              </NDropdown>
-            </template>
+          </dl>
 
-            <div class="card-section">
-              <h4 class="card-section__title">Реквизиты</h4>
-              <div class="requisites">
-                <div class="requisites__row">
-                  <span class="requisites__label">Номер:</span>
-                  <NTag size="small" round class="requisites__tag">{{ row.DocumentNumber || '—' }}</NTag>
-                </div>
-                <div class="requisites__row">
-                  <span class="requisites__label">Утвержд.:</span>
-                  <NTag size="small" round type="info" class="requisites__tag">{{ row.formattedApprovalDate }}</NTag>
-                </div>
-                <div class="requisites__row">
-                  <span class="requisites__label">Орган:</span>
-                  <NTag size="small" round class="requisites__tag">{{ row.authorLabel }}</NTag>
-                </div>
-              </div>
-            </div>
+          <footer v-if="actionsField" class="card__actions">
+            <ActionsRenderer :row="item" />
+          </footer>
+        </article>
+      </div>
 
-            <div class="card-section">
-              <span class="card-section__title">Период действия</span>
-              <span class="card-section__value">{{ row.periodText }}</span>
-            </div>
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Дальше</NButton>
+      </div>
 
-            <div class="card-section">
-              <span class="card-section__title">Исполнители</span>
-              <div class="card-executors">
-                <template v-if="row.detailsLoading">
-                  <span class="cell-muted">Загрузка...</span>
-                </template>
-                <template v-else-if="row.deptLoadError">
-                  <NTooltip trigger="hover">
-                    <template #trigger>
-                      <span class="cell-muted">—</span>
-                    </template>
-                    <span>Исполнители недоступны (ошибка сервера)</span>
-                  </NTooltip>
-                </template>
-                <template v-else-if="!row.deptNames.length">
-                  <span class="cell-muted">—</span>
-                </template>
-                <template v-else>
-                  <NTag v-for="name in row.deptNames" :key="name" size="small" round class="executor-tag">
-                    {{ name }}
-                  </NTag>
-                </template>
-              </div>
-            </div>
-
-            <div class="card-section card-section--file">
-              <span class="card-section__title">Файл</span>
-              <div class="card-file">
-                <template v-if="row.files[0]">
-                  <a
-                    v-if="row.files[0] && resolveFileUrl(row.files[0])"
-                    class="file-link"
-                    :href="resolveFileUrl(row.files[0])!"
-                    target="_blank"
-                    rel="noopener"
-                  >
-                    <NIcon size="18" class="file-link__icon">
-                      <DocumentTextOutline />
-                    </NIcon>
-                    <span class="file-link__text">{{ resolveFileName(row.files[0]) }}</span>
-                  </a>
-                  <span v-else class="file-link__text">{{ resolveFileName(row.files[0]) }}</span>
-                </template>
-                <template v-else>
-                  <span class="cell-muted">—</span>
-                </template>
-              </div>
-            </div>
-          </NCard>
-        </div>
-      </template>
-
-      <template v-else>
-        <NDataTable
-          class="sources-table"
-          :columns="columns"
-          :data="normalizedRows"
-          :loading="tableLoading"
-          :row-key="rowKey"
-          :row-props="createRowProps"
-          :bordered="false"
-          size="small"
-        />
-
-        <div v-if="!tableLoading && !normalizedRows.length" class="empty-state">
-          <NEmpty description="Нет данных" />
-        </div>
-      </template>
-
-      <div class="pagination-bar">
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -190,6 +147,24 @@
         </NPagination>
       </div>
     </div>
+
+    <NModal
+      v-model:show="infoOpen"
+      preset="card"
+      title="О справочнике источников"
+      style="max-width: 560px; width: min(92vw, 560px)"
+    >
+      <p class="text-body">
+        Здесь собраны нормативные документы, на основании которых выполняются технологические работы
+        и обслуживание объектов. Поддерживайте в справочнике актуальные реквизиты, сроки действия и
+        ответственных исполнителей, чтобы коллеги всегда использовали проверенные данные.
+      </p>
+      <template #footer>
+        <div class="modal-footer">
+          <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+        </div>
+      </template>
+    </NModal>
 
     <NModal v-model:show="modalOpen" preset="card" :title="modalTitle" style="width: min(680px, 96vw)">
       <SourcesForm
@@ -206,7 +181,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, reactive, ref, watch, watchEffect, type VNodeChild } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref, watch, watchEffect } from 'vue'
+import type { PropType, VNodeChild } from 'vue'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 
 import {
@@ -214,8 +190,6 @@ import {
   NCard,
   NDataTable,
   NDatePicker,
-  NDropdown,
-  NEmpty,
   NIcon,
   NInput,
   NModal,
@@ -228,10 +202,9 @@ import {
   useMessage,
   type DataTableColumns,
   type DataTableRowKey,
-  type DropdownOption,
   type SelectOption,
 } from 'naive-ui'
-import { DocumentTextOutline, EllipsisVertical } from '@vicons/ionicons5'
+import { CreateOutline, DocumentTextOutline, InformationCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
 import SourcesForm, { type SourcesFormModel } from '@/components/nsi/SourcesForm.vue'
 import {
@@ -291,11 +264,20 @@ interface SourceRow extends SourceCollectionRecord {
   periodText: string
 }
 
+interface CardField {
+  key: string
+  label: string
+  render: (row: NormalizedRow) => VNodeChild
+  isPrimary?: boolean
+  isActions?: boolean
+}
+
 const { isMobile } = useIsMobile('(max-width: 720px)')
 
 
 const message = useMessage()
 const dialog = useDialog()
+const infoOpen = ref(false)
 
 const departments = ref<DepartmentRecord[]>([])
 const deptById = computed(() => {
@@ -328,6 +310,11 @@ const filterModel = reactive<FiltersModel>({
 })
 
 const pagination = reactive({ page: 1, pageSize: 10 })
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 const tableLoading = ref(false)
 const removingId = ref<number | null>(null)
 
@@ -352,11 +339,6 @@ const emptyFormState = (): SourcesFormModel => ({
 const formErrors = ref<Partial<Record<keyof SourcesFormModel, string>>>({})
 const formSaving = ref(false)
 const formModel = ref<SourcesFormModel>(emptyFormState())
-
-const actionOptions: DropdownOption[] = [
-  { label: 'Редактировать', key: 'edit' },
-  { label: 'Удалить', key: 'delete' },
-]
 
 function updateFormModel(value: SourcesFormModel) {
   formModel.value = value
@@ -456,6 +438,13 @@ watch(
   { deep: true },
 )
 
+watch(
+  sortOrder,
+  () => {
+    pagination.page = 1
+  },
+)
+
 const enrichedSources = computed(() => sources.value.map(toSourceRow))
 
 const filteredSources = computed(() => {
@@ -510,9 +499,10 @@ const filteredSources = computed(() => {
   })
 })
 
-const sortedSources = computed(() =>
-  [...filteredSources.value].sort((a, b) => a.name.localeCompare(b.name, 'ru')),
-)
+const sortedSources = computed(() => {
+  const base = [...filteredSources.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
 
 const total = computed(() => sortedSources.value.length)
 
@@ -520,19 +510,30 @@ const pagedSources = computed(() => {
   const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
   return sortedSources.value.slice(start, start + pagination.pageSize)
 })
+
+const mobileSources = computed(() =>
+  sortedSources.value.slice(0, Math.min(sortedSources.value.length, pagination.page * pagination.pageSize)),
+)
+
+const displaySources = computed(() => (isMobile.value ? mobileSources.value : pagedSources.value))
+
+const visibleCount = computed(() => displaySources.value.length)
+
+const maxPage = computed(() => Math.max(1, Math.ceil((total.value || 0) / pagination.pageSize) || 1))
+
 watchEffect(() => {
-  const maxPage = Math.max(1, Math.ceil((sortedSources.value.length || 0) / pagination.pageSize) || 1)
-  if (pagination.page > maxPage) {
-    pagination.page = maxPage
+  if (pagination.page > maxPage.value) {
+    pagination.page = maxPage.value
   }
 })
+
 watchEffect(() => {
-  const ids = pagedSources.value.map((item) => item.id)
+  const ids = displaySources.value.map((item) => item.id)
   ensureDetailsForIds(ids)
 })
 
 const normalizedRows = computed<NormalizedRow[]>(() => {
-  return pagedSources.value.map((row) => {
+  return displaySources.value.map((row) => {
     const details = detailsCache.value.get(row.id)
     const departmentIds = details?.departmentIds ?? []
     const deptNames = departmentIds
@@ -555,6 +556,12 @@ const normalizedRows = computed<NormalizedRow[]>(() => {
     }
   })
 })
+
+function showMore() {
+  if (pagination.page < maxPage.value) {
+    pagination.page += 1
+  }
+}
 
 function ensureDetailsForIds(ids: number[]) {
   for (const id of ids) {
@@ -622,12 +629,53 @@ function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
   return promise
 }
 
+function renderName(row: NormalizedRow): VNodeChild {
+  return row.name || '—'
+}
+
+function renderPeriod(row: NormalizedRow): VNodeChild {
+  return row.periodText || '—'
+}
+
+function renderActions(row: NormalizedRow): VNodeChild {
+  const title = row.name?.trim() || 'документ'
+  return h('div', { class: 'table-actions' }, [
+    h(
+      NButton,
+      {
+        quaternary: true,
+        circle: true,
+        size: 'small',
+        onClick: () => void openEdit(row),
+        disabled: removingId.value === row.id,
+        'aria-label': `Изменить документ ${title}`,
+      },
+      { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+    ),
+    h(
+      NButton,
+      {
+        quaternary: true,
+        circle: true,
+        size: 'small',
+        type: 'error',
+        onClick: () => void handleDelete(row),
+        loading: removingId.value === row.id,
+        disabled: removingId.value === row.id,
+        'aria-label': `Удалить документ ${title}`,
+      },
+      { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+    ),
+  ])
+}
+
 const columns: DataTableColumns<NormalizedRow> = [
   {
-    title: 'Наименование документа',
+    title: 'Документ',
     key: 'name',
+    className: 'col-name',
     sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    render: (row) => row.name || '—',
+    render: renderName,
   },
   {
     title: 'Реквизиты',
@@ -637,7 +685,7 @@ const columns: DataTableColumns<NormalizedRow> = [
   {
     title: 'Период действия',
     key: 'period',
-    render: (row) => row.periodText,
+    render: renderPeriod,
   },
   {
     title: 'Исполнители',
@@ -652,9 +700,50 @@ const columns: DataTableColumns<NormalizedRow> = [
   {
     title: 'Действия',
     key: 'actions',
+    className: 'col-actions',
     render: renderActions,
   },
 ]
+
+const cardFields = computed<CardField[]>(() => [
+  { key: 'name', label: 'Документ', render: renderName, isPrimary: true },
+  { key: 'requisites', label: 'Реквизиты', render: renderRequisites },
+  { key: 'period', label: 'Период действия', render: renderPeriod },
+  { key: 'departments', label: 'Исполнители', render: renderDepartments },
+  { key: 'file', label: 'Файл', render: renderFile },
+  { key: 'actions', label: 'Действия', render: renderActions, isActions: true },
+])
+
+const primaryField = computed(
+  () => cardFields.value.find((field) => field.isPrimary) ?? cardFields.value[0],
+)
+const actionsField = computed(() => cardFields.value.find((field) => field.isActions))
+const infoFields = computed(() =>
+  cardFields.value.filter((field) => !field.isPrimary && !field.isActions),
+)
+
+const FieldRenderer = defineComponent({
+  name: 'FieldRenderer',
+  props: {
+    field: { type: Object as PropType<CardField>, required: true },
+    row: { type: Object as PropType<NormalizedRow>, required: true },
+  },
+  setup(props) {
+    return () => props.field.render(props.row)
+  },
+})
+
+const ActionsRenderer = defineComponent({
+  name: 'ActionsRenderer',
+  props: {
+    row: { type: Object as PropType<NormalizedRow>, required: true },
+  },
+  setup(props) {
+    return () => renderActions(props.row)
+  },
+})
+
+const primaryTitle = (row: NormalizedRow) => row.name?.trim() || 'Документ'
 
 function rowKey(row: NormalizedRow): DataTableRowKey {
   return row.id
@@ -802,41 +891,6 @@ function renderFile(row: NormalizedRow): VNodeChild {
   }
 
   return h('span', { class: 'file-link__text' }, name)
-}
-
-function renderActions(row: NormalizedRow): VNodeChild {
-  return h(
-    NDropdown,
-    {
-      options: actionOptions,
-      trigger: 'click',
-      onSelect: (key: string) => handleAction(key, row),
-    },
-    {
-      default: () =>
-        h(
-          NButton,
-          { size: 'small', quaternary: true, circle: true, loading: removingId.value === row.id },
-          {
-            icon: () =>
-              h(
-                NIcon,
-                null,
-                { default: () => h(EllipsisVertical) },
-              ),
-          },
-        ),
-    },
-  )
-}
-
-function handleAction(action: string, row: NormalizedRow) {
-  if (action === 'edit') {
-    void openEdit(row)
-  }
-  if (action === 'delete') {
-    void handleDelete(row)
-  }
 }
 
 function validateForm(): boolean {
@@ -1039,93 +1093,147 @@ onMounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .sources-page {
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  box-sizing: border-box;
+  overflow-x: hidden;
   padding: 12px;
+  gap: 16px;
+}
+
+.table-area {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.table-full {
+  flex: 1;
+  min-width: 0;
+}
+
+:deep(.n-data-table .n-data-table-table) {
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  width: 100%;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
+  background: var(--n-card-color, #fff);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-td) {
+  border-bottom: none;
+  padding: 12px 14px;
+  line-height: 22px;
+  vertical-align: top;
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='name']),
+:deep(.n-data-table .n-data-table-td.col-name) {
+  width: 260px;
+  max-width: 320px;
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='actions']),
+:deep(.n-data-table .n-data-table-td.col-actions) {
+  width: 140px;
+  text-align: right;
+}
+
+:deep(.n-data-table thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.toolbar__header {
-  display: flex;
-  flex-wrap: wrap;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
-  align-items: center;
+  flex-wrap: wrap;
 }
 
-.toolbar__info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.toolbar__left {
+  flex: 1;
+  min-width: 0;
 }
 
 .page-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   font-size: 20px;
   font-weight: 600;
 }
 
+.page-title__info {
+  margin-left: 4px;
+}
+
+.page-title__info:hover,
+.page-title__info:focus {
+  background: #edf1f7;
+  color: var(--n-text-color);
+}
+
+.page-title__info:active {
+  background: #e2e8f0;
+}
+
 .subtext {
-  margin: 0;
-  font-size: 12px;
+  margin-top: 4px;
   color: var(--n-text-color-3);
+  font-size: 12px;
   max-width: 720px;
+}
+
+.toolbar__controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+}
+
+.toolbar__search {
+  flex: 1 1 260px;
+  max-width: 100%;
 }
 
 .toolbar__filters {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.toolbar__search {
-  flex: 1 1 260px;
-  min-width: 220px;
-  max-width: 100%;
+.toolbar__select {
+  width: 180px;
 }
 
-.toolbar__control {
-  flex: 0 0 auto;
-  min-width: 200px;
+.toolbar__select--wide {
+  width: 220px;
 }
 
-.toolbar__control--wide {
-  min-width: 240px;
-}
-
-.table-wrapper {
-  background: var(--n-color);
-  border-radius: 16px;
-  padding: 16px 20px 20px;
-  box-shadow: var(--n-box-shadow);
-}
-
-.sources-table {
-  min-height: 280px;
-}
-
-.empty-state {
-  margin-top: 24px;
-}
-
-.pagination-bar {
-  margin-top: 16px;
+.table-actions {
   display: flex;
+  gap: 4px;
   justify-content: flex-end;
-}
-
-.pagination-total {
-  margin-right: 12px;
-  color: var(--n-text-color-3);
 }
 
 .requisites {
@@ -1197,63 +1305,108 @@ onMounted(() => {
   color: var(--n-text-color-3);
 }
 
-.cards-loading {
-  padding: 32px 0;
-  text-align: center;
-  color: var(--n-text-color-3);
-}
-
-.cards-list {
-  display: grid;
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
 }
 
-.source-card {
-  border-radius: 16px;
-  box-shadow: var(--n-box-shadow);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 16px;
-}
-
-.card-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.card-section__title {
-  font-size: 13px;
+.pagination-total {
+  margin-right: 12px;
   color: var(--n-text-color-3);
+  font-size: 14px;
 }
 
-.card-section__value {
-  font-weight: 500;
-}
-
-.card-section--file {
-  gap: 6px;
-}
-
-.card-executors {
+.show-more-bar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.card-file {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
   align-items: center;
+  justify-content: center;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.list-info {
+  font-size: 12px;
+  color: var(--n-text-color-3);
+  padding: 2px 2px 0;
+}
+
+.card {
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card__header,
+.card__actions {
+  min-width: 0;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.card__title-text {
+  font-weight: 600;
+}
+
+.card__grid {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 6px 10px;
+  margin: 10px 0;
+}
+
+.card__grid dt {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.card__grid dd {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.card__actions .table-actions {
+  justify-content: flex-start;
+}
+
+.text-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 720px) {
@@ -1261,35 +1414,36 @@ onMounted(() => {
     padding: 8px;
   }
 
-  .toolbar {
-    padding: 16px;
-  }
-
-  .toolbar__header {
-    flex-direction: column;
+  .toolbar__controls {
     align-items: stretch;
-    gap: 12px;
+    gap: 10px;
   }
 
   .toolbar__filters {
-    flex-direction: column;
-    align-items: stretch;
+    width: 100%;
   }
 
-  .toolbar__search,
-  .toolbar__control {
-    width: 100%;
-    min-width: 0;
+  .toolbar__search {
+    flex: 1 1 100%;
   }
 
-  .toolbar__actions {
+  .toolbar__select {
+    flex: 1 1 160px;
     width: 100%;
-    justify-content: stretch;
   }
+
+  .toolbar__select--wide {
+    flex: 1 1 200px;
+  }
+
+  .toolbar__search :deep(.n-input__input-el) {
+    height: 34px;
+  }
+}
 
 @media (max-width: 360px) {
-  .card-section {
-    margin-top: 10px;
+  .card__grid {
+    grid-template-columns: 100px 1fr;
   }
 }
 </style>
