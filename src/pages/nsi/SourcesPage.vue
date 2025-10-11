@@ -1,43 +1,49 @@
 <template>
   <section class="sources-page">
-    <NCard size="small" class="toolbar" content-style="padding: 20px 24px">
+    <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__header">
-        <div class="toolbar__title">
+        <div class="toolbar__info">
           <h2 class="page-title">Справочник «Источники (нормативные документы)»</h2>
-          <p class="page-subtitle">Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.</p>
+          <p class="subtext">
+            Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
+          </p>
         </div>
-        <NButton type="primary" @click="openCreate">+ Добавить</NButton>
+        <NButton type="primary" class="toolbar__add" @click="openCreate">+ Добавить</NButton>
       </div>
 
-      <div class="filters-grid">
+      <div class="toolbar__filters">
         <NInput
           v-model:value="filterModel.search"
           placeholder="Поиск..."
           clearable
-          class="filters-item filters-item--wide"
+          round
+          class="toolbar__search"
         />
         <NSelect
           v-model:value="filterModel.author"
           :options="authorOptions"
           placeholder="Орган (регулятор)"
           clearable
-          class="filters-item"
+          size="small"
+          class="toolbar__control"
         />
         <NDatePicker
           v-model:value="filterModel.approvalRange"
           type="daterange"
           format="dd.MM.yyyy"
           clearable
+          size="small"
           placeholder="Дата утверждения"
-          class="filters-item"
+          class="toolbar__control"
         />
         <NDatePicker
           v-model:value="filterModel.periodRange"
           type="daterange"
           format="dd.MM.yyyy"
           clearable
+          size="small"
           placeholder="Период действия"
-          class="filters-item"
+          class="toolbar__control"
         />
         <NSelect
           v-model:value="filterModel.departments"
@@ -46,11 +52,12 @@
           multiple
           filterable
           clearable
-          class="filters-item filters-item--wide"
+          size="small"
+          class="toolbar__control toolbar__control--wide"
         />
-        <div class="filters-actions">
-          <NButton type="primary" @click="applyFilters">Применить</NButton>
-          <NButton tertiary @click="resetFilters">Сбросить</NButton>
+        <div class="toolbar__actions">
+          <NButton size="small" type="primary" @click="applyFilters">Применить</NButton>
+          <NButton size="small" tertiary @click="resetFilters">Сбросить</NButton>
         </div>
       </div>
     </NCard>
@@ -365,7 +372,10 @@ const authorOptions = computed<SelectOption[]>(() => {
   const authors = new Set<string>()
   for (const item of sources.value) {
     if (item.DocumentAuthor) {
-      authors.add(item.DocumentAuthor)
+      const trimmed = item.DocumentAuthor.trim()
+      if (trimmed) {
+        authors.add(trimmed)
+      }
     }
   }
   return Array.from(authors)
@@ -383,11 +393,16 @@ function normalizeRange(range: [number, number] | null): [string, string] | null
   return [endIso, startIso]
 }
 
-function normalizeText(value: string): string {
+function normalizeText(value: string | null | undefined): string {
+  if (value == null) return ''
+
   return value
+    .toString()
     .toLocaleLowerCase('ru-RU')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function toSourceRow(record: SourceCollectionRecord): SourceRow {
@@ -457,7 +472,7 @@ watch(
 )
 
 watch(
-  () => appliedFilters.value.search.trim(),
+  () => normalizeText(appliedFilters.value.search),
   (query) => {
     if (query) {
       ensureDetailsForIds(sources.value.map((item) => item.id))
@@ -469,7 +484,7 @@ const enrichedSources = computed(() => sources.value.map(toSourceRow))
 
 const filteredSources = computed(() => {
   const filters = appliedFilters.value
-  const query = normalizeText(filters.search.trim())
+  const query = normalizeText(filters.search)
 
   return enrichedSources.value.filter((item) => {
     if (filters.author && item.DocumentAuthor !== filters.author) return false
@@ -935,6 +950,7 @@ async function handleSubmit() {
       const result = await saveSourceCollectionIns(payload)
       const newId = result.id
       await saveDepartment(newId, state.departmentIds)
+      await ensureSourceDetails(newId)
       await fetchSources()
       message.success('Документ создан')
     } else if (modalMode.value === 'edit' && editingId != null && editingMeta) {
@@ -1064,10 +1080,10 @@ onMounted(() => {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
+  align-items: center;
 }
 
-.toolbar__title {
+.toolbar__info {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1079,26 +1095,39 @@ onMounted(() => {
   font-weight: 600;
 }
 
-.page-subtitle {
+.subtext {
   margin: 0;
+  font-size: 12px;
   color: var(--n-text-color-3);
   max-width: 720px;
 }
 
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  align-items: flex-start;
+.toolbar__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
-.filters-item--wide {
+.toolbar__search {
+  flex: 1 1 260px;
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.toolbar__control {
+  flex: 0 0 auto;
+  min-width: 200px;
+}
+
+.toolbar__control--wide {
   min-width: 240px;
 }
 
-.filters-actions {
+.toolbar__actions {
   display: flex;
-  gap: 12px;
+  gap: 8px;
+  flex-wrap: wrap;
   align-items: center;
 }
 
@@ -1256,12 +1285,6 @@ onMounted(() => {
   align-items: center;
 }
 
-@media (max-width: 1024px) {
-  .filters-grid {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-}
-
 @media (max-width: 720px) {
   .sources-page {
     padding: 8px;
@@ -1271,22 +1294,29 @@ onMounted(() => {
     padding: 16px;
   }
 
-  .filters-actions {
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 480px) {
   .toolbar__header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .toolbar__filters {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .filters-actions {
-    flex-direction: column;
+  .toolbar__search,
+  .toolbar__control {
+    width: 100%;
+    min-width: 0;
   }
 
-  .filters-actions .n-button {
+  .toolbar__actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .toolbar__actions .n-button {
     width: 100%;
   }
 
@@ -1296,14 +1326,6 @@ onMounted(() => {
 }
 
 @media (max-width: 360px) {
-  .filters-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .filters-item--wide {
-    min-width: 0;
-  }
-
   .card-section {
     margin-top: 10px;
   }
