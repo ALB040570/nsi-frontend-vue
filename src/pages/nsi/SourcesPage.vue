@@ -8,7 +8,7 @@
             Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
           </p>
         </div>
-        <NButton type="primary" class="toolbar__add" @click="openCreate">+ Добавить</NButton>
+        <NButton type="primary" class="toolbar__add" @click="openCreate">Добавить документ</NButton>
       </div>
 
       <div class="toolbar__filters">
@@ -55,10 +55,6 @@
           size="small"
           class="toolbar__control toolbar__control--wide"
         />
-        <div class="toolbar__actions">
-          <NButton size="small" type="primary" @click="applyFilters">Применить</NButton>
-          <NButton size="small" tertiary @click="resetFilters">Сбросить</NButton>
-        </div>
       </div>
     </NCard>
 
@@ -331,8 +327,6 @@ const filterModel = reactive<FiltersModel>({
   departments: [],
 })
 
-const appliedFilters = ref<FiltersModel>({ ...filterModel })
-
 const pagination = reactive({ page: 1, pageSize: 10 })
 const tableLoading = ref(false)
 const removingId = ref<number | null>(null)
@@ -429,30 +423,6 @@ function matchesQuery(row: SourceRow, query: string, deptNames: string[]): boole
   return haystack.some((value) => value.includes(query))
 }
 
-function cloneFilters(source: FiltersModel): FiltersModel {
-  return {
-    search: source.search,
-    author: source.author,
-    approvalRange: source.approvalRange ? [...source.approvalRange] as [number, number] : null,
-    periodRange: source.periodRange ? [...source.periodRange] as [number, number] : null,
-    departments: [...source.departments],
-  }
-}
-
-function applyFilters() {
-  appliedFilters.value = cloneFilters(filterModel)
-  pagination.page = 1
-}
-
-function resetFilters() {
-  filterModel.search = ''
-  filterModel.author = null
-  filterModel.approvalRange = null
-  filterModel.periodRange = null
-  filterModel.departments = []
-  applyFilters()
-}
-
 watch(
   () => pagination.pageSize,
   () => {
@@ -460,10 +430,8 @@ watch(
   },
 )
 
-
-
 watch(
-  () => appliedFilters.value.departments.slice().sort((a, b) => a - b),
+  () => filterModel.departments.slice().sort((a, b) => a - b),
   (ids) => {
     if (ids.length) {
       ensureDetailsForIds(sources.value.map((item) => item.id))
@@ -472,7 +440,7 @@ watch(
 )
 
 watch(
-  () => normalizeText(appliedFilters.value.search),
+  () => normalizeText(filterModel.search),
   (query) => {
     if (query) {
       ensureDetailsForIds(sources.value.map((item) => item.id))
@@ -480,10 +448,18 @@ watch(
   },
 )
 
+watch(
+  filterModel,
+  () => {
+    pagination.page = 1
+  },
+  { deep: true },
+)
+
 const enrichedSources = computed(() => sources.value.map(toSourceRow))
 
 const filteredSources = computed(() => {
-  const filters = appliedFilters.value
+  const filters = filterModel
   const query = normalizeText(filters.search)
 
   return enrichedSources.value.filter((item) => {
@@ -949,6 +925,9 @@ async function handleSubmit() {
       }
       const result = await saveSourceCollectionIns(payload)
       const newId = result.id
+      if (typeof newId !== 'number') {
+        throw new Error('Не удалось определить идентификатор созданного документа')
+      }
       await saveDepartment(newId, state.departmentIds)
       await ensureSourceDetails(newId)
       await fetchSources()
@@ -1046,7 +1025,6 @@ async function fetchSources() {
   try {
     const records = await loadSourceCollections()
     sources.value = records
-    appliedFilters.value = cloneFilters(filterModel)
     pagination.page = 1
   } catch (error) {
     message.error(getErrorMessage(error))
@@ -1122,13 +1100,6 @@ onMounted(() => {
 
 .toolbar__control--wide {
   min-width: 240px;
-}
-
-.toolbar__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items: center;
 }
 
 .table-wrapper {
@@ -1315,15 +1286,6 @@ onMounted(() => {
     width: 100%;
     justify-content: stretch;
   }
-
-  .toolbar__actions .n-button {
-    width: 100%;
-  }
-
-  .card-title {
-    font-size: 15px;
-  }
-}
 
 @media (max-width: 360px) {
   .card-section {
