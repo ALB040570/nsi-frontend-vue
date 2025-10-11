@@ -152,12 +152,12 @@ export async function saveSourceCollectionIns(payload: SaveSourceCollectionInsPa
   if (response && typeof response === 'object') {
     const direct = response as Record<string, unknown>
     if (typeof direct.id === 'number') {
-      return direct as SourceCollectionRecord
+       return direct as unknown as SourceCollectionRecord
     }
 
     const result = (direct['result'] ?? null) as Record<string, unknown> | null
     if (result && typeof result.id === 'number') {
-      return result as SourceCollectionRecord
+      return result as unknown as SourceCollectionRecord
     }
   }
 
