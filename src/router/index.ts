@@ -11,6 +11,7 @@ const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
 const WorksPage = () => import('@pages/nsi/WorksPage.vue')
 const SourcesPage = () => import('@pages/nsi/SourcesPage.vue')
+const ComponentsPage = () => import('@pages/nsi/ComponentsPage.vue')
 const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
@@ -47,6 +48,12 @@ const router = createRouter({
       path: '/nsi/sources',
       name: 'sources',
       component: SourcesPage,
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/nsi/components',
+      name: 'components',
+      component: ComponentsPage,
       // meta: { requiresAuth: true },
     },
   ],
