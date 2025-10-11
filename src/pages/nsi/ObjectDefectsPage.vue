@@ -85,7 +85,19 @@
           :aria-label="primaryTitle(item)"
         >
           <header class="card__header">
-            <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+            <div class="card__heading">
+              <h4 class="card__title">{{ primaryTitle(item) }}</h4>
+              <NTag
+                v-if="item.categoryName"
+                size="small"
+                :bordered="false"
+                round
+                type="info"
+                class="tag-category card__category"
+              >
+                {{ item.categoryName }}
+              </NTag>
+            </div>
             <span v-if="statusText(item)" class="badge" :class="statusClass(item)">
               {{ statusText(item) }}
             </span>
@@ -2079,10 +2091,24 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   gap: 8px;
 }
 
+.card__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
 .card__title {
   margin: 0;
   font-weight: 600;
   overflow-wrap: anywhere;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.card__category {
+  flex: 0 0 auto;
 }
 
 .card__grid {
