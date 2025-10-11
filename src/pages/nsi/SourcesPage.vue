@@ -204,7 +204,6 @@
 
 <script setup lang="ts">
 import { computed, h, onMounted, reactive, ref, watch, watchEffect, type VNodeChild } from 'vue'
-import { useBreakpoints } from '@vueuse/core'
 import {
   NButton,
   NCard,
@@ -246,6 +245,7 @@ import {
   type SourceFileRecord,
 } from '@/api/rpc'
 import { formatDateIsoToRu, formatPeriod, getErrorMessage, timestampToIsoDate } from '@shared/lib'
+import { useIsMobile } from '@/shared/composables/useIsMobile'
 
 interface FiltersModel {
   search: string
@@ -286,8 +286,7 @@ interface SourceRow extends SourceCollectionRecord {
   periodText: string
 }
 
-const breakpoints = useBreakpoints({ tablet: 720 })
-const isMobile = breakpoints.smaller('tablet')
+const { isMobile } = useIsMobile('(max-width: 720px)')
 
 const message = useMessage()
 const dialog = useDialog()
@@ -397,7 +396,8 @@ function toSourceRow(record: SourceCollectionRecord): SourceRow {
 }
 
 function matchesQuery(row: SourceRow, query: string, deptNames: string[]): boolean {
-  if (!query) return true
+  const normalizedQuery = normalizeText(query)
+  if (!normalizedQuery) return true
   const haystack = [
     row.name,
     row.DocumentNumber,
@@ -409,7 +409,7 @@ function matchesQuery(row: SourceRow, query: string, deptNames: string[]): boole
     .filter((value): value is string => Boolean(value))
     .map((value) => normalizeText(value))
 
-  return haystack.some((value) => value.includes(query))
+  return haystack.some((value) => value.includes(normalizedQuery))
 }
 
 function cloneFilters(source: FiltersModel): FiltersModel {
@@ -450,29 +450,11 @@ watchEffect(() => {
   }
 })
 
-watch(
-  () => appliedFilters.value.departments.slice().sort((a, b) => a - b),
-  (ids) => {
-    if (ids.length) {
-      ensureDetailsForIds(sources.value.map((item) => item.id))
-    }
-  },
-)
-
-watch(
-  () => appliedFilters.value.search.trim(),
-  (query) => {
-    if (query) {
-      ensureDetailsForIds(sources.value.map((item) => item.id))
-    }
-  },
-)
-
 const enrichedSources = computed(() => sources.value.map(toSourceRow))
 
 const filteredSources = computed(() => {
   const filters = appliedFilters.value
-  const query = normalizeText(filters.search.trim())
+  const query = filters.search.trim()
 
   return enrichedSources.value.filter((item) => {
     if (filters.author && item.DocumentAuthor !== filters.author) return false
@@ -494,20 +476,22 @@ const filteredSources = computed(() => {
       if (docStart > rangeEnd || docEnd < rangeStart) return false
     }
 
-    if (filters.departments.length) {
-      const details = detailsCache.value.get(item.id)
+    let details = detailsCache.value.get(item.id)
+
+    if (filters.departments.length || query) {
       if (!details || (!details.loaded && !details.error)) {
-        return false
+        void ensureSourceDetails(item.id)
+        details = detailsCache.value.get(item.id)
       }
-      if (details.error) {
-        return false
-      }
+    }
+
+    if (filters.departments.length) {
+      if (!details || details.error) return false
       if (!details.departmentIds.some((id) => filters.departments.includes(id))) {
         return false
       }
     }
 
-    const details = detailsCache.value.get(item.id)
     const deptNames = details
       ? details.departmentIds
           .map((id) => deptById.value.get(id))
