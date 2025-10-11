@@ -121,7 +121,12 @@ function extractFileRecords(source: unknown): SourceFileRecord[] {
 }
 
 export async function loadDepartmentsWithFile(sourceId: number): Promise<SourceDetailsResult> {
-  const response = await rpc<unknown>('data/loadDepartmentsWithFile', [sourceId])
+  const normalizedId = Number(sourceId)
+  if (!Number.isFinite(normalizedId)) {
+    return { departmentIds: [], files: [] }
+  }
+
+  const response = await rpc<unknown>('data/loadDepartmentsWithFile', [normalizedId])
 
   if (response && typeof response === 'object') {
     const departments = parseDepartmentIds((response as Record<string, unknown>).departments)
