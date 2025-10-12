@@ -6,14 +6,13 @@
     <header class="s360-top-bar">
       <div class="s360-top-left">
         <button
-          v-if="showDesktopNavigation"
+          v-if="showNavigation"
           type="button"
           class="s360-toggle"
           :aria-label="toggleAriaLabel"
           @click="toggleAside"
         >
-          <NIcon v-if="isAsideCollapsed" :component="MenuOutline" />
-          <NIcon v-else :component="CloseOutline" />
+          <NIcon :component="toggleIcon" />
         </button>
 
         <router-link to="/" class="s360-logo">
@@ -48,19 +47,27 @@
 
     <div class="s360-body">
       <aside
-        v-if="showDesktopNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation"
         class="s360-aside sider"
-        :style="{ width: siderWidth + 'px', flexBasis: siderWidth + 'px' }"
+        :class="{ 'is-collapsed': isSidebarCollapsed }"
+        :style="asideInlineStyle"
       >
         <div class="s360-aside-inner">
           <nav class="s360-nav">
-            <NMenu :options="menuOptions" :value="menuValue" @update:value="handleMenuSelect" />
+            <NMenu
+              :options="menuOptions"
+              :value="menuValue"
+              :collapsed="isSidebarCollapsed"
+              :collapsed-width="COLLAPSED_WIDTH"
+              :collapsed-icon-size="22"
+              @update:value="handleMenuSelect"
+            />
           </nav>
         </div>
       </aside>
 
       <div
-        v-if="showDesktopNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation && !isSidebarCollapsed"
         class="sider-resizer"
         @mousedown="startResize"
         @touchstart="startResize"
@@ -79,17 +86,51 @@
         class="bottom-nav-item"
         :class="{ active: item.isActive }"
         :aria-label="item.label"
-        @click="handleMenuSelect(item.key)"
+        @click="handleBottomNavAction(item)"
       >
         <NIcon :component="item.icon" />
         <span class="bottom-nav-label">{{ item.mobileLabel }}</span>
       </button>
     </nav>
+
+    <transition name="mobile-drawer">
+      <div
+        v-if="showMobileNavigation && mobileDrawerOpen"
+        class="s360-mobile-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Навигация"
+      >
+        <button type="button" class="drawer-backdrop" aria-label="Закрыть меню" @click="closeMobileDrawer" />
+        <div class="drawer-panel">
+          <header class="drawer-header">
+            <span class="drawer-title">Навигация</span>
+            <button type="button" class="drawer-close" aria-label="Закрыть меню" @click="closeMobileDrawer">
+              <NIcon :component="CloseOutline" />
+            </button>
+          </header>
+          <div class="drawer-content">
+            <button
+              v-for="item in mobileDrawerItems"
+              :key="item.key"
+              type="button"
+              class="drawer-link"
+              :class="{ active: menuValue === item.key }"
+              @click="handleMobileDrawerSelect(item.key)"
+            >
+              <NIcon :component="item.icon" />
+              <span>{{ item.menuLabel }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </transition>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -106,10 +147,12 @@ import {
   ConstructOutline,
   ClipboardOutline,
   BookOutline,
+  EllipsisHorizontal,
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
 import { useAuth } from '@features/auth'
+import { useUiStore } from '@/stores/ui'
 
 interface LanguageOption {
   label: string
@@ -129,6 +172,12 @@ const languageOptions = computed<DropdownOption[]>(() =>
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
+
+const ui = useUiStore()
+ui.hydrateSidebarCollapsed()
+const { isSidebarCollapsed } = storeToRefs(ui)
+
+const COLLAPSED_WIDTH = 72
 
 const renderIcon = (icon: VueComponent) => () => h(NIcon, null, { default: () => h(icon) })
 
@@ -210,6 +259,17 @@ const MENU_ITEMS = [
   tooltip: string
 }>
 
+type MenuItem = (typeof MENU_ITEMS)[number]
+
+interface BottomNavItem {
+  key: string
+  label: string
+  mobileLabel: string
+  icon: VueComponent
+  isActive: boolean
+  type: 'route' | 'more'
+}
+
 const menuOptions: MenuOption[] = MENU_ITEMS.map((item) => ({
   label: withTooltip(item.menuLabel, item.tooltip),
   key: item.key,
@@ -229,6 +289,14 @@ const initialSiderWidth = clamp(
   typeof window !== 'undefined' ? Number(localStorage.getItem(KEY)) || 240 : 240,
 )
 const siderWidth = ref<number>(initialSiderWidth)
+
+const asideInlineStyle = computed(() => {
+  const width = isSidebarCollapsed.value ? COLLAPSED_WIDTH : siderWidth.value
+  return {
+    width: `${width}px`,
+    flexBasis: `${width}px`,
+  }
+})
 
 const handleMouseMove = (event: MouseEvent) => onPointerMove(event)
 const handleTouchMove = (event: TouchEvent) => onPointerMove(event)
@@ -266,6 +334,7 @@ function startResize(e: MouseEvent | TouchEvent) {
 }
 
 const menuValue = ref<string | null>(null)
+const mobileDrawerOpen = ref(false)
 
 const handleMenuSelect = (key: string | number | null) => {
   if (key == null) return
@@ -275,6 +344,7 @@ const handleMenuSelect = (key: string | number | null) => {
   if (target !== route.path) {
     void router.push(target)
   }
+  mobileDrawerOpen.value = false
 }
 
 const syncMenuValue = () => {
@@ -287,14 +357,13 @@ watch(
   () => route.path,
   () => {
     syncMenuValue()
+    mobileDrawerOpen.value = false
   },
   { immediate: true },
 )
 
 const isAuthenticated = auth.isAuthenticated
 const user = auth.user
-
-const isAsideCollapsed = ref(false)
 
 const showNavigation = computed(() => isAuthenticated.value)
 
@@ -308,23 +377,83 @@ const isMobile = computed(() => viewportWidth.value <= 768)
 const showDesktopNavigation = computed(() => showNavigation.value && !isMobile.value)
 const showMobileNavigation = computed(() => showNavigation.value && isMobile.value)
 
-const bottomNavItems = computed(() =>
-  MENU_ITEMS.map((item) => ({
+watch(
+  isMobile,
+  (value) => {
+    if (!value) {
+      mobileDrawerOpen.value = false
+    }
+  },
+  { immediate: true },
+)
+
+const MOBILE_PRIMARY_KEYS = ['dashboard', 'works', 'object-parameters', 'components'] as const
+const primaryKeySet = new Set<string>(MOBILE_PRIMARY_KEYS)
+
+const bottomNavItems = computed<BottomNavItem[]>(() => {
+  const activeKey = menuValue.value
+  const primaryItems = MENU_ITEMS.filter((item) => primaryKeySet.has(item.key)).map((item) => ({
     key: item.key,
     label: item.tooltip,
     mobileLabel: item.mobileLabel,
     icon: item.icon,
-    isActive: menuValue.value === item.key,
-  })),
-)
+    isActive: activeKey === item.key,
+    type: 'route' as const,
+  }))
 
-const toggleAriaLabel = computed(() =>
-  isAsideCollapsed.value ? 'Открыть навигацию' : 'Скрыть навигацию',
-)
+  const isActivePrimary = activeKey ? primaryKeySet.has(activeKey) : false
+
+  return [
+    ...primaryItems,
+    {
+      key: 'more',
+      label: 'Дополнительные разделы',
+      mobileLabel: 'Ещё',
+      icon: EllipsisHorizontal,
+      isActive: Boolean(activeKey) && !isActivePrimary,
+      type: 'more' as const,
+    },
+  ]
+})
+
+const mobileDrawerItems = computed<MenuItem[]>(() => MENU_ITEMS)
+
+const toggleIcon = computed(() => {
+  if (isMobile.value) {
+    return mobileDrawerOpen.value ? CloseOutline : MenuOutline
+  }
+  return isSidebarCollapsed.value ? MenuOutline : CloseOutline
+})
+
+const toggleAriaLabel = computed(() => {
+  if (isMobile.value) {
+    return mobileDrawerOpen.value ? 'Закрыть меню' : 'Открыть меню'
+  }
+  return isSidebarCollapsed.value ? 'Развернуть навигацию' : 'Свернуть навигацию'
+})
 
 const toggleAside = () => {
-  if (isMobile.value) return
-  isAsideCollapsed.value = !isAsideCollapsed.value
+  if (isMobile.value) {
+    mobileDrawerOpen.value = !mobileDrawerOpen.value
+    return
+  }
+  ui.toggleSidebar()
+}
+
+const closeMobileDrawer = () => {
+  mobileDrawerOpen.value = false
+}
+
+const handleMobileDrawerSelect = (key: string) => {
+  handleMenuSelect(key)
+}
+
+const handleBottomNavAction = (item: BottomNavItem) => {
+  if (item.type === 'more') {
+    mobileDrawerOpen.value = true
+    return
+  }
+  handleMenuSelect(item.key)
 }
 
 const handleLanguageSelect = (key: string | number | null) => {
@@ -431,7 +560,7 @@ const handleProfileSelect = async (key: string | number | null) => {
       return
     case 'logout':
       await auth.logout()
-      isAsideCollapsed.value = true
+      ui.setSidebarCollapsed(true, { persist: false })
       await router.push({ name: 'login' })
       break
     case 'login':
@@ -445,7 +574,12 @@ const handleProfileSelect = async (key: string | number | null) => {
 watch(
   isAuthenticated,
   (value) => {
-    isAsideCollapsed.value = value ? false : true
+    if (!value) {
+      ui.setSidebarCollapsed(true, { persist: false })
+      mobileDrawerOpen.value = false
+      return
+    }
+    ui.hydrateSidebarCollapsed()
   },
   { immediate: true },
 )
@@ -627,6 +761,15 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   background: #f7fbfb;
   border-right: 1px solid #e6eaea;
+  transition: width 0.2s ease;
+}
+
+.s360-aside.is-collapsed {
+  border-right: 1px solid #e0e6e6;
+}
+
+.s360-aside.is-collapsed .s360-aside-inner {
+  padding: 16px 12px;
 }
 
 .sider {
@@ -676,6 +819,15 @@ onBeforeUnmount(() => {
     color 0.2s ease;
 }
 
+.s360-aside.is-collapsed :deep(.n-menu-item-content) {
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.s360-aside.is-collapsed :deep(.n-menu-item-content__icon) {
+  margin-right: 0;
+}
+
 .s360-nav :deep(.n-menu-item-content .n-menu-item-content__title) {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -721,6 +873,105 @@ onBeforeUnmount(() => {
 
 .bottom-nav-label {
   font-size: 12px;
+}
+
+.mobile-drawer-enter-active,
+.mobile-drawer-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.mobile-drawer-enter-from,
+.mobile-drawer-leave-to {
+  opacity: 0;
+}
+
+.s360-mobile-drawer {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  z-index: 1200;
+}
+
+.drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 62, 68, 0.35);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.drawer-panel {
+  position: relative;
+  width: min(320px, 86vw);
+  height: 100%;
+  background: #ffffff;
+  box-shadow: -12px 0 32px rgba(15, 62, 68, 0.14);
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 12px;
+  border-bottom: 1px solid #e6eaea;
+}
+
+.drawer-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f3e44;
+}
+
+.drawer-close {
+  appearance: none;
+  border: none;
+  background: #f3f6f6;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f3e44;
+  cursor: pointer;
+}
+
+.drawer-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px 12px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 15px;
+  color: #0f3e44;
+  cursor: pointer;
+}
+
+.drawer-link.active {
+  background: #e6f2f2;
+  color: #006d77;
+  font-weight: 600;
+}
+
+.drawer-link :deep(.n-icon) {
+  font-size: 20px;
 }
 
 @media (max-width: 900px) {
