@@ -5,3 +5,4 @@
 export * from './api/repository'
 export * from './api/categoryMeta'
 export * from './model/types'
+export * from './model/dto'
