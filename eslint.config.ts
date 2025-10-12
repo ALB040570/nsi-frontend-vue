@@ -19,8 +19,8 @@ const baseRestrictedPatterns = [
     message: 'Импортируйте фичи через @features/<feature>',
   },
   {
-    group: ['@shared/api/*', '@shared/lib/*'],
-    message: 'Используйте @shared/api и @shared/lib вместо прямых путей',
+    group: ['@shared/api/*/*', '@shared/api/*/**', '@shared/lib/*/*', '@shared/lib/*/**'],
+    message: 'Используйте публичные модули @shared/api и @shared/lib',
   },
 ]
 

@@ -6,7 +6,7 @@ import type {
   NsiCoverage,
   NsiSearchResult,
   RelationsCounts,
-} from '@/services/nsiDashboard.api'
+} from '@entities/nsi-dashboard'
 
 const coverage: NsiCoverage = {
   sources: { total: 24, withIssuerDateExec: 18 },

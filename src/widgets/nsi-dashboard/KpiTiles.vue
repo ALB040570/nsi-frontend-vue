@@ -43,7 +43,7 @@ import { computed } from 'vue'
 import { NButton, NCard, NProgress, NSpin, NTooltip } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
-import type { NsiCoverage } from '@/services/nsiDashboard.api'
+import type { NsiCoverage } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardKpiTiles',

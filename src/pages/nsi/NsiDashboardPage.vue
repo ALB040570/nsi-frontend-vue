@@ -90,7 +90,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { useQuery } from '@tanstack/vue-query'
 import { NButton, NCard } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
@@ -101,19 +100,21 @@ import Checklist from '@/widgets/nsi-dashboard/Checklist.vue'
 import Diagnostics from '@/widgets/nsi-dashboard/Diagnostics.vue'
 import RecentActivity from '@/widgets/nsi-dashboard/RecentActivity.vue'
 import {
-  fetchNsiActivity,
-  fetchNsiCoverage,
-  fetchNsiDiagnostics,
-  fetchNsiRelationsCounts,
-  type ActivityItem,
-  type ActivityResponse,
-  type DiagnosticItem,
-  type DiagnosticsResponse,
-  type NsiCoverage,
-  type NsiCoverageResponse,
-  type NsiSearchResult,
-  type RelationsCountsResponse,
-} from '@/services/nsiDashboard.api'
+  useNsiActivityQuery,
+  useNsiCoverageQuery,
+  useNsiDiagnosticsQuery,
+  useNsiRelationsQuery,
+} from '@features/nsi-dashboard'
+import type {
+  ActivityItem,
+  ActivityResponse,
+  DiagnosticItem,
+  DiagnosticsResponse,
+  NsiCoverage,
+  NsiCoverageResponse,
+  NsiSearchResult,
+  RelationsCountsResponse,
+} from '@entities/nsi-dashboard'
 
 type TargetKey = 'sources' | 'types' | 'components' | 'params' | 'defects' | 'works'
 
@@ -124,16 +125,10 @@ const { t } = useI18n()
 
 const assistantEnabled = ref(false)
 
-const coverageQuery = useQuery({ queryKey: ['nsi-dashboard', 'coverage'], queryFn: fetchNsiCoverage })
-const diagnosticsQuery = useQuery({ queryKey: ['nsi-dashboard', 'diagnostics'], queryFn: fetchNsiDiagnostics })
-const activityQuery = useQuery({
-  queryKey: ['nsi-dashboard', 'activity'],
-  queryFn: () => fetchNsiActivity(7),
-})
-const relationsQuery = useQuery({
-  queryKey: ['nsi-dashboard', 'relations'],
-  queryFn: fetchNsiRelationsCounts,
-})
+const coverageQuery = useNsiCoverageQuery()
+const diagnosticsQuery = useNsiDiagnosticsQuery()
+const activityQuery = useNsiActivityQuery(7)
+const relationsQuery = useNsiRelationsQuery()
 
 const coverageResponse = computed<NsiCoverageResponse | null>(() => coverageQuery.data.value ?? null)
 const coverage = computed(() => coverageResponse.value ?? null)

@@ -94,7 +94,8 @@ import { useRouter, type RouteLocationRaw } from 'vue-router'
 import { NButton, NIcon, NInput, NSpin, NSwitch, NTooltip } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 
-import { searchNsi, type NsiSearchResult } from '@/services/nsiDashboard.api'
+import { useNsiSearch } from '@features/nsi-dashboard'
+import type { NsiSearchResult } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardCtaRow',
@@ -133,6 +134,7 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const searchMutation = useNsiSearch()
 
 const searchQuery = ref('')
 const searchLoading = ref(false)
@@ -176,7 +178,7 @@ async function runSearch(query: string) {
   const currentToken = requestToken
   searchLoading.value = true
   try {
-    const data = await searchNsi(query)
+    const data = await searchMutation.mutateAsync(query)
     if (currentToken === requestToken) {
       searchResults.value = data
     }

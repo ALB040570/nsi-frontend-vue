@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, fireEvent, screen } from '@testing-library/vue'
 import { defineComponent, h, ref } from 'vue'
 
-import type { ActivityItem, DiagnosticItem, NsiCoverage, RelationsCounts } from '@/services/nsiDashboard.api'
+import type { ActivityItem, DiagnosticItem, NsiCoverage, RelationsCounts } from '@entities/nsi-dashboard'
 
 const coverageMock: NsiCoverage = {
   sources: { total: 10, withIssuerDateExec: 8 },
