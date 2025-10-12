@@ -20,6 +20,8 @@ export interface RawDefectRecord {
   objDefectsComponent?: string | number | null
   pvDefectsComponent?: string | number | null
   nameDefectsComponent?: string | null
+  idDefectsComponent?: string | number | null
+  cls?: string | number | null
 }
 
 export interface RawDefectCategoryRecord {
