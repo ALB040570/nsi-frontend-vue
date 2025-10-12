@@ -30,7 +30,7 @@ import { computed } from 'vue'
 import { NTooltip } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
-import type { ActivityItem } from '@/services/nsiDashboard.api'
+import type { ActivityItem } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardRecentActivity',

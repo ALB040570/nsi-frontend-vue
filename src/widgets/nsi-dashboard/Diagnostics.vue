@@ -41,7 +41,7 @@ import { computed } from 'vue'
 import { NSpin, NTooltip } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
-import type { DiagnosticItem, DiagnosticSeverity } from '@/services/nsiDashboard.api'
+import type { DiagnosticItem, DiagnosticSeverity } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardDiagnostics',

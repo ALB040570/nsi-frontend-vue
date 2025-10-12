@@ -181,8 +181,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, watch, watchEffect } from 'vue'
+import { computed, defineComponent, h, reactive, ref, watch, watchEffect } from 'vue'
 import type { PropType, VNodeChild } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 
 import {
@@ -206,22 +207,23 @@ import {
 } from 'naive-ui'
 import { CreateOutline, DocumentTextOutline, InformationCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
-import SourcesForm, { type SourcesFormModel } from '@/components/nsi/SourcesForm.vue'
 import {
-  deleteSourceCollection,
-  loadDepartments,
-  loadDepartmentsWithFile,
-  loadSourceCollections,
-  saveDepartment,
-  saveSourceCollectionIns,
-  saveSourceCollectionUpd,
-  type DepartmentRecord,
+  SourcesForm,
+  type SourcesFormModel,
+  sourceQueryKeys,
+  useSourceDepartmentsQuery,
+  useSourceMutations,
+  useSourcesQuery,
+} from '@features/source-crud'
+import {
+  fetchSourceDetails,
+  type Department,
   type SaveSourceCollectionInsPayload,
   type SaveSourceCollectionUpdPayload,
-  type SourceCollectionRecord,
-  type SourceDetailsResult,
-  type SourceFileRecord,
-} from '@/api/rpc'
+  type Source,
+  type SourceDetails,
+  type SourceFile,
+} from '@entities/source'
 import { formatDateIsoToRu, formatPeriod, getErrorMessage, timestampToIsoDate } from '@shared/lib'
 
 
@@ -241,12 +243,12 @@ interface SourceIdMeta {
   idDocumentEndDate: number | null
 }
 
-interface SourceDetailsEntry extends SourceDetailsResult {
+interface SourceDetailsEntry extends SourceDetails {
   loaded: boolean
   error: boolean
 }
 
-interface NormalizedRow extends SourceCollectionRecord {
+interface NormalizedRow extends Source {
   formattedApprovalDate: string
   periodText: string
   formattedStartDate: string
@@ -255,11 +257,11 @@ interface NormalizedRow extends SourceCollectionRecord {
   deptLoadError: boolean
   detailsLoading: boolean
   authorLabel: string
-  files: SourceFileRecord[]
+  files: SourceFile[]
   departmentIds: number[]
 }
 
-interface SourceRow extends SourceCollectionRecord {
+interface SourceRow extends Source {
   formattedApprovalDate: string
   periodText: string
 }
@@ -274,12 +276,16 @@ interface CardField {
 
 const { isMobile } = useIsMobile('(max-width: 720px)')
 
-
 const message = useMessage()
 const dialog = useDialog()
 const infoOpen = ref(false)
 
-const departments = ref<DepartmentRecord[]>([])
+const queryClient = useQueryClient()
+const sourcesQuery = useSourcesQuery()
+const departmentsQuery = useSourceDepartmentsQuery()
+const { createMutation, updateMutation, deleteMutation, saveDepartmentsMutation } = useSourceMutations()
+
+const departments = computed<Department[]>(() => departmentsQuery.data.value ?? [])
 const deptById = computed(() => {
   const map = new Map<number, string>()
   for (const item of departments.value) {
@@ -294,7 +300,7 @@ const departmentOptions = computed<SelectOption[]>(() =>
     .sort((a, b) => String(a.label).localeCompare(String(b.label), 'ru')),
 )
 
-const sources = ref<SourceCollectionRecord[]>([])
+const sources = computed<Source[]>(() => sourcesQuery.data.value ?? [])
 const detailsCache = ref(new Map<number, SourceDetailsEntry>())
 const detailsQueue: Array<() => void> = []
 const detailsInFlight = new Map<number, Promise<SourceDetailsEntry>>()
@@ -315,7 +321,7 @@ const sortOptions = [
   { label: 'А-Я', value: 'asc' },
   { label: 'Я-А', value: 'desc' },
 ]
-const tableLoading = ref(false)
+const tableLoading = computed(() => sourcesQuery.isFetching.value || sourcesQuery.isLoading.value)
 const removingId = ref<number | null>(null)
 
 const modalOpen = ref(false)
@@ -381,7 +387,7 @@ function normalizeText(value: string | null | undefined): string {
     .trim()
 }
 
-function toSourceRow(record: SourceCollectionRecord): SourceRow {
+function toSourceRow(record: Source): SourceRow {
   return {
     ...record,
     formattedApprovalDate: formatDateIsoToRu(record.DocumentApprovalDate),
@@ -419,6 +425,14 @@ watch(
       ensureDetailsForIds(sources.value.map((item) => item.id))
     }
   },
+)
+
+watch(
+  () => sources.value,
+  () => {
+    pagination.page = 1
+  },
+  { deep: true },
 )
 
 watch(
@@ -589,9 +603,16 @@ function setDetails(id: number, entry: SourceDetailsEntry) {
   detailsCache.value = next
 }
 
-function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
+function ensureSourceDetails(id: number, options: { force?: boolean } = {}): Promise<SourceDetailsEntry> {
   if (!Number.isFinite(id)) {
     return Promise.resolve({ departmentIds: [], files: [], loaded: true, error: true })
+  }
+
+  if (options.force) {
+    const next = new Map(detailsCache.value)
+    next.delete(id)
+    detailsCache.value = next
+    detailsInFlight.delete(id)
   }
 
   if (detailsInFlight.has(id)) {
@@ -599,7 +620,7 @@ function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
   }
 
   const cached = detailsCache.value.get(id)
-  if (cached && (cached.loaded || cached.error)) {
+  if (cached && !options.force && (cached.loaded || cached.error)) {
     return Promise.resolve(cached)
   }
 
@@ -607,7 +628,10 @@ function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
     enqueueDetails(() => {
       void (async () => {
         try {
-          const result = await loadDepartmentsWithFile(Number(id))
+          const result = await queryClient.fetchQuery({
+            queryKey: sourceQueryKeys.details(id),
+            queryFn: () => fetchSourceDetails(Number(id)),
+          })
           const entry: SourceDetailsEntry = { ...result, loaded: true, error: false }
           setDetails(id, entry)
           resolve(entry)
@@ -841,7 +865,7 @@ function renderDepartments(row: NormalizedRow): VNodeChild {
   return h('div', { class: 'executor-cell' }, chips)
 }
 
-function resolveFileName(file: SourceFileRecord): string {
+function resolveFileName(file: SourceFile): string {
   return (
     (typeof file.name === 'string' && file.name) ||
     (typeof file.fileName === 'string' && file.fileName) ||
@@ -851,7 +875,7 @@ function resolveFileName(file: SourceFileRecord): string {
   )
 }
 
-function resolveFileUrl(file: SourceFileRecord): string | null {
+function resolveFileUrl(file: SourceFile): string | null {
   const candidates = [file.url, file.href, file.link, file.path, file.FilePath]
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate) {
@@ -977,14 +1001,23 @@ async function handleSubmit() {
         DocumentStartDate: state.DocumentStartDate,
         DocumentEndDate: state.DocumentEndDate,
       }
-      const result = await saveSourceCollectionIns(payload)
+      const result = await createMutation.mutateAsync(payload)
       const newId = result.id
       if (typeof newId !== 'number') {
         throw new Error('Не удалось определить идентификатор созданного документа')
       }
-      await saveDepartment(newId, state.departmentIds)
-      await ensureSourceDetails(newId)
-      await fetchSources()
+      if (state.departmentIds.length) {
+        await saveDepartmentsMutation.mutateAsync({ id: newId, ids: state.departmentIds })
+      }
+      const existing = detailsCache.value.get(newId)
+      setDetails(newId, {
+        departmentIds: [...state.departmentIds],
+        files: existing?.files ?? [],
+        loaded: true,
+        error: false,
+      })
+      await ensureSourceDetails(newId, { force: true })
+      await sourcesQuery.refetch()
       message.success('Документ создан')
     } else if (modalMode.value === 'edit' && editingId != null && editingMeta) {
       const payload: SaveSourceCollectionUpdPayload = {
@@ -1003,22 +1036,22 @@ async function handleSubmit() {
         idDocumentEndDate: editingMeta.idDocumentEndDate,
         DocumentEndDate: state.DocumentEndDate,
       }
-      await saveSourceCollectionUpd(payload)
+      await updateMutation.mutateAsync(payload)
       const departmentsChanged =
         initialDepartmentIds.length !== state.departmentIds.length ||
         initialDepartmentIds.some((id) => !state.departmentIds.includes(id))
       if (departmentsChanged) {
-        await saveDepartment(editingId, state.departmentIds)
+        await saveDepartmentsMutation.mutateAsync({ id: editingId, ids: state.departmentIds })
         const existing = detailsCache.value.get(editingId)
-        const entry: SourceDetailsEntry = {
+        setDetails(editingId, {
           departmentIds: [...state.departmentIds],
           files: existing?.files ?? [],
           loaded: true,
           error: false,
-        }
-        setDetails(editingId, entry)
+        })
       }
-      await fetchSources()
+      await ensureSourceDetails(editingId, { force: true })
+      await sourcesQuery.refetch()
       message.success('Документ обновлён')
     }
 
@@ -1055,8 +1088,11 @@ async function handleDelete(row: NormalizedRow) {
 
   removingId.value = row.id
   try {
-    await deleteSourceCollection(row.id)
-    await fetchSources()
+    await deleteMutation.mutateAsync(row.id)
+    const next = new Map(detailsCache.value)
+    next.delete(row.id)
+    detailsCache.value = next
+    await sourcesQuery.refetch()
     message.success('Документ удалён')
   } catch (error) {
     message.error(getErrorMessage(error))
@@ -1065,32 +1101,6 @@ async function handleDelete(row: NormalizedRow) {
   }
 }
 
-async function fetchDepartments() {
-  try {
-    const data = await loadDepartments()
-    departments.value = data
-  } catch (error) {
-    message.error(getErrorMessage(error))
-  }
-}
-
-async function fetchSources() {
-  tableLoading.value = true
-  try {
-    const records = await loadSourceCollections()
-    sources.value = records
-    pagination.page = 1
-  } catch (error) {
-    message.error(getErrorMessage(error))
-  } finally {
-    tableLoading.value = false
-  }
-}
-
-onMounted(() => {
-  void fetchDepartments()
-  void fetchSources()
-})
 </script>
 
 <style scoped lang="scss">

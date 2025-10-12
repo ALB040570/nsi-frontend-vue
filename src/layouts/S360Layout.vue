@@ -130,7 +130,6 @@
 
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
-import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -153,7 +152,7 @@ import {
 
 import logoMark from '@/assets/logo.svg'
 import { useAuth } from '@features/auth'
-import { useUiStore } from '@/stores/ui'
+import { useUiSidebar } from '@features/ui'
 
 interface LanguageOption {
   label: string
@@ -174,9 +173,9 @@ const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
 
-const ui = useUiStore()
+const ui = useUiSidebar()
 ui.hydrateSidebarCollapsed()
-const { isSidebarCollapsed } = storeToRefs(ui)
+const { isSidebarCollapsed } = ui
 
 const COLLAPSED_WIDTH = 72
 

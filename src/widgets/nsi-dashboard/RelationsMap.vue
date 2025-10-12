@@ -69,7 +69,7 @@ import { computed } from 'vue'
 import { NButton, NPopover, NSpin, NTooltip } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
-import type { RelationsCounts } from '@/services/nsiDashboard.api'
+import type { RelationsCounts } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardRelationsMap',
