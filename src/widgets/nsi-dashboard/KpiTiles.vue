@@ -2,6 +2,12 @@
   <section class="kpi-tiles">
     <header class="kpi-tiles__header">
       <h2 class="kpi-tiles__title">{{ title }}</h2>
+      <NTooltip v-if="partial" placement="top">
+        <template #trigger>
+          <span class="kpi-tiles__status">{{ partialLabel }}</span>
+        </template>
+        <span>{{ partialTooltip }}</span>
+      </NTooltip>
     </header>
     <div class="kpi-tiles__grid">
       <NCard v-for="tile in tiles" :key="tile.id" size="small" class="kpi-tile">
@@ -36,18 +42,25 @@
 import { computed } from 'vue'
 import { NButton, NCard, NProgress, NSpin, NTooltip } from 'naive-ui'
 
-import { useI18n } from '@shared/lib/i18n'
+import { useI18n } from '@shared/lib'
 import type { NsiCoverage } from '@/services/nsiDashboard.api'
+
+defineOptions({
+  name: 'NsiDashboardKpiTiles',
+})
 
 type TileId = keyof NsiCoverage
 
-const props = defineProps<{ coverage: NsiCoverage | null; loading?: boolean }>()
+const props = defineProps<{ coverage: NsiCoverage | null; loading?: boolean; partial?: boolean }>()
 const emit = defineEmits<{ (e: 'select', id: TileId): void }>()
 
 const { t } = useI18n()
 
 const title = computed(() => t('nsi.dashboard.kpi.title'))
 const genericTooltip = computed(() => t('nsi.dashboard.kpi.genericTooltip'))
+const partialLabel = computed(() => t('nsi.dashboard.partial.label'))
+const partialTooltip = computed(() => t('nsi.dashboard.partial.tooltip'))
+const partial = computed(() => Boolean(props.partial))
 
 function tooltipHint(percent: number) {
   return genericTooltip.value.replace('{percent}', String(percent))
@@ -175,61 +188,74 @@ function emitSelect(id: TileId) {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s360-space-lg);
 }
 
 .kpi-tiles__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--s360-space-md);
 }
 
 .kpi-tiles__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--s360-font-title-md);
   font-weight: 600;
+}
+
+.kpi-tiles__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s360-space-sm);
+  border-radius: var(--s360-radius);
+  background: var(--s360-color-warning-soft);
+  color: var(--s360-text-warning);
+  font-size: var(--s360-font-caption);
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .kpi-tiles__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
+  gap: var(--s360-space-lg);
 }
 
 .kpi-tile__body {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--s360-space-sm);
 }
 
 .kpi-tile__heading {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--s360-space-sm);
 }
 
 .kpi-tile__name {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--s360-font-body);
   font-weight: 600;
 }
 
 .kpi-tile__summary {
   margin: 0;
-  color: var(--n-text-color-2);
-  font-size: 13px;
+  color: var(--s360-text-muted);
+  font-size: var(--s360-font-caption);
 }
 
 .kpi-tile__filled {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--s360-font-caption);
 }
 
 .kpi-tile__progress {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--s360-space-md);
 }
 
 .kpi-tile__progress :deep(.n-progress) {
@@ -241,7 +267,8 @@ function emitSelect(id: TileId) {
 }
 
 .kpi-tile__cta {
-  border-radius: 12px;
+  border-radius: var(--s360-radius);
+  font-weight: 600;
 }
 
 .kpi-tiles__overlay {
@@ -250,7 +277,7 @@ function emitSelect(id: TileId) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 12px;
+  background: var(--s360-overlay-veil);
+  border-radius: var(--s360-radius-lg);
 }
 </style>

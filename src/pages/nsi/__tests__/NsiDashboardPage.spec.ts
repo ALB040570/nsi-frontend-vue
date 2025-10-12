@@ -147,7 +147,7 @@ vi.mock('naive-ui', () => {
   }
 })
 
-vi.mock('@widgets/nsi-dashboard/CtaRow.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/CtaRow.vue', () => ({
   default: defineComponent({
     props: { title: { type: String, default: '' }, actions: { type: Array, default: () => [] } },
     emits: ['toggle-assistant', 'select-search'],
@@ -156,16 +156,17 @@ vi.mock('@widgets/nsi-dashboard/CtaRow.vue', () => ({
         h('section', [
           h('h1', props.title),
           ...(Array.isArray(props.actions)
-            ? props.actions.map((action: any) =>
-                h('button', { type: 'button' }, action?.label ?? ''),
-              )
+            ? props.actions.map((action) => {
+                const typed = action as { label?: string }
+                return h('button', { type: 'button' }, typed.label ?? '')
+              })
             : []),
         ])
     },
   }),
 }))
 
-vi.mock('@widgets/nsi-dashboard/RelationsMap.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/RelationsMap.vue', () => ({
   default: defineComponent({
     emits: ['select-node'],
     setup(_, { emit }) {
@@ -182,7 +183,7 @@ vi.mock('@widgets/nsi-dashboard/RelationsMap.vue', () => ({
   }),
 }))
 
-vi.mock('@widgets/nsi-dashboard/KpiTiles.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/KpiTiles.vue', () => ({
   default: defineComponent({
     emits: ['select'],
     setup(_, { emit }) {
@@ -199,7 +200,7 @@ vi.mock('@widgets/nsi-dashboard/KpiTiles.vue', () => ({
   }),
 }))
 
-vi.mock('@widgets/nsi-dashboard/Checklist.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/Checklist.vue', () => ({
   default: defineComponent({
     setup() {
       return () => h('div')
@@ -207,7 +208,7 @@ vi.mock('@widgets/nsi-dashboard/Checklist.vue', () => ({
   }),
 }))
 
-vi.mock('@widgets/nsi-dashboard/Diagnostics.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/Diagnostics.vue', () => ({
   default: defineComponent({
     setup() {
       return () => h('div')
@@ -215,7 +216,7 @@ vi.mock('@widgets/nsi-dashboard/Diagnostics.vue', () => ({
   }),
 }))
 
-vi.mock('@widgets/nsi-dashboard/RecentActivity.vue', () => ({
+vi.mock('@/widgets/nsi-dashboard/RecentActivity.vue', () => ({
   default: defineComponent({
     setup() {
       return () => h('div')
