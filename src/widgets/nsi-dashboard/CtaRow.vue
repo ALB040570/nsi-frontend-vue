@@ -96,6 +96,10 @@ import { SearchOutline } from '@vicons/ionicons5'
 
 import { searchNsi, type NsiSearchResult } from '@/services/nsiDashboard.api'
 
+defineOptions({
+  name: 'NsiDashboardCtaRow',
+})
+
 interface ActionItem {
   id: string
   label: string
@@ -244,17 +248,17 @@ onBeforeUnmount(() => {
 .nsi-dashboard-cta {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px 28px;
-  background: var(--n-color);
-  border-radius: 16px;
-  box-shadow: var(--n-box-shadow);
+  gap: var(--s360-space-lg);
+  padding: var(--s360-space-xl) calc(var(--s360-space-xl) + var(--s360-space-sm));
+  background: var(--s360-color-elevated);
+  border-radius: var(--s360-radius-lg);
+  box-shadow: var(--s360-shadow-lg);
 }
 
 .nsi-dashboard-cta__top {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--s360-space-lg);
   align-items: center;
   justify-content: space-between;
 }
@@ -262,49 +266,50 @@ onBeforeUnmount(() => {
 .nsi-dashboard-cta__titles {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--s360-space-xs);
 }
 
 .nsi-dashboard-cta__title {
   margin: 0;
-  font-size: 24px;
-  line-height: 32px;
+  font-size: var(--s360-font-title-lg);
+  line-height: 1.3;
   font-weight: 600;
 }
 
 .nsi-dashboard-cta__subtitle {
   margin: 0;
-  color: var(--n-text-color-2);
+  color: var(--s360-text-muted);
+  font-size: var(--s360-font-body);
 }
 
 .nsi-dashboard-cta__assistant {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s360-space-sm);
   cursor: pointer;
-  color: var(--n-text-color);
+  color: var(--s360-text-primary);
 }
 
 .nsi-dashboard-cta__assistant .assistant-label {
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--s360-font-body);
+  font-weight: 600;
 }
 
 .nsi-dashboard-cta__assistant-banner {
   display: flex;
-  gap: 8px;
+  gap: var(--s360-space-sm);
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(24, 160, 88, 0.08);
-  color: var(--n-success-color);
-  font-size: 14px;
+  padding: var(--s360-space-sm) var(--s360-space-md);
+  border-radius: var(--s360-radius);
+  background: var(--s360-color-success-soft);
+  color: var(--s360-text-success);
+  font-size: var(--s360-font-body);
 }
 
 .nsi-dashboard-cta__controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: var(--s360-space-lg);
   align-items: stretch;
 }
 
@@ -315,19 +320,19 @@ onBeforeUnmount(() => {
 }
 
 .search-input :deep(.n-input__border) {
-  border-radius: 12px;
+  border-radius: var(--s360-radius);
 }
 
 .search-dropdown {
   position: absolute;
-  inset: calc(100% + 4px) 0 auto;
-  background: var(--n-color);
-  border-radius: 12px;
-  box-shadow: var(--n-box-shadow);
-  padding: 12px;
+  inset: calc(100% + var(--s360-space-xs)) 0 auto;
+  background: var(--s360-color-elevated);
+  border-radius: var(--s360-radius-lg);
+  box-shadow: var(--s360-shadow-lg);
+  padding: var(--s360-space-md);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s360-space-sm);
   z-index: 10;
   max-height: 320px;
   overflow-y: auto;
@@ -337,19 +342,20 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  gap: var(--s360-space-xs);
+  padding: var(--s360-space-sm);
+  border-radius: var(--s360-radius);
   background: transparent;
   border: none;
   text-align: left;
   cursor: pointer;
   color: inherit;
+  transition: background-color 0.15s ease;
 }
 
 .search-result:hover,
 .search-result:focus {
-  background: rgba(51, 112, 255, 0.08);
+  background: var(--s360-color-primary-soft);
 }
 
 .search-result__title {
@@ -358,42 +364,48 @@ onBeforeUnmount(() => {
 
 .search-result__meta {
   display: flex;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--n-text-color-2);
+  gap: var(--s360-space-sm);
+  font-size: var(--s360-font-caption);
+  color: var(--s360-text-muted);
 }
 
 .search-result__type {
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.search-result__extra {
+  color: var(--s360-text-muted);
 }
 
 .search-result__action {
-  font-size: 12px;
-  color: var(--n-primary-color);
+  font-size: var(--s360-font-caption);
+  color: var(--s360-text-accent);
+  font-weight: 600;
 }
 
 .search-state {
-  padding: 8px 0;
-  font-size: 13px;
-  color: var(--n-text-color-2);
+  padding: var(--s360-space-sm) 0;
+  font-size: var(--s360-font-caption);
+  color: var(--s360-text-muted);
 }
 
 .search-state--loading {
   display: flex;
-  gap: 8px;
+  gap: var(--s360-space-sm);
   align-items: center;
 }
 
 .nsi-dashboard-cta__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--s360-space-sm);
 }
 
 .cta-action {
   min-width: 140px;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: var(--s360-radius);
+  font-weight: 600;
 }
 
 .fade-enter-active,
@@ -408,7 +420,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 768px) {
   .nsi-dashboard-cta {
-    padding: 20px;
+    padding: var(--s360-space-lg);
   }
 
   .nsi-dashboard-cta__controls {

@@ -9,6 +9,10 @@ export interface NsiCoverage {
   works: { total: number; withTypePeriodSource: number }
 }
 
+export interface WithPartialFlag {
+  partial?: boolean
+}
+
 export type DiagnosticSeverity = 'info' | 'warning' | 'critical'
 
 export interface DiagnosticItem {
@@ -38,6 +42,18 @@ export interface RelationsCounts {
   works: number
 }
 
+export type NsiCoverageResponse = NsiCoverage & WithPartialFlag
+
+export interface DiagnosticsResponse extends WithPartialFlag {
+  items: DiagnosticItem[]
+}
+
+export interface ActivityResponse extends WithPartialFlag {
+  items: ActivityItem[]
+}
+
+export type RelationsCountsResponse = RelationsCounts & WithPartialFlag
+
 export type NsiSearchResultType = DiagnosticItem['target']
 
 export interface NsiSearchResult {
@@ -47,20 +63,50 @@ export interface NsiSearchResult {
   type: NsiSearchResultType
 }
 
+function normalizeCoverageResponse(input: NsiCoverageResponse | NsiCoverage): NsiCoverageResponse {
+  return { ...input, partial: 'partial' in input ? input.partial ?? undefined : undefined }
+}
+
+function normalizeDiagnosticsResponse(
+  input: DiagnosticsResponse | DiagnosticItem[],
+): DiagnosticsResponse {
+  if (Array.isArray(input)) {
+    return { items: input }
+  }
+  return { items: input.items ?? [], partial: input.partial ?? undefined }
+}
+
+function normalizeActivityResponse(input: ActivityResponse | ActivityItem[]): ActivityResponse {
+  if (Array.isArray(input)) {
+    return { items: input }
+  }
+  return { items: input.items ?? [], partial: input.partial ?? undefined }
+}
+
+function normalizeRelationsResponse(
+  input: RelationsCountsResponse | RelationsCounts,
+): RelationsCountsResponse {
+  return { ...input, partial: 'partial' in input ? input.partial ?? undefined : undefined }
+}
+
 export async function fetchNsiCoverage() {
-  return get<NsiCoverage>('/nsi/dashboard/coverage')
+  const response = await get<NsiCoverageResponse | NsiCoverage>('/nsi/dashboard/coverage')
+  return normalizeCoverageResponse(response)
 }
 
 export async function fetchNsiDiagnostics() {
-  return get<DiagnosticItem[]>('/nsi/dashboard/diagnostics')
+  const response = await get<DiagnosticsResponse | DiagnosticItem[]>('/nsi/dashboard/diagnostics')
+  return normalizeDiagnosticsResponse(response)
 }
 
 export async function fetchNsiActivity(limit = 7) {
-  return get<ActivityItem[]>('/nsi/dashboard/activity', { params: { limit } })
+  const response = await get<ActivityResponse | ActivityItem[]>('/nsi/dashboard/activity', { params: { limit } })
+  return normalizeActivityResponse(response)
 }
 
 export async function fetchNsiRelationsCounts() {
-  return get<RelationsCounts>('/nsi/dashboard/relations-counts')
+  const response = await get<RelationsCountsResponse | RelationsCounts>('/nsi/dashboard/relations-counts')
+  return normalizeRelationsResponse(response)
 }
 
 export async function searchNsi(query: string) {

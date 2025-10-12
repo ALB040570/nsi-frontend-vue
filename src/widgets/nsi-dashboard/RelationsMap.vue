@@ -1,7 +1,15 @@
 <template>
   <section class="relations-map">
     <header class="relations-map__header">
-      <h2 class="relations-map__title">{{ title }}</h2>
+      <div class="relations-map__heading">
+        <h2 class="relations-map__title">{{ title }}</h2>
+        <NTooltip v-if="partial" placement="top">
+          <template #trigger>
+            <span class="relations-map__status">{{ partialLabel }}</span>
+          </template>
+          <span>{{ partialTooltip }}</span>
+        </NTooltip>
+      </div>
       <NPopover trigger="hover" placement="left">
         <template #trigger>
           <NButton quaternary size="small" class="relations-map__help">
@@ -60,18 +68,25 @@
 import { computed } from 'vue'
 import { NButton, NPopover, NSpin, NTooltip } from 'naive-ui'
 
-import { useI18n } from '@shared/lib/i18n'
+import { useI18n } from '@shared/lib'
 import type { RelationsCounts } from '@/services/nsiDashboard.api'
+
+defineOptions({
+  name: 'NsiDashboardRelationsMap',
+})
 
 const viewBoxWidth = 600
 const viewBoxHeight = 360
 
 const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`
 
-const props = defineProps<{ counts: RelationsCounts | null; loading?: boolean }>()
+const props = defineProps<{ counts: RelationsCounts | null; loading?: boolean; partial?: boolean }>()
 const emit = defineEmits<{ (e: 'select-node', id: keyof RelationsCounts): void }>()
 
 const { t, tm } = useI18n()
+const partial = computed(() => Boolean(props.partial))
+const partialLabel = computed(() => t('nsi.dashboard.partial.label'))
+const partialTooltip = computed(() => t('nsi.dashboard.partial.tooltip'))
 
 const title = computed(() => t('nsi.dashboard.relations.title'))
 const helpLabel = computed(() => t('nsi.dashboard.relations.helpLabel'))
@@ -207,11 +222,11 @@ function handleNodeClick(id: keyof RelationsCounts) {
 .relations-map {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  background: var(--n-color);
-  border-radius: 16px;
-  box-shadow: var(--n-box-shadow);
+  gap: var(--s360-space-md);
+  padding: var(--s360-space-xl);
+  background: var(--s360-color-elevated);
+  border-radius: var(--s360-radius-lg);
+  box-shadow: var(--s360-shadow-lg);
   position: relative;
   min-height: 280px;
 }
@@ -220,27 +235,45 @@ function handleNodeClick(id: keyof RelationsCounts) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--s360-space-md);
+}
+
+.relations-map__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--s360-space-sm);
 }
 
 .relations-map__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--s360-font-title-md);
   font-weight: 600;
 }
 
+.relations-map__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s360-space-sm);
+  border-radius: var(--s360-radius);
+  background: var(--s360-color-warning-soft);
+  color: var(--s360-text-warning);
+  font-size: var(--s360-font-caption);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
 .relations-map__help {
-  font-size: 13px;
+  font-size: var(--s360-font-caption);
   border-radius: 20px;
-  padding: 4px 10px;
+  padding: var(--s360-space-xs) var(--s360-space-sm);
 }
 
 .relations-map__help-content {
   max-width: 260px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--s360-space-sm);
+  font-size: var(--s360-font-caption);
 }
 
 .relations-map__help-title {
@@ -261,7 +294,7 @@ function handleNodeClick(id: keyof RelationsCounts) {
 }
 
 .relations-map__edge {
-  stroke: rgba(64, 128, 255, 0.4);
+  stroke: var(--s360-color-primary-soft);
   stroke-width: 3;
   stroke-linecap: round;
 }
@@ -274,24 +307,25 @@ function handleNodeClick(id: keyof RelationsCounts) {
 .relations-map__node-btn {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s360-space-xs);
   align-items: center;
   justify-content: center;
-  padding: 12px 16px;
-  border-radius: 16px;
-  border: none;
+  padding: var(--s360-space-md) var(--s360-space-lg);
+  border-radius: var(--s360-radius-lg);
+  border: 1px solid var(--s360-color-border-subtle);
   min-width: 140px;
-  background: rgba(64, 128, 255, 0.08);
+  background: var(--s360-color-neutral-soft);
   color: inherit;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   box-shadow: 0 4px 12px rgba(21, 46, 110, 0.12);
 }
 
 .relations-map__node-btn:hover,
 .relations-map__node-btn:focus {
   transform: translateY(-2px);
-  box-shadow: 0 10px 20px rgba(21, 46, 110, 0.2);
+  box-shadow: 0 10px 24px rgba(21, 46, 110, 0.2);
+  border-color: var(--s360-color-primary);
 }
 
 .relations-map__node-label {
@@ -299,16 +333,16 @@ function handleNodeClick(id: keyof RelationsCounts) {
 }
 
 .relations-map__node-count {
-  font-size: 12px;
-  color: var(--n-text-color-2);
+  font-size: var(--s360-font-caption);
+  color: var(--s360-text-muted);
 }
 
 .relations-map__overlay {
   position: absolute;
   inset: 0;
   backdrop-filter: blur(2px);
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 12px;
+  background: var(--s360-overlay-veil);
+  border-radius: var(--s360-radius-lg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -316,12 +350,12 @@ function handleNodeClick(id: keyof RelationsCounts) {
 
 @media (max-width: 768px) {
   .relations-map {
-    padding: 16px;
+    padding: var(--s360-space-lg);
   }
 
   .relations-map__node-btn {
     min-width: 120px;
-    padding: 10px 12px;
+    padding: var(--s360-space-sm) var(--s360-space-md);
   }
 }
 </style>
