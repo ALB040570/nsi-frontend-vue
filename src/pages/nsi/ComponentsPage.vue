@@ -67,22 +67,64 @@
           />
         </div>
 
+        <NSelect
+          v-if="isMobile"
+          v-model:value="sortOrder"
+          :options="sortOptions"
+          size="small"
+          class="toolbar__select"
+          aria-label="Порядок сортировки"
+        />
+
         <NButton type="primary" @click="openCreate">+ Добавить компонент</NButton>
       </div>
     </NCard>
 
     <div class="table-area">
       <NDataTable
+        v-if="!isMobile"
         class="s360-cards table-full table-stretch"
         :columns="columns"
-        :data="paginatedRows"
-        :loading="isLoading"
+        :data="rows"
+        :loading="tableLoading"
         :row-key="rowKey"
         :bordered="false"
         size="small"
       />
 
-      <div class="pagination-bar">
+      <div v-else class="cards" role="list">
+        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <article
+          v-for="item in rows"
+          :key="item.id"
+          class="card"
+          role="group"
+          :aria-label="item.name"
+        >
+          <header class="card__header">
+            <h3 class="card__title">{{ item.name }}</h3>
+          </header>
+
+          <dl class="card__grid">
+            <dt>Типы объектов</dt>
+            <dd><RelationsList :relations="item.objectTypes" /></dd>
+            <dt>Параметры</dt>
+            <dd><RelationsList :relations="item.parameters" :formatter="formatParameterRelation" /></dd>
+            <dt>Дефекты</dt>
+            <dd><RelationsList :relations="item.defects" :formatter="formatDefectRelation" /></dd>
+          </dl>
+
+          <footer class="card__actions">
+            <RowActions :row="item" />
+          </footer>
+        </article>
+      </div>
+
+      <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
+        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+      </div>
+
+      <div class="pagination-bar" v-if="!isMobile">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -177,7 +219,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, reactive, ref, watch, type VNodeChild } from 'vue'
+import {
+  computed,
+  defineComponent,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch,
+  watchEffect,
+  type PropType,
+  type VNodeChild,
+} from 'vue'
 import {
   NButton,
   NCard,
@@ -209,8 +263,10 @@ import {
   type LoadedComponentWithRelations,
 } from '@entities/component'
 import { useComponentMutations, useComponentsQuery } from '@features/component-crud'
+import { useObjectParametersQuery } from '@features/object-parameter-crud'
 import { CreatableSelect } from '@features/creatable-select'
 import { normalizeText } from '@shared/lib'
+import type { LoadedObjectParameter } from '@entities/object-parameter'
 
 interface PaginationState {
   page: number
@@ -257,10 +313,12 @@ const rules: FormRules = {
   ],
 }
 
-const { data, isLoading } = useComponentsQuery()
+const { data, isLoading: componentsLoading } = useComponentsQuery()
+const { data: parameterSnapshot, isLoading: parametersLoading } = useObjectParametersQuery()
 const mutations = useComponentMutations()
 
 const snapshot = computed<ComponentsSnapshot | null>(() => data.value ?? null)
+const tableLoading = computed(() => componentsLoading.value || parametersLoading.value)
 
 const toSelectOptions = (items: ComponentsSnapshot['objectTypes']): SelectOption[] =>
   items.map((item) => ({ label: item.name, value: item.id }))
@@ -282,10 +340,69 @@ const objectTypeFilterOptions = objectTypeSelectOptions
 const parameterFilterOptions = parameterSelectOptions
 const defectFilterOptions = defectSelectOptions
 
+interface ParameterMeta {
+  unit: string | null
+  min: number | null
+  max: number | null
+  norm: number | null
+}
+
+const parameterMetaById = computed<Map<string, ParameterMeta>>(() => {
+  const snapshotValue = parameterSnapshot.value
+  const map = new Map<string, ParameterMeta>()
+  if (!snapshotValue) return map
+
+  snapshotValue.items.forEach((item: LoadedObjectParameter) => {
+    map.set(item.id, {
+      unit: item.unitName ?? null,
+      min: item.minValue,
+      max: item.maxValue,
+      norm: item.normValue,
+    })
+  })
+
+  return map
+})
+
 const isEditMode = computed(() => editingComponent.value != null)
 const modalTitle = computed(() =>
   isEditMode.value ? 'Редактировать компонент' : 'Добавить компонент',
 )
+
+const sortOrder = ref<'asc' | 'desc'>('asc')
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
+
+const isMobile = ref(false)
+let mediaQueryList: MediaQueryList | null = null
+
+const handleMediaQueryChange = (event: MediaQueryList | MediaQueryListEvent) => {
+  isMobile.value = 'matches' in event ? event.matches : false
+}
+
+onMounted(() => {
+  if (typeof window === 'undefined') return
+  mediaQueryList = window.matchMedia('(max-width: 768px)')
+  isMobile.value = mediaQueryList.matches
+  if ('addEventListener' in mediaQueryList) {
+    mediaQueryList.addEventListener('change', handleMediaQueryChange)
+  } else if ('addListener' in mediaQueryList) {
+    // @ts-expect-error Safari < 14
+    mediaQueryList.addListener(handleMediaQueryChange)
+  }
+})
+
+onBeforeUnmount(() => {
+  if (!mediaQueryList) return
+  if ('removeEventListener' in mediaQueryList) {
+    mediaQueryList.removeEventListener('change', handleMediaQueryChange)
+  } else if ('removeListener' in mediaQueryList) {
+    // @ts-expect-error Safari < 14
+    mediaQueryList.removeListener(handleMediaQueryChange)
+  }
+})
 
 const normalize = (value: string) => normalizeText(value ?? '')
 
@@ -318,70 +435,126 @@ const filteredRows = computed(() => {
       ]
       return haystack.some((part) => part && normalize(part).includes(q))
     })
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 })
 
-const total = computed(() => filteredRows.value.length)
+const sortedRows = computed(() => {
+  const base = [...filteredRows.value].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'desc' ? base.reverse() : base
+})
+
+const total = computed(() => sortedRows.value.length)
 
 const paginatedRows = computed(() => {
-  const start = (pagination.page - 1) * pagination.pageSize
-  return filteredRows.value.slice(start, start + pagination.pageSize)
+  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
 })
+
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value))
+const visibleCount = computed(() => rows.value.length)
+
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
 
 watch([search, objectTypeFilter, parameterFilter, defectFilter], () => {
   pagination.page = 1
 })
 
-watch(total, (value) => {
-  const maxPage = Math.max(1, Math.ceil(value / pagination.pageSize))
-  if (pagination.page > maxPage) pagination.page = maxPage
+watchEffect(() => {
+  if (pagination.page > maxPage.value) {
+    pagination.page = maxPage.value
+  }
 })
+
+const showMore = () => {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
 
 const rowKey = (row: LoadedComponentWithRelations) => row.id
 
 const MAX_CHIPS = 4
 
-const renderChipLabel = (rel: { name: string; categoryName?: string | null }) =>
-  rel.categoryName ? `${rel.name} (${rel.categoryName})` : rel.name
-
-const renderRelations = (
-  relations: LoadedComponentWithRelations['objectTypes'],
-  formatter: (rel: LoadedComponentWithRelations['objectTypes'][number]) => string = (rel) => rel.name,
-): VNodeChild => {
-  if (!relations.length) return h('span', { class: 'empty-cell' }, '—')
-
-  const chips = relations.slice(0, MAX_CHIPS)
-  const rest = relations.slice(MAX_CHIPS)
-
-  const chipNodes = chips.map((rel) =>
-    h(
-      NTag,
-      { size: 'small', round: true, bordered: true, class: 'chip', key: `${rel.id}-${rel.name}` },
-      { default: () => formatter(rel) },
-    ),
-  )
-
-  if (!rest.length) return h('div', { class: 'chips-row' }, chipNodes)
-
-  const more = h(
-    NPopover,
-    { trigger: 'hover' },
-    {
-      trigger: () =>
-        h(NTag, { size: 'small', round: true, class: 'chip chip--more' }, { default: () => `+${rest.length}` }),
-      default: () =>
-        h(
-          'div',
-          { class: 'popover-list' },
-          rest.map((rel) =>
-            h('div', { class: 'popover-item', key: `${rel.id}-${rel.name}` }, formatter(rel)),
-          ),
-        ),
-    },
-  )
-
-  return h('div', { class: 'chips-row' }, [...chipNodes, more])
+const formatNumber = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) return '—'
+  return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
 }
+
+const formatParameterRelation = (
+  rel: LoadedComponentWithRelations['parameters'][number],
+): string => {
+  const meta = parameterMetaById.value.get(rel.id)
+  const unit = meta?.unit?.trim() || '—'
+  const min = formatNumber(meta?.min)
+  const max = formatNumber(meta?.max)
+  const norm = formatNumber(meta?.norm)
+  return `${rel.name} (ЕИ: ${unit}, мин: ${min}, макс: ${max}, норм: ${norm})`
+}
+
+const formatDefectRelation = (
+  rel: LoadedComponentWithRelations['defects'][number],
+): string => {
+  if (!rel.categoryName) return rel.name
+  return `${rel.name} (категория: ${rel.categoryName})`
+}
+
+const RelationsList = defineComponent({
+  name: 'RelationsList',
+  props: {
+    relations: {
+      type: Array as PropType<LoadedComponentWithRelations['objectTypes']>,
+      required: true,
+    },
+    formatter: {
+      type: Function as PropType<
+        (rel: LoadedComponentWithRelations['objectTypes'][number]) => string
+      >,
+      default: (rel: LoadedComponentWithRelations['objectTypes'][number]) => rel.name,
+    },
+  },
+  setup(props) {
+    return () => {
+      const relations = props.relations ?? []
+      if (!relations.length) return h('span', { class: 'empty-cell' }, '—')
+
+      const chips = relations.slice(0, MAX_CHIPS)
+      const rest = relations.slice(MAX_CHIPS)
+
+      const chipNodes = chips.map((rel) =>
+        h(
+          NTag,
+          {
+            size: 'small',
+            round: true,
+            bordered: true,
+            class: 'chip',
+            key: `${rel.id}-${rel.name}`,
+          },
+          { default: () => props.formatter(rel) },
+        ),
+      )
+
+      if (!rest.length) return h('div', { class: 'chips-row' }, chipNodes)
+
+      const more = h(
+        NPopover,
+        { trigger: 'hover' },
+        {
+          trigger: () =>
+            h(NTag, { size: 'small', round: true, class: 'chip chip--more' }, { default: () => `+${rest.length}` }),
+          default: () =>
+            h(
+              'div',
+              { class: 'popover-list' },
+              rest.map((rel) =>
+                h('div', { class: 'popover-item', key: `${rel.id}-${rel.name}` }, props.formatter(rel)),
+              ),
+            ),
+        },
+      )
+
+      return h('div', { class: 'chips-row' }, [...chipNodes, more])
+    }
+  },
+})
 
 const handleEdit = (row: LoadedComponentWithRelations) => {
   editingComponent.value = row
@@ -402,32 +575,18 @@ const handleDelete = async (row: LoadedComponentWithRelations) => {
   }
 }
 
-const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
-  { title: 'Наименование', key: 'name' },
-  {
-    title: 'Типы объектов',
-    key: 'objectTypes',
-    render: (row) => renderRelations(row.objectTypes),
+const RowActions = defineComponent({
+  name: 'ComponentRowActions',
+  props: {
+    row: {
+      type: Object as PropType<LoadedComponentWithRelations>,
+      required: true,
+    },
   },
-  {
-    title: 'Параметры',
-    key: 'parameters',
-    render: (row) => renderRelations(row.parameters),
-  },
-  {
-    title: 'Дефекты',
-    key: 'defects',
-    render: (row) =>
-      renderRelations(
-        row.defects,
-        (rel) => renderChipLabel({ name: rel.name, categoryName: rel.categoryName ?? null }),
-      ),
-  },
-  {
-    title: 'Действия',
-    key: 'actions',
-    width: 120,
-    render: (row) => {
+  setup(props) {
+    return () => {
+      const row = props.row
+
       const editBtn = h(
         NButton,
         {
@@ -464,8 +623,56 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
         },
       )
 
-      return h('div', { class: 'actions' }, [editBtn, deleteBtn])
-    },
+      return h('div', { class: 'table-actions' }, [editBtn, deleteBtn])
+    }
+  },
+})
+
+const renderNameCell = (row: LoadedComponentWithRelations): VNodeChild =>
+  h('div', { class: 'name-cell' }, [
+    h('span', { class: 'name-cell__title' }, row.name),
+  ])
+
+const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
+  {
+    title: 'Компоненты',
+    key: 'name',
+    className: 'col-name',
+    width: 240,
+    minWidth: 240,
+    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
+    render: renderNameCell,
+  },
+  {
+    title: 'Типы объектов',
+    key: 'objectTypes',
+    className: 'col-relations',
+    width: 240,
+    minWidth: 220,
+    render: (row) => h(RelationsList, { relations: row.objectTypes }),
+  },
+  {
+    title: 'Параметры',
+    key: 'parameters',
+    className: 'col-relations',
+    width: 240,
+    minWidth: 220,
+    render: (row) => h(RelationsList, { relations: row.parameters, formatter: formatParameterRelation }),
+  },
+  {
+    title: 'Дефекты',
+    key: 'defects',
+    className: 'col-relations',
+    width: 240,
+    minWidth: 220,
+    render: (row) => h(RelationsList, { relations: row.defects, formatter: formatDefectRelation }),
+  },
+  {
+    title: 'Действия',
+    key: 'actions',
+    className: 'col-actions',
+    width: 120,
+    render: (row) => h(RowActions, { row }),
   },
 ])
 
@@ -619,10 +826,6 @@ const handleDefectCreated = (option: { value: string | number }) => {
   flex: 1 1 auto;
 }
 
-.toolbar__search {
-  min-width: 240px;
-}
-
 .toolbar__filters {
   display: flex;
   gap: 12px;
@@ -634,21 +837,115 @@ const handleDefectCreated = (option: { value: string | number }) => {
   min-width: 180px;
 }
 
+.toolbar__search {
+  min-width: 240px;
+}
+
+.toolbar__select {
+  min-width: 160px;
+}
+
 .table-area {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
+.table-full {
+  flex: 1;
+  min-width: 0;
+}
+
+:deep(.n-data-table .n-data-table-table) {
+  border-collapse: separate;
+  border-spacing: 0 12px;
+  width: 100%;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
+  background: var(--n-card-color, #fff);
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+:deep(.n-data-table .n-data-table-tbody .n-data-table-td) {
+  border-bottom: none;
+  padding: 0 12px;
+  height: auto;
+  line-height: 24px;
+  vertical-align: top;
+}
+
+:deep(.n-data-table thead th) {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='name']),
+:deep(.n-data-table .n-data-table-td.col-name) {
+  width: 240px;
+  max-width: 260px;
+}
+
+:deep(.n-data-table .n-data-table-td.col-relations) {
+  min-width: 220px;
+  max-width: 280px;
+}
+
+:deep(.n-data-table .n-data-table-th[data-col-key='actions']),
+:deep(.n-data-table .n-data-table-td.col-actions) {
+  width: 120px;
+  text-align: center;
+}
+
+.name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.name-cell__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
 .chips-row {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 6px;
-  flex-wrap: nowrap;
 }
 
 .chip {
   background-color: var(--surface-100);
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.chip :deep(.n-tag__content) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .chip--more {
@@ -663,14 +960,15 @@ const handleDefectCreated = (option: { value: string | number }) => {
 }
 
 .popover-item {
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .empty-cell {
   color: var(--neutral-500);
 }
 
-.actions {
+.table-actions {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -687,6 +985,82 @@ const handleDefectCreated = (option: { value: string | number }) => {
   color: var(--neutral-500);
 }
 
+.cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.card {
+  border: 1px solid #eee;
+  border-radius: 14px;
+  padding: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.card__header,
+.card__actions {
+  min-width: 0;
+}
+
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.card__title {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.card__grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  margin: 10px 0;
+}
+
+.card__grid dt {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.card__grid dd {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.card__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.card__actions .table-actions {
+  justify-content: flex-start;
+}
+
+.list-info {
+  font-size: 12px;
+  color: var(--neutral-500);
+  padding: 2px 2px 0;
+}
+
+.show-more-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .modal-footer {
   display: flex;
   justify-content: flex-end;
@@ -695,5 +1069,36 @@ const handleDefectCreated = (option: { value: string | number }) => {
 
 .btn-primary {
   min-width: 120px;
+}
+
+@media (max-width: 900px) {
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .toolbar__controls {
+    justify-content: flex-start;
+  }
+
+  .toolbar__search {
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .toolbar__filters {
+    width: 100%;
+  }
+
+  .toolbar__select {
+    flex: 1 1 160px;
+  }
+}
+
+@media (max-width: 360px) {
+  .card__grid {
+    grid-template-columns: 110px 1fr;
+  }
 }
 </style>
