@@ -2,11 +2,21 @@
   <section class="nsi-checklist">
     <header class="nsi-checklist__header">
       <h2 class="nsi-checklist__title">{{ title }}</h2>
+      <NTooltip v-if="partial" placement="top">
+        <template #trigger>
+          <span class="nsi-checklist__status">{{ partialLabel }}</span>
+        </template>
+        <span>{{ partialTooltip }}</span>
+      </NTooltip>
     </header>
     <ol class="nsi-checklist__list">
       <li v-for="(step, index) in steps" :key="step.id" class="nsi-checklist__item">
         <span class="nsi-checklist__index" :class="{ done: step.done }">
-          <NIcon v-if="step.done" :component="CheckmarkCircleOutline" class="nsi-checklist__status" />
+          <NIcon
+            v-if="step.done"
+            :component="CheckmarkCircleOutline"
+            class="nsi-checklist__status-icon"
+          />
           <span v-else>{{ index + 1 }}</span>
         </span>
         <div class="nsi-checklist__content">
@@ -32,8 +42,14 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { NButton, NIcon, NTooltip } from 'naive-ui'
 import { CheckmarkCircleOutline, InformationCircleOutline } from '@vicons/ionicons5'
+import { useI18n } from '@shared/lib'
+
+defineOptions({
+  name: 'NsiDashboardChecklist',
+})
 
 const props = defineProps<{
   title: string
@@ -46,11 +62,17 @@ const props = defineProps<{
   }>
   goLabel: string
   infoLabel: string
+  partial?: boolean
 }>()
 
 const emit = defineEmits<{
   (e: 'select', id: string): void
 }>()
+
+const { t } = useI18n()
+const partialLabel = computed(() => t('nsi.dashboard.partial.label'))
+const partialTooltip = computed(() => t('nsi.dashboard.partial.tooltip'))
+const partial = computed(() => Boolean(props.partial))
 
 function emitSelect(id: string) {
   emit('select', id)
@@ -61,17 +83,36 @@ function emitSelect(id: string) {
 .nsi-checklist {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 16px;
-  background: var(--n-color);
-  box-shadow: var(--n-box-shadow);
+  gap: var(--s360-space-lg);
+  padding: var(--s360-space-xl);
+  border-radius: var(--s360-radius-lg);
+  background: var(--s360-color-elevated);
+  box-shadow: var(--s360-shadow-lg);
+}
+
+.nsi-checklist__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s360-space-md);
 }
 
 .nsi-checklist__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--s360-font-title-md);
   font-weight: 600;
+}
+
+.nsi-checklist__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s360-space-sm);
+  border-radius: var(--s360-radius);
+  background: var(--s360-color-warning-soft);
+  color: var(--s360-text-warning);
+  font-size: var(--s360-font-caption);
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .nsi-checklist__list {
@@ -80,12 +121,12 @@ function emitSelect(id: string) {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--s360-space-lg);
 }
 
 .nsi-checklist__item {
   display: flex;
-  gap: 12px;
+  gap: var(--s360-space-md);
   align-items: flex-start;
 }
 
@@ -93,20 +134,20 @@ function emitSelect(id: string) {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: rgba(64, 128, 255, 0.1);
+  background: var(--s360-color-info-soft);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  color: var(--n-primary-color);
+  color: var(--s360-text-accent);
 }
 
 .nsi-checklist__index.done {
-  background: rgba(24, 160, 88, 0.1);
-  color: var(--n-success-color);
+  background: var(--s360-color-success-soft);
+  color: var(--s360-text-success);
 }
 
-.nsi-checklist__status {
+.nsi-checklist__status-icon {
   font-size: 20px;
 }
 
@@ -114,37 +155,38 @@ function emitSelect(id: string) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s360-space-sm);
 }
 
 .nsi-checklist__name {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--s360-font-body);
   font-weight: 600;
 }
 
 .nsi-checklist__description {
   margin: 0;
-  color: var(--n-text-color-2);
-  font-size: 13px;
+  color: var(--s360-text-muted);
+  font-size: var(--s360-font-caption);
 }
 
 .nsi-checklist__actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--s360-space-sm);
 }
 
 .nsi-checklist__link {
   padding: 0;
   height: auto;
+  font-weight: 600;
 }
 
 .nsi-checklist__info {
   background: none;
   border: none;
   padding: 0;
-  color: var(--n-text-color-2);
+  color: var(--s360-text-muted);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -152,11 +194,12 @@ function emitSelect(id: string) {
   width: 28px;
   height: 28px;
   border-radius: 50%;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .nsi-checklist__info:hover,
 .nsi-checklist__info:focus {
-  background: rgba(64, 128, 255, 0.1);
-  color: var(--n-primary-color);
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-text-accent);
 }
 </style>

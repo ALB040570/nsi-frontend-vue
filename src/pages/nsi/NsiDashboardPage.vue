@@ -1,76 +1,87 @@
 <template>
   <section class="nsi-dashboard-page">
-    <nav class="nsi-dashboard-page__breadcrumbs" :aria-label="breadcrumbsA11y">
-      <span class="breadcrumbs__link">{{ breadcrumbSettings }}</span>
-      <span class="breadcrumbs__sep">/</span>
-      <span class="breadcrumbs__current">{{ breadcrumbHome }}</span>
-    </nav>
+    <div class="nsi-dashboard-page__container">
+      <nav class="nsi-dashboard-page__breadcrumbs" :aria-label="breadcrumbsA11y">
+        <span class="breadcrumbs__link">{{ breadcrumbSettings }}</span>
+        <span class="breadcrumbs__sep" aria-hidden="true">/</span>
+        <span class="breadcrumbs__current">{{ breadcrumbHome }}</span>
+      </nav>
 
-    <CtaRow
-      :title="pageTitle"
-      :subtitle="pageSubtitle"
-      :actions="quickActions"
-      :assistant-enabled="assistantEnabled"
-      :assistant-label="assistantLabel"
-      :assistant-tooltip="assistantTooltip"
-      :assistant-banner-title="assistantBannerTitle"
-      :assistant-banner-text="assistantBannerText"
-      :search-placeholder="searchPlaceholder"
-      :search-typing-hint="searchTypingHint"
-      :search-empty="searchEmpty"
-      :search-loading-text="searchLoadingText"
-      :search-open-label="searchOpenLabel"
-      :search-types="searchTypes"
-      :actions-aria-label="actionsAriaLabel"
-      @toggle-assistant="assistantEnabled = $event"
-      @select-search="handleSearchSelect"
-    />
+      <CtaRow
+        :title="pageTitle"
+        :subtitle="pageSubtitle"
+        :actions="quickActions"
+        :assistant-enabled="assistantEnabled"
+        :assistant-label="assistantLabel"
+        :assistant-tooltip="assistantTooltip"
+        :assistant-banner-title="assistantBannerTitle"
+        :assistant-banner-text="assistantBannerText"
+        :search-placeholder="searchPlaceholder"
+        :search-typing-hint="searchTypingHint"
+        :search-empty="searchEmpty"
+        :search-loading-text="searchLoadingText"
+        :search-open-label="searchOpenLabel"
+        :search-types="searchTypes"
+        :actions-aria-label="actionsAriaLabel"
+        @toggle-assistant="assistantEnabled = $event"
+        @select-search="handleSearchSelect"
+      />
 
-    <div class="nsi-dashboard-page__layout">
-      <div class="nsi-dashboard-page__left">
-        <RelationsMap
-          :counts="relationsCounts"
-          :loading="relationsLoading"
-          @select-node="handleNavigate"
-        />
+      <div class="nsi-dashboard-page__layout">
+        <div class="nsi-dashboard-page__left">
+          <RelationsMap
+            :counts="relationsCounts"
+            :partial="relationsPartial"
+            :loading="relationsLoading"
+            @select-node="handleNavigate"
+          />
 
-        <Checklist
-          :title="checklistTitle"
-          :steps="checklistSteps"
-          :go-label="checklistGo"
-          :info-label="checklistInfo"
-          @select="handleNavigate"
-        />
-      </div>
+          <Checklist
+            :title="checklistTitle"
+            :steps="checklistSteps"
+            :go-label="checklistGo"
+            :info-label="checklistInfo"
+            :partial="coveragePartial"
+            @select="handleNavigate"
+          />
+        </div>
 
-      <div class="nsi-dashboard-page__right">
-        <KpiTiles :coverage="coverage" :loading="coverageLoading" @select="handleTileSelect" />
+        <div class="nsi-dashboard-page__right">
+          <KpiTiles
+            :coverage="coverage"
+            :partial="coveragePartial"
+            :loading="coverageLoading"
+            @select="handleTileSelect"
+          />
 
-        <Diagnostics
-          :title="diagnosticsTitle"
-          :description="diagnosticsDescription"
-          :empty-text="diagnosticsEmpty"
-          :items="diagnosticsItems"
-          :loading="diagnosticsLoading"
-          :severity-labels="severityLabels"
-          @select="handleDiagnosticSelect"
-        />
+          <Diagnostics
+            :title="diagnosticsTitle"
+            :description="diagnosticsDescription"
+            :empty-text="diagnosticsEmpty"
+            :items="diagnosticsItems"
+            :partial="diagnosticsPartial"
+            :loading="diagnosticsLoading"
+            :severity-labels="severityLabels"
+            @select="handleDiagnosticSelect"
+          />
 
-        <RecentActivity
-          :title="activityTitle"
-          :empty-text="activityEmpty"
-          :items="activityItems"
-          @select="handleActivitySelect"
-        />
+          <RecentActivity
+            :title="activityTitle"
+            :empty-text="activityEmpty"
+            :items="activityItems"
+            :partial="activityPartial"
+            @select="handleActivitySelect"
+          />
 
-        <section class="nsi-dashboard-page__templates">
-          <h3 class="templates__title">{{ templatesTitle }}</h3>
-          <div class="templates__actions">
-            <NButton quaternary @click="handleImport('import')">{{ templatesImport }}</NButton>
-            <NButton tertiary @click="handleImport('download')">{{ templatesDownload }}</NButton>
-          </div>
-          <p class="templates__hint">{{ templatesHint }}</p>
-        </section>
+          <NCard size="small" class="nsi-dashboard-page__templates">
+            <h3 class="templates__title">{{ templatesTitle }}</h3>
+            <div class="templates__actions">
+              <NButton quaternary @click="handleImport('import')">{{ templatesImport }}</NButton>
+              <NButton tertiary @click="handleImport('download')">{{ templatesDownload }}</NButton>
+            </div>
+            <p class="templates__hint">{{ templatesHint }}</p>
+          </NCard>
+        </div>
       </div>
     </div>
   </section>
@@ -80,25 +91,28 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQuery } from '@tanstack/vue-query'
-import { NButton } from 'naive-ui'
+import { NButton, NCard } from 'naive-ui'
 
-import { useI18n } from '@shared/lib/i18n'
-import CtaRow from '@widgets/nsi-dashboard/CtaRow.vue'
-import RelationsMap from '@widgets/nsi-dashboard/RelationsMap.vue'
-import KpiTiles from '@widgets/nsi-dashboard/KpiTiles.vue'
-import Checklist from '@widgets/nsi-dashboard/Checklist.vue'
-import Diagnostics from '@widgets/nsi-dashboard/Diagnostics.vue'
-import RecentActivity from '@widgets/nsi-dashboard/RecentActivity.vue'
+import { useI18n } from '@shared/lib'
+import CtaRow from '@/widgets/nsi-dashboard/CtaRow.vue'
+import RelationsMap from '@/widgets/nsi-dashboard/RelationsMap.vue'
+import KpiTiles from '@/widgets/nsi-dashboard/KpiTiles.vue'
+import Checklist from '@/widgets/nsi-dashboard/Checklist.vue'
+import Diagnostics from '@/widgets/nsi-dashboard/Diagnostics.vue'
+import RecentActivity from '@/widgets/nsi-dashboard/RecentActivity.vue'
 import {
   fetchNsiActivity,
   fetchNsiCoverage,
   fetchNsiDiagnostics,
   fetchNsiRelationsCounts,
   type ActivityItem,
+  type ActivityResponse,
   type DiagnosticItem,
+  type DiagnosticsResponse,
   type NsiCoverage,
+  type NsiCoverageResponse,
   type NsiSearchResult,
-  type RelationsCounts,
+  type RelationsCountsResponse,
 } from '@/services/nsiDashboard.api'
 
 type TargetKey = 'sources' | 'types' | 'components' | 'params' | 'defects' | 'works'
@@ -121,17 +135,25 @@ const relationsQuery = useQuery({
   queryFn: fetchNsiRelationsCounts,
 })
 
-const coverage = computed(() => coverageQuery.data.value ?? null)
+const coverageResponse = computed<NsiCoverageResponse | null>(() => coverageQuery.data.value ?? null)
+const coverage = computed(() => coverageResponse.value ?? null)
+const coveragePartial = computed(() => Boolean(coverageResponse.value?.partial))
 const coverageLoading = computed(() => coverageQuery.isLoading.value)
 
-const diagnosticsItems = computed(() => diagnosticsQuery.data.value ?? [])
+const diagnosticsResponse = computed<DiagnosticsResponse | null>(() => diagnosticsQuery.data.value ?? null)
+const diagnosticsItems = computed(() => diagnosticsResponse.value?.items ?? [])
+const diagnosticsPartial = computed(() => Boolean(diagnosticsResponse.value?.partial))
 const diagnosticsLoading = computed(() => diagnosticsQuery.isLoading.value)
 
-const activityItems = computed(() => activityQuery.data.value ?? [])
+const activityResponse = computed<ActivityResponse | null>(() => activityQuery.data.value ?? null)
+const activityItems = computed(() => activityResponse.value?.items ?? [])
+const activityPartial = computed(() => Boolean(activityResponse.value?.partial))
 const activityEmpty = computed(() => t('nsi.dashboard.activity.empty'))
 const activityTitle = computed(() => t('nsi.dashboard.activity.title'))
 
-const relationsCounts = computed<RelationsCounts | null>(() => relationsQuery.data.value ?? null)
+const relationsResponse = computed<RelationsCountsResponse | null>(() => relationsQuery.data.value ?? null)
+const relationsCounts = computed(() => relationsResponse.value ?? null)
+const relationsPartial = computed(() => Boolean(relationsResponse.value?.partial))
 const relationsLoading = computed(() => relationsQuery.isLoading.value)
 
 const pageTitle = computed(() => t('nsi.dashboard.title'))
@@ -345,33 +367,38 @@ function handleImport(action: 'import' | 'download') {
 
 <style scoped>
 .nsi-dashboard-page {
+  padding: var(--s360-space-xxl) var(--s360-space-xl);
+}
+
+.nsi-dashboard-page__container {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 24px;
+  gap: var(--s360-space-xl);
+  max-width: var(--s360-container-max-width);
+  margin: 0 auto;
 }
 
 .nsi-dashboard-page__breadcrumbs {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--n-text-color-2);
-  font-size: 13px;
+  gap: var(--s360-space-sm);
+  color: var(--s360-text-muted);
+  font-size: var(--s360-font-caption);
 }
 
 .breadcrumbs__link {
-  color: var(--n-text-color-2);
+  color: var(--s360-text-muted);
 }
 
 .breadcrumbs__current {
-  color: var(--n-text-color);
-  font-weight: 500;
+  color: var(--s360-text-primary);
+  font-weight: 600;
 }
 
 .nsi-dashboard-page__layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 24px;
+  gap: var(--s360-space-xl);
   align-items: start;
 }
 
@@ -379,35 +406,31 @@ function handleImport(action: 'import' | 'download') {
 .nsi-dashboard-page__right {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--s360-space-xl);
 }
 
 .nsi-dashboard-page__templates {
-  padding: 20px;
-  border-radius: 16px;
-  background: var(--n-color);
-  box-shadow: var(--n-box-shadow);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--s360-space-sm);
 }
 
 .templates__title {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--s360-font-title-md);
   font-weight: 600;
 }
 
 .templates__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--s360-space-sm);
 }
 
 .templates__hint {
   margin: 0;
-  color: var(--n-text-color-2);
-  font-size: 13px;
+  color: var(--s360-text-muted);
+  font-size: var(--s360-font-caption);
 }
 
 @media (max-width: 1024px) {
@@ -418,7 +441,7 @@ function handleImport(action: 'import' | 'download') {
 
 @media (max-width: 768px) {
   .nsi-dashboard-page {
-    padding: 20px 16px 40px;
+    padding: var(--s360-space-lg);
   }
 
   .templates__actions {

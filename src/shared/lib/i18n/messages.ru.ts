@@ -204,6 +204,10 @@ export const messagesRu = {
       searchResults: {
         open: 'Перейти',
       },
+      partial: {
+        label: 'Данные частично',
+        tooltip: 'Не все сервисы ответили вовремя. Показатели могут быть неполными.',
+      },
       dataQuality: {
         issuesFound: 'Найдено несоответствий: {count}',
         allGood: 'Несоответствий не найдено',

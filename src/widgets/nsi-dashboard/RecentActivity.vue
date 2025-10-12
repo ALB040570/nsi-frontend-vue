@@ -2,6 +2,12 @@
   <section class="nsi-activity">
     <header class="nsi-activity__header">
       <h2 class="nsi-activity__title">{{ title }}</h2>
+      <NTooltip v-if="partial" placement="top">
+        <template #trigger>
+          <span class="nsi-activity__status">{{ partialLabel }}</span>
+        </template>
+        <span>{{ partialTooltip }}</span>
+      </NTooltip>
     </header>
 
     <ul class="nsi-activity__list">
@@ -20,15 +26,29 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+import { NTooltip } from 'naive-ui'
+
+import { useI18n } from '@shared/lib'
 import type { ActivityItem } from '@/services/nsiDashboard.api'
+
+defineOptions({
+  name: 'NsiDashboardRecentActivity',
+})
 
 const props = defineProps<{
   title: string
   emptyText: string
   items: ActivityItem[]
+  partial?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'select', item: ActivityItem): void }>()
+
+const { t } = useI18n()
+const partial = computed(() => Boolean(props.partial))
+const partialLabel = computed(() => t('nsi.dashboard.partial.label'))
+const partialTooltip = computed(() => t('nsi.dashboard.partial.tooltip'))
 
 const formatter = new Intl.DateTimeFormat('ru-RU', {
   day: '2-digit',
@@ -52,17 +72,36 @@ function emitSelect(item: ActivityItem) {
 .nsi-activity {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  background: var(--n-color);
-  border-radius: 16px;
-  box-shadow: var(--n-box-shadow);
+  gap: var(--s360-space-md);
+  padding: var(--s360-space-xl);
+  background: var(--s360-color-elevated);
+  border-radius: var(--s360-radius-lg);
+  box-shadow: var(--s360-shadow-lg);
+}
+
+.nsi-activity__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s360-space-md);
 }
 
 .nsi-activity__title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--s360-font-title-md);
   font-weight: 600;
+}
+
+.nsi-activity__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s360-space-sm);
+  border-radius: var(--s360-radius);
+  background: var(--s360-color-warning-soft);
+  color: var(--s360-text-warning);
+  font-size: var(--s360-font-caption);
+  font-weight: 600;
+  line-height: 1.6;
 }
 
 .nsi-activity__list {
@@ -71,7 +110,7 @@ function emitSelect(item: ActivityItem) {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--s360-space-sm);
 }
 
 .nsi-activity__item {
@@ -79,44 +118,46 @@ function emitSelect(item: ActivityItem) {
 }
 
 .nsi-activity__button {
-  border: none;
-  background: rgba(64, 128, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px;
+  border: 1px solid var(--s360-color-border-subtle);
+  background: var(--s360-color-neutral-soft);
+  border-radius: var(--s360-radius-lg);
+  padding: var(--s360-space-md);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s360-space-xs);
   text-align: left;
   cursor: pointer;
   color: inherit;
   width: 100%;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .nsi-activity__button:hover,
 .nsi-activity__button:focus {
-  background: rgba(64, 128, 255, 0.12);
+  background: var(--s360-color-primary-soft);
+  border-color: var(--s360-color-primary);
 }
 
 .nsi-activity__primary {
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .nsi-activity__meta {
   display: flex;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--n-text-color-2);
+  gap: var(--s360-space-sm);
+  font-size: var(--s360-font-caption);
+  color: var(--s360-text-muted);
 }
 
 .nsi-activity__meta strong {
-  color: var(--n-text-color);
+  color: var(--s360-text-accent);
 }
 
 .nsi-activity__empty {
-  padding: 16px;
+  padding: var(--s360-space-md);
   text-align: center;
-  color: var(--n-text-color-2);
-  background: rgba(64, 128, 255, 0.05);
-  border-radius: 12px;
+  color: var(--s360-text-muted);
+  background: var(--s360-color-neutral-soft);
+  border-radius: var(--s360-radius-lg);
 }
 </style>
