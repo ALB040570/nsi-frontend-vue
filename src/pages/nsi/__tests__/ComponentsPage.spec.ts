@@ -28,7 +28,15 @@ const useComponentsQueryMock = vi.hoisted(() =>
           parameters: [
             { id: '101', name: 'Температура', relationId: 'pr-1', cls: '1041' },
           ],
-          defects: [{ id: '201', name: 'Коррозия', relationId: 'df-1', cls: '1061' }],
+          defects: [
+            {
+              id: '201',
+              name: 'Коррозия',
+              relationId: 'df-1',
+              cls: '1061',
+              categoryName: 'Повреждения',
+            },
+          ],
           details: { id: 1, cls: 1027, accessLevel: 1 },
         },
       ],
@@ -94,7 +102,7 @@ describe('ComponentsPage', () => {
   it('creates component via modal', async () => {
     const { getByText, getByPlaceholderText } = render(ComponentsPage)
 
-    await fireEvent.click(getByText('+ Создать компонент'))
+    await fireEvent.click(getByText('+ Добавить компонент'))
     const nameInput = getByPlaceholderText('Введите наименование компонента') as HTMLInputElement
     await fireEvent.update(nameInput, 'Новый компонент')
     await fireEvent.click(getByText('Сохранить'))

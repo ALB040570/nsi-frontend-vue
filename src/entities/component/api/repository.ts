@@ -1,12 +1,20 @@
 /** Файл: src/entities/component/api/repository.ts
- *  Назначение: RPC-доступ к справочнику компонентов и создание новых компонентов.
- *  Использование: вызывать из фич (селект) и сценариев CRUD объектов.
+ *  Назначение: RPC-доступ к справочнику компонентов и управлению связями с типами, параметрами и дефектами.
+ *  Использование: импортировать функции снапшота и CRUD из @entities/component.
  */
 import { rpc } from '@shared/api'
-import { extractRecords, firstRecord, normalizeText, toOptionalString, trimmedString } from '@shared/lib'
+import {
+  extractRecords,
+  firstRecord,
+  normalizeText,
+  trimmedString,
+  toOptionalString,
+} from '@shared/lib'
+import { listDefectCategories } from '@entities/object-defect'
+import type { DefectCategoryOption, RawDefectRecord } from '@entities/object-defect'
+
 import type {
   Component,
-  ComponentDetails,
   ComponentRelation,
   ComponentsSnapshot,
   CreateComponentPayload,
@@ -16,150 +24,280 @@ import type {
 } from '../model/types'
 import type { ComponentRecord, ComponentSaveRecord } from '../model/dto'
 
+const LOAD_COMPONENTS_METHOD = 'data/loadComponents'
+const LOAD_DEFECTS_METHOD = 'data/loadDefects'
+const SAVE_COMPONENTS_METHOD = 'data/saveComponents'
+const DELETE_COMPONENTS_METHOD = 'data/deleteComponents'
+
+const OBJECT_TYPE_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
+const PARAMETER_REL_ARGS = ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components'] as const
+
+interface RawRelationRecord {
+  idro?: string | number | null
+  idrom1?: string | number | null
+  clsrom1?: string | number | null
+  namerom1?: string | null
+  idrom2?: string | number | null
+  clsrom2?: string | number | null
+  namerom2?: string | null
+}
+
 interface InternalComponentRecord {
-  id: number
-  cls: number
-  name: string
-  objectTypeIds: string[]
-  parameterIds: string[]
-  defectIds: string[]
-}
-
-interface InternalDirectoryRecord {
   id: string
+  numericId: number | null
+  cls: string | null
+  numericCls: number | null
+  accessLevel: number | null
   name: string
-  cls?: string | null
+  objectTypeLinks: ComponentRelation[]
+  parameterLinks: ComponentRelation[]
+  defectLinks: ComponentRelation[]
 }
 
-const defaultObjectTypes: InternalDirectoryRecord[] = [
-  { id: '1', name: 'ЖД путь', cls: '1001' },
-  { id: '2', name: 'Стрелочный перевод', cls: '1001' },
-  { id: '3', name: 'Мост', cls: '1001' },
-]
+const memoryComponents = new Map<string, InternalComponentRecord>()
+const memoryObjectTypes = new Map<string, DirectoryOptionWithMeta>()
+const memoryParameters = new Map<string, DirectoryOptionWithMeta>()
+const memoryDefects = new Map<string, DirectoryOptionWithMeta>()
 
-const defaultParameters: InternalDirectoryRecord[] = [
-  { id: '101', name: 'Температура', cls: '1041' },
-  { id: '102', name: 'Влажность', cls: '1041' },
-  { id: '103', name: 'Длина', cls: '1041' },
-]
+let lastComponentId = 0
+let lastObjectTypeId = 0
+let lastParameterId = 0
+let lastDefectId = 0
 
-const defaultDefects: InternalDirectoryRecord[] = [
-  { id: '201', name: 'Коррозия', cls: '1061' },
-  { id: '202', name: 'Трещина', cls: '1061' },
-  { id: '203', name: 'Скол', cls: '1061' },
-]
-
-const memoryComponents = new Map<number, InternalComponentRecord>([
-  [1, { id: 1, cls: 1027, name: 'Рельс', objectTypeIds: ['1'], parameterIds: ['101'], defectIds: ['201'] }],
-  [2, { id: 2, cls: 1027, name: 'Шпала', objectTypeIds: ['1', '2'], parameterIds: ['102'], defectIds: ['202'] }],
-  [3, { id: 3, cls: 1027, name: 'Опора', objectTypeIds: ['3'], parameterIds: ['103'], defectIds: [] }],
-])
-
-const memoryObjectTypes = new Map<string, InternalDirectoryRecord>(
-  defaultObjectTypes.map((item) => [item.id, { ...item }]),
-)
-
-const memoryParameters = new Map<string, InternalDirectoryRecord>(
-  defaultParameters.map((item) => [item.id, { ...item }]),
-)
-
-const memoryDefects = new Map<string, InternalDirectoryRecord>(
-  defaultDefects.map((item) => [item.id, { ...item }]),
-)
-
-let lastComponentId = Math.max(...Array.from(memoryComponents.values()).map((item) => item.id))
-let lastObjectTypeId = Math.max(...Array.from(memoryObjectTypes.keys()).map((id) => Number(id) || 0))
-let lastParameterId = Math.max(...Array.from(memoryParameters.keys()).map((id) => Number(id) || 0))
-let lastDefectId = Math.max(...Array.from(memoryDefects.keys()).map((id) => Number(id) || 0))
-
-const generateId = (source: 'component' | 'objectType' | 'parameter' | 'defect'): number => {
-  switch (source) {
-    case 'component':
-      lastComponentId += 1
-      return lastComponentId
-    case 'objectType':
-      lastObjectTypeId += 1
-      return lastObjectTypeId
-    case 'parameter':
-      lastParameterId += 1
-      return lastParameterId
-    case 'defect':
-      lastDefectId += 1
-      return lastDefectId
-    default:
-      return Date.now()
-  }
+const toFiniteNumber = (value: unknown): number | null => {
+  const num = typeof value === 'number' ? value : Number(String(value ?? '').trim())
+  return Number.isFinite(num) ? num : null
 }
 
-function toDirectoryOption(record: InternalDirectoryRecord): DirectoryOptionWithMeta {
-  return { id: record.id, name: record.name, cls: record.cls ?? null }
+const normalizeName = (value: string | null | undefined, fallback: string): string => {
+  const primary = trimmedString(value)
+  if (primary) return primary
+  return fallback
 }
 
-function ensureDirectoryRecord(
-  collection: Map<string, InternalDirectoryRecord>,
+function ensureDirectoryOption(
+  map: Map<string, DirectoryOptionWithMeta>,
+  id: string,
   name: string,
-  source: 'objectType' | 'parameter' | 'defect',
-): InternalDirectoryRecord {
-  const normalized = normalizeText(name)
-  for (const entry of collection.values()) {
-    if (normalizeText(entry.name) === normalized) return entry
+  cls?: string | null,
+  extras?: Partial<DirectoryOptionWithMeta>,
+): DirectoryOptionWithMeta {
+  const normalizedId = id.trim()
+  const existing = map.get(normalizedId)
+  if (existing) {
+    if (extras) {
+      map.set(normalizedId, { ...existing, ...extras })
+    }
+    return map.get(normalizedId) ?? existing
   }
-  const newId = String(generateId(source))
-  const record = { id: newId, name: trimmedString(name) || `Новый ${source}` }
-  collection.set(newId, record)
-  return record
+  const option: DirectoryOptionWithMeta = {
+    id: normalizedId,
+    name: normalizeName(name, normalizedId),
+    cls: cls ?? null,
+    ...extras,
+  }
+  map.set(normalizedId, option)
+  return option
 }
 
-function mapRelations(
-  ids: string[],
-  directory: Map<string, InternalDirectoryRecord>,
-): ComponentRelation[] {
-  return ids
-    .map((id) => {
-      const option = directory.get(id)
-      if (!option) return null
-      return {
-        id: option.id,
-        name: option.name,
-        relationId: `${option.id}-${option.name}`,
-        cls: option.cls ?? null,
-      }
-    })
-    .filter((item): item is ComponentRelation => item != null)
-}
+const createRelation = (
+  option: DirectoryOptionWithMeta,
+  relationId: string | null,
+): ComponentRelation => ({
+  id: option.id,
+  name: option.name,
+  cls: option.cls ?? null,
+  relationId,
+  categoryId: option.categoryId ?? null,
+  categoryName: option.categoryName ?? null,
+})
 
-function mapComponent(record: InternalComponentRecord): LoadedComponentWithRelations {
-  return {
-    id: String(record.id),
-    cls: String(record.cls),
-    name: record.name,
-    objectTypes: mapRelations(record.objectTypeIds, memoryObjectTypes),
-    parameters: mapRelations(record.parameterIds, memoryParameters),
-    defects: mapRelations(record.defectIds, memoryDefects),
-    details: {
+function composeSnapshotFromMemory(): ComponentsSnapshot {
+  const items = Array.from(memoryComponents.values())
+    .map<LoadedComponentWithRelations>((record) => ({
       id: record.id,
       cls: record.cls,
-      accessLevel: 1,
-    },
+      name: record.name,
+      objectTypes: record.objectTypeLinks.map((link) => ({ ...link })),
+      parameters: record.parameterLinks.map((link) => ({ ...link })),
+      defects: record.defectLinks.map((link) => ({ ...link })),
+      details: {
+        id: record.numericId ?? toFiniteNumber(record.id) ?? 0,
+        cls: record.numericCls ?? toFiniteNumber(record.cls) ?? null,
+        accessLevel: record.accessLevel ?? 1,
+      },
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+  const sortOptions = (map: Map<string, DirectoryOptionWithMeta>) =>
+    Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+
+  return {
+    items,
+    objectTypes: sortOptions(memoryObjectTypes),
+    parameters: sortOptions(memoryParameters),
+    defects: sortOptions(memoryDefects),
   }
 }
 
-function composeSnapshot(): ComponentsSnapshot {
-  const items = Array.from(memoryComponents.values())
-    .map(mapComponent)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+function resetCounters() {
+  lastComponentId = 0
+  lastObjectTypeId = 0
+  lastParameterId = 0
+  lastDefectId = 0
+}
 
-  const objectTypes = Array.from(memoryObjectTypes.values())
-    .map(toDirectoryOption)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  const parameters = Array.from(memoryParameters.values())
-    .map(toDirectoryOption)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  const defects = Array.from(memoryDefects.values())
-    .map(toDirectoryOption)
-    .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+function bumpCounters() {
+  for (const record of memoryComponents.values()) {
+    const numId = toFiniteNumber(record.id)
+    if (numId != null) lastComponentId = Math.max(lastComponentId, numId)
+  }
+  for (const option of memoryObjectTypes.values()) {
+    const numId = toFiniteNumber(option.id)
+    if (numId != null) lastObjectTypeId = Math.max(lastObjectTypeId, numId)
+  }
+  for (const option of memoryParameters.values()) {
+    const numId = toFiniteNumber(option.id)
+    if (numId != null) lastParameterId = Math.max(lastParameterId, numId)
+  }
+  for (const option of memoryDefects.values()) {
+    const numId = toFiniteNumber(option.id)
+    if (numId != null) lastDefectId = Math.max(lastDefectId, numId)
+  }
+}
 
-  return { items, objectTypes, parameters, defects }
+function updateMemoryFromRemote(
+  componentsRaw: ComponentRecord[],
+  typeLinks: RawRelationRecord[],
+  parameterLinks: RawRelationRecord[],
+  defectRecords: RawDefectRecord[],
+  categories: DefectCategoryOption[],
+) {
+  memoryComponents.clear()
+  memoryObjectTypes.clear()
+  memoryParameters.clear()
+  memoryDefects.clear()
+  resetCounters()
+
+  const categoriesByFv = new Map<string, DefectCategoryOption>()
+  for (const category of categories) categoriesByFv.set(category.fvId, category)
+
+  for (const raw of componentsRaw) {
+    const id = toOptionalString(raw.id ?? raw.ID ?? raw.number)
+    const name = toOptionalString(raw.name ?? raw.NAME)
+    if (!id || !name) continue
+    const cls = toOptionalString(raw.cls ?? raw.CLS)
+    const numericId = toFiniteNumber(id)
+    const numericCls = toFiniteNumber(cls)
+
+    memoryComponents.set(id, {
+      id,
+      numericId,
+      cls,
+      numericCls,
+      accessLevel: 1,
+      name: normalizeName(name, id),
+      objectTypeLinks: [],
+      parameterLinks: [],
+      defectLinks: [],
+    })
+  }
+
+  const ensureComponent = (componentId: string): InternalComponentRecord | null => {
+    const record = memoryComponents.get(componentId)
+    if (record) return record
+    const numericId = toFiniteNumber(componentId)
+    const entry: InternalComponentRecord = {
+      id: componentId,
+      numericId,
+      cls: null,
+      numericCls: null,
+      accessLevel: 1,
+      name: componentId,
+      objectTypeLinks: [],
+      parameterLinks: [],
+      defectLinks: [],
+    }
+    memoryComponents.set(componentId, entry)
+    return entry
+  }
+
+  for (const rel of typeLinks) {
+    const componentId = toOptionalString(rel.idrom2)
+    const typeId = toOptionalString(rel.idrom1)
+    if (!componentId || !typeId) continue
+
+    const record = ensureComponent(componentId)
+    if (!record) continue
+
+    const typeName = toOptionalString(rel.namerom1) ?? typeId
+    const option = ensureDirectoryOption(
+      memoryObjectTypes,
+      typeId,
+      typeName,
+      toOptionalString(rel.clsrom1),
+    )
+
+    const relationId = toOptionalString(rel.idro)
+    record.objectTypeLinks.push(createRelation(option, relationId))
+  }
+
+  for (const rel of parameterLinks) {
+    const componentId = toOptionalString(rel.idrom2)
+    const parameterId = toOptionalString(rel.idrom1)
+    if (!componentId || !parameterId) continue
+
+    const record = ensureComponent(componentId)
+    if (!record) continue
+
+    const paramName = toOptionalString(rel.namerom1) ?? parameterId
+    const option = ensureDirectoryOption(
+      memoryParameters,
+      parameterId,
+      paramName,
+      toOptionalString(rel.clsrom1),
+    )
+
+    const relationId = toOptionalString(rel.idro)
+    record.parameterLinks.push(createRelation(option, relationId))
+  }
+
+  for (const raw of defectRecords) {
+    const componentId = toOptionalString(
+      raw.objDefectsComponent ?? raw.pvDefectsComponent ?? raw.idDefectsComponent,
+    )
+    if (!componentId) continue
+
+    const record = ensureComponent(componentId)
+    if (!record) continue
+
+    const defectId =
+      toOptionalString(raw.id ?? raw.idDefects ?? raw.ID ?? raw.number) ??
+      toOptionalString(raw.pvDefectsComponent) ??
+      toOptionalString(raw.idDefectsComponent)
+    if (!defectId) continue
+
+    const defectName = normalizeName(
+      raw.name ?? raw.DefectsName ?? raw.nameDefects ?? raw.nameDefectsComponent,
+      defectId,
+    )
+
+    const categoryId =
+      toOptionalString(raw.fvDefectsCategory ?? raw.pvDefectsCategory) ?? undefined
+    const categoryOption = categoryId ? categoriesByFv.get(categoryId) : undefined
+    const categoryName =
+      categoryOption?.name ?? raw.nameDefectsCategory ?? categoryOption?.pvId ?? null
+
+    const option = ensureDirectoryOption(memoryDefects, defectId, defectName, toOptionalString(raw.cls), {
+      categoryId: categoryId ?? null,
+      categoryName: categoryName ?? null,
+    })
+
+    const relationId = toOptionalString(raw.idDefectsComponent ?? raw.pvDefectsComponent)
+    record.defectLinks.push(createRelation(option, relationId))
+  }
+
+  bumpCounters()
 }
 
 export interface CreatedComponentPayload {
@@ -171,9 +309,9 @@ export interface CreatedComponentPayload {
 function toCreatedPayload(record: ComponentSaveRecord | null, fallbackName: string): CreatedComponentPayload {
   if (!record) throw new Error('Нет ответа с созданным компонентом')
   const idValue = toOptionalString(record.id ?? record.ID ?? record.number)
-  if (!idValue) throw new Error('Нет идентификатора созданного компонента')
   const clsValue = toOptionalString(record.cls ?? record.CLS) ?? '1027'
   const nameValue = toOptionalString(record.name ?? record.NAME) ?? fallbackName
+  if (!idValue) throw new Error('Нет идентификатора созданного компонента')
   return {
     id: Number(idValue),
     cls: Number(clsValue),
@@ -182,21 +320,108 @@ function toCreatedPayload(record: ComponentSaveRecord | null, fallbackName: stri
 }
 
 async function callCreateComponent(name: string): Promise<CreatedComponentPayload> {
-  const response = await rpc<ComponentSaveRecord | { result?: ComponentSaveRecord }>('data/saveComponents', [
-    'ins',
-    {
-      accessLevel: 1,
-      cls: 1027,
-      name,
-    },
-  ])
+  const response = await rpc<ComponentSaveRecord | { result?: ComponentSaveRecord }>(
+    SAVE_COMPONENTS_METHOD,
+    [
+      'ins',
+      {
+        accessLevel: 1,
+        cls: 1027,
+        name,
+      },
+    ],
+  )
 
   const record = firstRecord<ComponentSaveRecord>(response)
   return toCreatedPayload(record, name)
 }
 
+function applyPayload(
+  record: InternalComponentRecord,
+  payload: CreateComponentPayload | UpdateComponentPayload,
+) {
+  const safeName = trimmedString(payload.name) || `Компонент ${record.id}`
+  record.name = safeName
+
+  const existingTypeById = new Map(record.objectTypeLinks.map((rel) => [rel.id, rel]))
+  record.objectTypeLinks = payload.objectTypeIds.map((id) => {
+    const option =
+      memoryObjectTypes.get(id) ?? ensureDirectoryOption(memoryObjectTypes, id, id, null)
+    const preserved = existingTypeById.get(id)
+    return preserved ? { ...preserved, name: option.name, cls: option.cls ?? null } : createRelation(option, null)
+  })
+
+  const existingParamById = new Map(record.parameterLinks.map((rel) => [rel.id, rel]))
+  record.parameterLinks = payload.parameterIds.map((id) => {
+    const option =
+      memoryParameters.get(id) ?? ensureDirectoryOption(memoryParameters, id, id, null)
+    const preserved = existingParamById.get(id)
+    return preserved ? { ...preserved, name: option.name, cls: option.cls ?? null } : createRelation(option, null)
+  })
+
+  const existingDefectById = new Map(record.defectLinks.map((rel) => [rel.id, rel]))
+  record.defectLinks = payload.defectIds.map((id) => {
+    const option = memoryDefects.get(id) ?? ensureDirectoryOption(memoryDefects, id, id, null)
+    const preserved = existingDefectById.get(id)
+    return preserved
+      ? {
+          ...preserved,
+          name: option.name,
+          cls: option.cls ?? null,
+          categoryId: option.categoryId ?? null,
+          categoryName: option.categoryName ?? null,
+        }
+      : createRelation(option, null)
+  })
+}
+
+function mapInternalToLoaded(record: InternalComponentRecord): LoadedComponentWithRelations {
+  return {
+    id: record.id,
+    cls: record.cls,
+    name: record.name,
+    objectTypes: record.objectTypeLinks.map((rel) => ({ ...rel })),
+    parameters: record.parameterLinks.map((rel) => ({ ...rel })),
+    defects: record.defectLinks.map((rel) => ({ ...rel })),
+    details: {
+      id: record.numericId ?? toFiniteNumber(record.id) ?? 0,
+      cls: record.numericCls ?? toFiniteNumber(record.cls) ?? null,
+      accessLevel: record.accessLevel ?? 1,
+    },
+  }
+}
+
+export async function fetchComponentsSnapshot(): Promise<ComponentsSnapshot> {
+  try {
+    const [componentsResp, typeRelResp, parameterRelResp, defectsResp, categories] = await Promise.all([
+      rpc<ComponentRecord[]>(LOAD_COMPONENTS_METHOD, [0]),
+      rpc<RawRelationRecord[]>(
+        'data/loadComponentsObject2',
+        OBJECT_TYPE_REL_ARGS,
+      ),
+      rpc<RawRelationRecord[]>(
+        'data/loadComponentsObject2',
+        PARAMETER_REL_ARGS,
+      ),
+      rpc<RawDefectRecord[]>(LOAD_DEFECTS_METHOD, [0]),
+      listDefectCategories().catch(() => [] as DefectCategoryOption[]),
+    ])
+
+    const componentRecords = extractRecords<ComponentRecord>(componentsResp)
+    const typeRelations = extractRecords<RawRelationRecord>(typeRelResp)
+    const parameterRelations = extractRecords<RawRelationRecord>(parameterRelResp)
+    const defectRecords = extractRecords<RawDefectRecord>(defectsResp)
+
+    updateMemoryFromRemote(componentRecords, typeRelations, parameterRelations, defectRecords, categories)
+  } catch (error) {
+    console.error('Не удалось загрузить компоненты', error)
+  }
+
+  return composeSnapshotFromMemory()
+}
+
 export async function listComponents(): Promise<Component[]> {
-  const response = await rpc<ComponentRecord[]>('data/loadComponents', [0])
+  const response = await rpc<ComponentRecord[]>(LOAD_COMPONENTS_METHOD, [0])
   const raw = extractRecords<ComponentRecord>(response)
   return raw
     .map<Component | null>((item) => {
@@ -221,25 +446,6 @@ export async function createComponentIfMissing(name: string): Promise<CreatedCom
   return await callCreateComponent(name)
 }
 
-export async function fetchComponentsSnapshot(): Promise<ComponentsSnapshot> {
-  try {
-    await rpc('data/loadComponents', [0])
-  } catch {
-    // Игнорируем ошибки в моковом режиме
-  }
-  return composeSnapshot()
-}
-
-function applyPayload(
-  record: InternalComponentRecord,
-  payload: CreateComponentPayload | UpdateComponentPayload,
-) {
-  record.name = trimmedString(payload.name) || `Компонент ${record.id}`
-  record.objectTypeIds = Array.from(new Set(payload.objectTypeIds.map(String)))
-  record.parameterIds = Array.from(new Set(payload.parameterIds.map(String)))
-  record.defectIds = Array.from(new Set(payload.defectIds.map(String)))
-}
-
 export async function createComponentEntry(
   payload: CreateComponentPayload,
 ): Promise<LoadedComponentWithRelations> {
@@ -247,72 +453,113 @@ export async function createComponentEntry(
   let created: CreatedComponentPayload
   try {
     created = await callCreateComponent(baseName)
-  } catch {
-    const newId = generateId('component')
-    created = { id: newId, cls: 1027, name: baseName }
+  } catch (error) {
+    console.error(error)
+    lastComponentId += 1
+    created = { id: lastComponentId, cls: 1027, name: baseName }
   }
 
   const record: InternalComponentRecord = {
-    id: Number(created.id),
-    cls: Number(created.cls),
+    id: String(created.id),
+    numericId: created.id,
+    cls: String(created.cls),
+    numericCls: created.cls,
+    accessLevel: 1,
     name: created.name,
-    objectTypeIds: [],
-    parameterIds: [],
-    defectIds: [],
+    objectTypeLinks: [],
+    parameterLinks: [],
+    defectLinks: [],
   }
+
   applyPayload(record, payload)
   memoryComponents.set(record.id, record)
-  return mapComponent(record)
+  return mapInternalToLoaded(record)
 }
 
 export async function updateComponentEntry(
   payload: UpdateComponentPayload,
 ): Promise<LoadedComponentWithRelations> {
-  const existing = memoryComponents.get(Number(payload.id))
+  const id = String(payload.id)
+  const existing = memoryComponents.get(id)
   if (!existing) {
     const created = await createComponentEntry(payload)
     return created
   }
 
   try {
-    await rpc('data/saveComponents', [
+    await rpc(SAVE_COMPONENTS_METHOD, [
       'upd',
       {
         id: payload.id,
-        cls: payload.cls ?? existing.cls,
-        accessLevel: payload.details.accessLevel ?? 1,
+        cls: payload.cls ?? existing.numericCls ?? 1027,
+        accessLevel: payload.details.accessLevel ?? existing.accessLevel ?? 1,
         name: payload.name,
       },
     ])
-  } catch {
-    // ignore errors in fallback mode
+  } catch (error) {
+    console.error('Не удалось обновить компонент', error)
   }
 
   applyPayload(existing, payload)
-  memoryComponents.set(existing.id, existing)
-  return mapComponent(existing)
+  memoryComponents.set(id, existing)
+  return mapInternalToLoaded(existing)
 }
 
 export async function deleteComponentEntry(id: number | string): Promise<void> {
-  memoryComponents.delete(Number(id))
+  const key = String(id)
+  memoryComponents.delete(key)
   try {
-    await rpc('data/deleteComponents', [id])
-  } catch {
-    // ignore fallback errors
+    await rpc(DELETE_COMPONENTS_METHOD, [id])
+  } catch (error) {
+    console.error('Не удалось удалить компонент', error)
+  }
+}
+
+function generateId(source: 'objectType' | 'parameter' | 'defect'): string {
+  switch (source) {
+    case 'objectType':
+      lastObjectTypeId += 1
+      return String(lastObjectTypeId)
+    case 'parameter':
+      lastParameterId += 1
+      return String(lastParameterId)
+    case 'defect':
+      lastDefectId += 1
+      return String(lastDefectId)
+    default:
+      return String(Date.now())
   }
 }
 
 export async function createObjectTypeOnTheFly(name: string): Promise<DirectoryOptionWithMeta> {
-  const record = ensureDirectoryRecord(memoryObjectTypes, name, 'objectType')
-  return toDirectoryOption(record)
+  const trimmed = trimmedString(name) || 'Новый тип объекта'
+  const existing = Array.from(memoryObjectTypes.values()).find(
+    (option) => normalizeText(option.name) === normalizeText(trimmed),
+  )
+  if (existing) return existing
+  const id = generateId('objectType')
+  const option = ensureDirectoryOption(memoryObjectTypes, id, trimmed, '1100')
+  return option
 }
 
 export async function createParameterOnTheFly(name: string): Promise<DirectoryOptionWithMeta> {
-  const record = ensureDirectoryRecord(memoryParameters, name, 'parameter')
-  return toDirectoryOption(record)
+  const trimmed = trimmedString(name) || 'Новый параметр'
+  const existing = Array.from(memoryParameters.values()).find(
+    (option) => normalizeText(option.name) === normalizeText(trimmed),
+  )
+  if (existing) return existing
+  const id = generateId('parameter')
+  const option = ensureDirectoryOption(memoryParameters, id, trimmed, '1041')
+  return option
 }
 
 export async function createDefectOnTheFly(name: string): Promise<DirectoryOptionWithMeta> {
-  const record = ensureDirectoryRecord(memoryDefects, name, 'defect')
-  return toDirectoryOption(record)
+  const trimmed = trimmedString(name) || 'Новый дефект'
+  const existing = Array.from(memoryDefects.values()).find(
+    (option) => normalizeText(option.name) === normalizeText(trimmed),
+  )
+  if (existing) return existing
+  const id = generateId('defect')
+  const option = ensureDirectoryOption(memoryDefects, id, trimmed, '1034')
+  return option
 }

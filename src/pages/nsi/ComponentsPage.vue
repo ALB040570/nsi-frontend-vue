@@ -1,5 +1,5 @@
 <!-- Файл: src/pages/nsi/ComponentsPage.vue
-     Назначение: страница CRUD справочника «Компоненты» с таблицей, фильтрами и модалкой редактирования.
+     Назначение: страница справочника «Компоненты» с таблицей, фильтрами и CRUD-модалкой.
      Использование: доступна по маршруту /nsi/components. -->
 <template>
   <section class="components-page">
@@ -7,6 +7,18 @@
       <div class="toolbar__left">
         <h2 class="page-title">
           Справочник «Компоненты обслуживаемых объектов»
+          <NButton
+            quaternary
+            circle
+            size="small"
+            class="page-title__info"
+            aria-label="Информация о справочнике"
+            @click="infoOpen = true"
+          >
+            <template #icon>
+              <NIcon><InformationCircleOutline /></NIcon>
+            </template>
+          </NButton>
         </h2>
         <div class="subtext">
           Управляйте перечнем компонентов и их связями с типами объектов, параметрами и дефектами
@@ -16,20 +28,46 @@
       <div class="toolbar__controls">
         <NInput
           v-model:value="search"
-          placeholder="Поиск по названию и связям"
+          placeholder="Поиск…"
           clearable
           round
           class="toolbar__search"
         />
-        <CreatableSelect
-          class="toolbar__filter"
-          :options="objectTypeOptions"
-          :value="objectTypeFilter"
-          :multiple="true"
-          placeholder="Фильтр по типам объектов"
-          @update:value="handleObjectTypeFilterChange"
-        />
-        <NButton type="primary" @click="openCreate">+ Создать компонент</NButton>
+
+        <div class="toolbar__filters">
+          <NSelect
+            size="small"
+            class="toolbar__filter"
+            :options="objectTypeFilterOptions"
+            :value="objectTypeFilter"
+            multiple
+            clearable
+            placeholder="Типы объектов"
+            @update:value="handleObjectTypeFilterChange"
+          />
+          <NSelect
+            size="small"
+            class="toolbar__filter"
+            :options="parameterFilterOptions"
+            :value="parameterFilter"
+            multiple
+            clearable
+            placeholder="Параметры"
+            @update:value="handleParameterFilterChange"
+          />
+          <NSelect
+            size="small"
+            class="toolbar__filter"
+            :options="defectFilterOptions"
+            :value="defectFilter"
+            multiple
+            clearable
+            placeholder="Дефекты"
+            @update:value="handleDefectFilterChange"
+          />
+        </div>
+
+        <NButton type="primary" @click="openCreate">+ Добавить компонент</NButton>
       </div>
     </NCard>
 
@@ -60,10 +98,26 @@
       </div>
     </div>
 
+    <NModal v-model:show="infoOpen" preset="card" title="О справочнике" style="max-width: 640px">
+      <p>
+        Компоненты описывают элементы обслуживаемых объектов и используются при настройке параметров,
+        дефектов и работ. Здесь можно посмотреть текущие связи и быстро дополнить справочник новыми
+        сущностями.
+      </p>
+      <p>
+        Используйте фильтры, чтобы сузить список по типам объектов, параметрам или дефектам. Для
+        добавления новых значений воспользуйтесь кнопкой «Добавить компонент» или создавайте связанные
+        сущности непосредственно из формы.
+      </p>
+      <template #footer>
+        <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+      </template>
+    </NModal>
+
     <NModal
       v-model:show="modalOpen"
       preset="card"
-      :title="isEditMode ? 'Редактировать компонент' : 'Создать компонент'"
+      :title="modalTitle"
       style="max-width: 640px; width: 92vw"
     >
       <NSpin :show="saving">
@@ -74,7 +128,7 @@
 
           <NFormItem label="Типы объектов" path="objectTypeIds">
             <CreatableSelect
-              :options="objectTypeOptions"
+              :options="objectTypeSelectOptions"
               :value="form.objectTypeIds"
               :multiple="true"
               placeholder="Выберите типы объектов"
@@ -86,7 +140,7 @@
 
           <NFormItem label="Параметры" path="parameterIds">
             <CreatableSelect
-              :options="parameterOptions"
+              :options="parameterSelectOptions"
               :value="form.parameterIds"
               :multiple="true"
               placeholder="Выберите параметры"
@@ -98,7 +152,7 @@
 
           <NFormItem label="Дефекты" path="defectIds">
             <CreatableSelect
-              :options="defectOptions"
+              :options="defectSelectOptions"
               :value="form.defectIds"
               :multiple="true"
               placeholder="Выберите дефекты"
@@ -123,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, reactive, ref } from 'vue'
+import { computed, h, reactive, ref, watch, type VNodeChild } from 'vue'
 import {
   NButton,
   NCard,
@@ -135,20 +189,23 @@ import {
   NModal,
   NPagination,
   NPopconfirm,
+  NPopover,
+  NSelect,
   NSpin,
+  NTag,
   useMessage,
   type DataTableColumns,
   type FormInst,
   type FormRules,
+  type SelectOption,
 } from 'naive-ui'
-import { TrashOutline, CreateOutline } from '@vicons/ionicons5'
+import { InformationCircleOutline, TrashOutline, CreateOutline } from '@vicons/ionicons5'
 
 import {
   createDefectOnTheFly,
   createObjectTypeOnTheFly,
   createParameterOnTheFly,
   type ComponentsSnapshot,
-  type DirectoryOptionWithMeta,
   type LoadedComponentWithRelations,
 } from '@entities/component'
 import { useComponentMutations, useComponentsQuery } from '@features/component-crud'
@@ -168,8 +225,11 @@ interface ComponentForm {
 }
 
 const message = useMessage()
+const infoOpen = ref(false)
 const search = ref('')
 const objectTypeFilter = ref<string[]>([])
+const parameterFilter = ref<string[]>([])
+const defectFilter = ref<string[]>([])
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const formRef = ref<FormInst | null>(null)
 const modalOpen = ref(false)
@@ -202,39 +262,61 @@ const mutations = useComponentMutations()
 
 const snapshot = computed<ComponentsSnapshot | null>(() => data.value ?? null)
 
-const objectTypeOptions = computed(() =>
-  (snapshot.value?.objectTypes ?? []).map((item) => ({ label: item.name, value: item.id })),
+const toSelectOptions = (items: ComponentsSnapshot['objectTypes']): SelectOption[] =>
+  items.map((item) => ({ label: item.name, value: item.id }))
+
+const objectTypeSelectOptions = computed<SelectOption[]>(() =>
+  toSelectOptions(snapshot.value?.objectTypes ?? []),
+)
+const parameterSelectOptions = computed<SelectOption[]>(() =>
+  toSelectOptions(snapshot.value?.parameters ?? []),
+)
+const defectSelectOptions = computed<SelectOption[]>(() =>
+  (snapshot.value?.defects ?? []).map((item) => ({
+    label: item.categoryName ? `${item.name} (${item.categoryName})` : item.name,
+    value: item.id,
+  })),
 )
 
-const parameterOptions = computed(() =>
-  (snapshot.value?.parameters ?? []).map((item) => ({ label: item.name, value: item.id })),
-)
-
-const defectOptions = computed(() =>
-  (snapshot.value?.defects ?? []).map((item) => ({ label: item.name, value: item.id })),
-)
+const objectTypeFilterOptions = objectTypeSelectOptions
+const parameterFilterOptions = parameterSelectOptions
+const defectFilterOptions = defectSelectOptions
 
 const isEditMode = computed(() => editingComponent.value != null)
+const modalTitle = computed(() =>
+  isEditMode.value ? 'Редактировать компонент' : 'Добавить компонент',
+)
 
 const normalize = (value: string) => normalizeText(value ?? '')
 
 const filteredRows = computed(() => {
   const q = normalize(search.value)
-  const filterSet = new Set(objectTypeFilter.value.map(String))
+  const typeSet = new Set(objectTypeFilter.value.map(String))
+  const parameterSet = new Set(parameterFilter.value.map(String))
+  const defectSet = new Set(defectFilter.value.map(String))
   const base = snapshot.value?.items ?? []
+
+  const hasAll = (relations: LoadedComponentWithRelations['objectTypes'], selected: Set<string>) => {
+    if (!selected.size) return true
+    const relationIds = relations.map((rel) => rel.id)
+    return Array.from(selected).every((id) => relationIds.includes(id))
+  }
 
   return base
     .filter((item) => {
-      if (filterSet.size) {
-        const hasType = item.objectTypes.some((rel) => filterSet.has(rel.id))
-        if (!hasType) return false
-      }
+      if (!hasAll(item.objectTypes, typeSet)) return false
+      if (!hasAll(item.parameters, parameterSet)) return false
+      if (!hasAll(item.defects, defectSet)) return false
+
       if (!q) return true
-      const haystack = [item.name]
-      haystack.push(...item.objectTypes.map((rel) => rel.name))
-      haystack.push(...item.parameters.map((rel) => rel.name))
-      haystack.push(...item.defects.map((rel) => rel.name))
-      return haystack.some((part) => normalize(part).includes(q))
+      const haystack = [
+        item.name,
+        ...item.objectTypes.map((rel) => rel.name),
+        ...item.parameters.map((rel) => rel.name),
+        ...item.defects.map((rel) => rel.name),
+        ...item.defects.map((rel) => rel.categoryName ?? ''),
+      ]
+      return haystack.some((part) => part && normalize(part).includes(q))
     })
     .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 })
@@ -246,13 +328,59 @@ const paginatedRows = computed(() => {
   return filteredRows.value.slice(start, start + pagination.pageSize)
 })
 
+watch([search, objectTypeFilter, parameterFilter, defectFilter], () => {
+  pagination.page = 1
+})
+
+watch(total, (value) => {
+  const maxPage = Math.max(1, Math.ceil(value / pagination.pageSize))
+  if (pagination.page > maxPage) pagination.page = maxPage
+})
+
 const rowKey = (row: LoadedComponentWithRelations) => row.id
 
-const renderRelations = (relations: LoadedComponentWithRelations['objectTypes']) => {
-  if (!relations.length) return '—'
-  if (relations.length <= 2) return relations.map((item) => item.name).join(', ')
-  const head = relations.slice(0, 2).map((item) => item.name).join(', ')
-  return `${head} и ещё ${relations.length - 2}`
+const MAX_CHIPS = 4
+
+const renderChipLabel = (rel: { name: string; categoryName?: string | null }) =>
+  rel.categoryName ? `${rel.name} (${rel.categoryName})` : rel.name
+
+const renderRelations = (
+  relations: LoadedComponentWithRelations['objectTypes'],
+  formatter: (rel: LoadedComponentWithRelations['objectTypes'][number]) => string = (rel) => rel.name,
+): VNodeChild => {
+  if (!relations.length) return h('span', { class: 'empty-cell' }, '—')
+
+  const chips = relations.slice(0, MAX_CHIPS)
+  const rest = relations.slice(MAX_CHIPS)
+
+  const chipNodes = chips.map((rel) =>
+    h(
+      NTag,
+      { size: 'small', round: true, bordered: true, class: 'chip', key: `${rel.id}-${rel.name}` },
+      { default: () => formatter(rel) },
+    ),
+  )
+
+  if (!rest.length) return h('div', { class: 'chips-row' }, chipNodes)
+
+  const more = h(
+    NPopover,
+    { trigger: 'hover' },
+    {
+      trigger: () =>
+        h(NTag, { size: 'small', round: true, class: 'chip chip--more' }, { default: () => `+${rest.length}` }),
+      default: () =>
+        h(
+          'div',
+          { class: 'popover-list' },
+          rest.map((rel) =>
+            h('div', { class: 'popover-item', key: `${rel.id}-${rel.name}` }, formatter(rel)),
+          ),
+        ),
+    },
+  )
+
+  return h('div', { class: 'chips-row' }, [...chipNodes, more])
 }
 
 const handleEdit = (row: LoadedComponentWithRelations) => {
@@ -261,6 +389,7 @@ const handleEdit = (row: LoadedComponentWithRelations) => {
   form.objectTypeIds = row.objectTypes.map((item) => item.id)
   form.parameterIds = row.parameters.map((item) => item.id)
   form.defectIds = row.defects.map((item) => item.id)
+  if (formRef.value) formRef.value.restoreValidation()
   modalOpen.value = true
 }
 
@@ -288,49 +417,55 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
   {
     title: 'Дефекты',
     key: 'defects',
-    render: (row) => renderRelations(row.defects),
+    render: (row) =>
+      renderRelations(
+        row.defects,
+        (rel) => renderChipLabel({ name: rel.name, categoryName: rel.categoryName ?? null }),
+      ),
   },
   {
     title: 'Действия',
     key: 'actions',
-    width: 160,
-    render: (row) =>
-      h(
-        'div',
-        { class: 'actions' },
-        [
-          h(
-            NButton,
-            {
-              size: 'small',
-              tertiary: true,
-              onClick: () => handleEdit(row),
-            },
-            {
-              default: () => [h(NIcon, { component: CreateOutline }), ' Редактировать'],
-            },
-          ),
-          h(
-            NPopconfirm,
-            {
-              onPositiveClick: () => handleDelete(row),
-              positiveText: 'Удалить',
-              negativeText: 'Отмена',
-              type: 'warning',
-              positiveButtonProps: { type: 'error', size: 'small' },
-            },
-            {
-              trigger: () =>
-                h(
-                  NButton,
-                  { size: 'small', quaternary: true, type: 'error' },
-                  { default: () => [h(NIcon, { component: TrashOutline }), ' Удалить'] },
-                ),
-              default: () => 'Удалить компонент и его связи?',
-            },
-          ),
-        ],
-      ),
+    width: 120,
+    render: (row) => {
+      const editBtn = h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          onClick: () => handleEdit(row),
+          'aria-label': `Редактировать компонент «${row.name}»`,
+        },
+        { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+      )
+
+      const deleteBtn = h(
+        NPopconfirm,
+        {
+          onPositiveClick: () => handleDelete(row),
+          positiveText: 'Удалить',
+          negativeText: 'Отмена',
+        },
+        {
+          trigger: () =>
+            h(
+              NButton,
+              {
+                quaternary: true,
+                circle: true,
+                size: 'small',
+                type: 'error',
+                'aria-label': `Удалить компонент «${row.name}»`,
+              },
+              { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+            ),
+          default: () => 'Удалить компонент и его связи?',
+        },
+      )
+
+      return h('div', { class: 'actions' }, [editBtn, deleteBtn])
+    },
   },
 ])
 
@@ -386,14 +521,22 @@ const handleSave = async () => {
   }
 }
 
-const handleObjectTypeFilterChange = (value: string[] | string | null) => {
-  objectTypeFilter.value = toArray(value)
-}
-
 const toArray = (value: string[] | string | null): string[] => {
   if (Array.isArray(value)) return value.map(String)
   if (typeof value === 'string' && value) return [value]
   return []
+}
+
+const handleObjectTypeFilterChange = (value: Array<string | number> | null) => {
+  objectTypeFilter.value = Array.isArray(value) ? value.map(String) : []
+}
+
+const handleParameterFilterChange = (value: Array<string | number> | null) => {
+  parameterFilter.value = Array.isArray(value) ? value.map(String) : []
+}
+
+const handleDefectFilterChange = (value: Array<string | number> | null) => {
+  defectFilter.value = Array.isArray(value) ? value.map(String) : []
 }
 
 const createObjectTypeOption = async (name: string) => {
@@ -411,16 +554,19 @@ const createDefectOption = async (name: string) => {
   return { label: created.name, value: created.id }
 }
 
-const handleObjectTypeCreated = (option: DirectoryOptionWithMeta) => {
-  if (!form.objectTypeIds.includes(option.id)) form.objectTypeIds.push(option.id)
+const handleObjectTypeCreated = (option: { value: string | number }) => {
+  const id = String(option.value)
+  if (!form.objectTypeIds.includes(id)) form.objectTypeIds.push(id)
 }
 
-const handleParameterCreated = (option: DirectoryOptionWithMeta) => {
-  if (!form.parameterIds.includes(option.id)) form.parameterIds.push(option.id)
+const handleParameterCreated = (option: { value: string | number }) => {
+  const id = String(option.value)
+  if (!form.parameterIds.includes(id)) form.parameterIds.push(id)
 }
 
-const handleDefectCreated = (option: DirectoryOptionWithMeta) => {
-  if (!form.defectIds.includes(option.id)) form.defectIds.push(option.id)
+const handleDefectCreated = (option: { value: string | number }) => {
+  const id = String(option.value)
+  if (!form.defectIds.includes(id)) form.defectIds.push(id)
 }
 </script>
 
@@ -443,17 +589,25 @@ const handleDefectCreated = (option: DirectoryOptionWithMeta) => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  max-width: 640px;
 }
 
 .page-title {
   margin: 0;
   font-size: 20px;
   line-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-title__info {
+  margin-left: 4px;
 }
 
 .subtext {
   color: var(--neutral-500);
-  max-width: 560px;
+  max-width: 640px;
 }
 
 .toolbar__controls {
@@ -461,14 +615,23 @@ const handleDefectCreated = (option: DirectoryOptionWithMeta) => {
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  flex: 1 1 auto;
 }
 
 .toolbar__search {
-  min-width: 260px;
+  min-width: 240px;
+}
+
+.toolbar__filters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .toolbar__filter {
-  min-width: 240px;
+  min-width: 180px;
 }
 
 .table-area {
@@ -477,10 +640,41 @@ const handleDefectCreated = (option: DirectoryOptionWithMeta) => {
   gap: 12px;
 }
 
+.chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.chip {
+  background-color: var(--surface-100);
+}
+
+.chip--more {
+  cursor: pointer;
+}
+
+.popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 320px;
+}
+
+.popover-item {
+  white-space: nowrap;
+}
+
+.empty-cell {
+  color: var(--neutral-500);
+}
+
 .actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: center;
 }
 
 .pagination-bar {

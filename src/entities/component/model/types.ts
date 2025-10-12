@@ -21,6 +21,10 @@ export interface ComponentRelation {
   relationId: string | null
   /** Класс или дополнительная метаинформация, необходимая для RPC */
   cls?: string | null
+  /** Дополнительная категория (используется для дефектов) */
+  categoryName?: string | null
+  /** Идентификатор категории (fv/pv) */
+  categoryId?: string | null
 }
 
 export interface ComponentDetails {
@@ -43,6 +47,8 @@ export interface DirectoryOptionWithMeta {
   id: string
   name: string
   cls?: string | null
+  categoryName?: string | null
+  categoryId?: string | null
 }
 
 export interface ComponentsSnapshot {
