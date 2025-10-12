@@ -83,7 +83,7 @@
     <div class="table-area">
       <NDataTable
         v-if="!isMobile"
-        class="s360-cards table-full table-stretch"
+        class="components-table s360-cards table-full table-stretch"
         :columns="columns"
         :data="rows"
         :loading="tableLoading"
@@ -247,6 +247,7 @@ import {
   NSelect,
   NSpin,
   NTag,
+  NTooltip,
   useMessage,
   type DataTableColumns,
   type FormInst,
@@ -496,18 +497,25 @@ const formatDefectRelation = (
   return `${rel.name} (категория: ${rel.categoryName})`
 }
 
+type AnyRelation =
+  | LoadedComponentWithRelations['objectTypes'][number]
+  | LoadedComponentWithRelations['parameters'][number]
+  | LoadedComponentWithRelations['defects'][number]
+
 const RelationsList = defineComponent({
   name: 'RelationsList',
   props: {
     relations: {
-      type: Array as PropType<LoadedComponentWithRelations['objectTypes']>,
+      type: Array as PropType<AnyRelation[]>,
       required: true,
     },
     formatter: {
-      type: Function as PropType<
-        (rel: LoadedComponentWithRelations['objectTypes'][number]) => string
-      >,
-      default: (rel: LoadedComponentWithRelations['objectTypes'][number]) => rel.name,
+      type: Function as PropType<(rel: AnyRelation) => string>,
+      default: (rel: AnyRelation) => rel.name,
+    },
+    clamped: {
+      type: Boolean,
+      default: false,
     },
   },
   setup(props) {
@@ -532,7 +540,11 @@ const RelationsList = defineComponent({
         ),
       )
 
-      if (!rest.length) return h('div', { class: 'chips-row' }, chipNodes)
+      const row = h('div', { class: 'chips-row' }, chipNodes)
+
+      if (!rest.length) {
+        return props.clamped ? h('div', { class: 'cell-clamp' }, [row]) : row
+      }
 
       const more = h(
         NPopover,
@@ -551,10 +563,36 @@ const RelationsList = defineComponent({
         },
       )
 
-      return h('div', { class: 'chips-row' }, [...chipNodes, more])
+      const content = h('div', { class: 'chips-row' }, [...chipNodes, more])
+
+      return props.clamped ? h('div', { class: 'cell-clamp' }, [content]) : content
     }
   },
 })
+
+const renderRelationsCell = <T extends AnyRelation>(
+  relations: T[],
+  formatter: (relation: T) => string,
+): VNodeChild => {
+  if (!relations.length) return h('span', { class: 'empty-cell' }, '—')
+
+  const tooltip = h(
+    'div',
+    { class: 'tooltip-list' },
+    relations.map((rel) =>
+      h('div', { class: 'tooltip-item', key: `${rel.id}-${rel.name}` }, formatter(rel)),
+    ),
+  )
+
+  return h(
+    NTooltip,
+    { trigger: 'hover', placement: 'top-start' },
+    {
+      trigger: () => h(RelationsList, { relations, formatter, clamped: true }),
+      default: () => tooltip,
+    },
+  )
+}
 
 const handleEdit = (row: LoadedComponentWithRelations) => {
   editingComponent.value = row
@@ -657,7 +695,7 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
     className: 'col-relations',
     width: 240,
     minWidth: 220,
-    render: (row) => h(RelationsList, { relations: row.parameters, formatter: formatParameterRelation }),
+    render: (row) => renderRelationsCell(row.parameters, formatParameterRelation),
   },
   {
     title: 'Дефекты',
@@ -665,7 +703,7 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
     className: 'col-relations',
     width: 240,
     minWidth: 220,
-    render: (row) => h(RelationsList, { relations: row.defects, formatter: formatDefectRelation }),
+    render: (row) => renderRelationsCell(row.defects, formatDefectRelation),
   },
   {
     title: 'Действия',
@@ -923,11 +961,37 @@ const handleDefectCreated = (option: { value: string | number }) => {
   line-height: 1.4;
 }
 
+
+:deep(.components-table .n-data-table-table) {
+  table-layout: fixed;
+  width: 100%;
+}
+
+:deep(.components-table .n-data-table-td) {
+  overflow: hidden;
+}
+
+.cell-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+}
+
+@media (max-width: 1280px) {
+  .cell-clamp {
+    -webkit-line-clamp: 2;
+  }
+}
+
 .chips-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 6px;
+  max-width: 100%;
 }
 
 .chip {
@@ -960,6 +1024,18 @@ const handleDefectCreated = (option: { value: string | number }) => {
 }
 
 .popover-item {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.tooltip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 360px;
+}
+
+.tooltip-item {
   white-space: normal;
   word-break: break-word;
 }
