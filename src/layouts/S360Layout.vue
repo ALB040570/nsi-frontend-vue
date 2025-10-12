@@ -12,7 +12,7 @@
           :aria-label="toggleAriaLabel"
           @click="toggleAside"
         >
-          <NIcon v-if="isAsideCollapsed" :component="MenuOutline" />
+          <NIcon v-if="isSidebarCollapsed" :component="MenuOutline" />
           <NIcon v-else :component="CloseOutline" />
         </button>
 
@@ -48,7 +48,7 @@
 
     <div class="s360-body">
       <aside
-        v-if="showDesktopNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation && !isSidebarCollapsed"
         class="s360-aside sider"
         :style="{ width: siderWidth + 'px', flexBasis: siderWidth + 'px' }"
       >
@@ -60,7 +60,7 @@
       </aside>
 
       <div
-        v-if="showDesktopNavigation && !isAsideCollapsed"
+        v-if="showDesktopNavigation && !isSidebarCollapsed"
         class="sider-resizer"
         @mousedown="startResize"
         @touchstart="startResize"
@@ -90,6 +90,7 @@
 
 <script setup lang="ts">
 import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -110,6 +111,7 @@ import {
 
 import logoMark from '@/assets/logo.svg'
 import { useAuth } from '@features/auth'
+import { useUiStore } from '@/stores/ui'
 
 interface LanguageOption {
   label: string
@@ -129,6 +131,10 @@ const languageOptions = computed<DropdownOption[]>(() =>
 const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
+
+const ui = useUiStore()
+ui.hydrateSidebarCollapsed()
+const { isSidebarCollapsed } = storeToRefs(ui)
 
 const renderIcon = (icon: VueComponent) => () => h(NIcon, null, { default: () => h(icon) })
 
@@ -294,8 +300,6 @@ watch(
 const isAuthenticated = auth.isAuthenticated
 const user = auth.user
 
-const isAsideCollapsed = ref(false)
-
 const showNavigation = computed(() => isAuthenticated.value)
 
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1024)
@@ -319,12 +323,12 @@ const bottomNavItems = computed(() =>
 )
 
 const toggleAriaLabel = computed(() =>
-  isAsideCollapsed.value ? 'Открыть навигацию' : 'Скрыть навигацию',
+  isSidebarCollapsed.value ? 'Открыть навигацию' : 'Скрыть навигацию',
 )
 
 const toggleAside = () => {
   if (isMobile.value) return
-  isAsideCollapsed.value = !isAsideCollapsed.value
+  ui.toggleSidebar()
 }
 
 const handleLanguageSelect = (key: string | number | null) => {
@@ -431,7 +435,7 @@ const handleProfileSelect = async (key: string | number | null) => {
       return
     case 'logout':
       await auth.logout()
-      isAsideCollapsed.value = true
+      ui.setSidebarCollapsed(true, { persist: false })
       await router.push({ name: 'login' })
       break
     case 'login':
@@ -445,7 +449,11 @@ const handleProfileSelect = async (key: string | number | null) => {
 watch(
   isAuthenticated,
   (value) => {
-    isAsideCollapsed.value = value ? false : true
+    if (!value) {
+      ui.setSidebarCollapsed(true, { persist: false })
+      return
+    }
+    ui.hydrateSidebarCollapsed()
   },
   { immediate: true },
 )
