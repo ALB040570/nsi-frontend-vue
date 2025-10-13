@@ -25,8 +25,28 @@
       </NPopover>
     </header>
 
-    <div class="relations-map__canvas" role="presentation">
-      <svg class="relations-map__edges" :viewBox="viewBox">
+    <div class="relations-map__canvas" role="presentation" ref="canvasRef">
+      <svg
+        class="relations-map__edges"
+        :viewBox="`0 0 ${canvasSize.w} ${canvasSize.h}`"
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <!-- стрелочный маркер; цвет наследуется от stroke -->
+
+          <marker
+            id="rm-arrow"
+            markerWidth="8"
+            markerHeight="5"
+            refX="7"
+            refY="2.5"
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <path d="M0,0 L8,2.5 L0,5 z" fill="currentColor" />
+          </marker>
+        </defs>
+
         <g v-for="edge in edges" :key="edge.id">
           <line
             :x1="edge.x1"
@@ -34,6 +54,7 @@
             :x2="edge.x2"
             :y2="edge.y2"
             class="relations-map__edge"
+            marker-end="url(#rm-arrow)"
           >
             <title>{{ edge.tooltip }}</title>
           </line>
@@ -48,6 +69,8 @@
               class="relations-map__node-btn"
               :aria-label="`${node.label}: ${node.tooltip}`"
               @click="handleNodeClick(node.id)"
+              :data-node-id="node.id"
+              ref="nodeBtnRefs"
             >
               <span class="relations-map__node-label">{{ node.label }}</span>
               <span class="relations-map__node-count">{{ node.count }}</span>
@@ -65,22 +88,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, reactive, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { NButton, NPopover, NSpin, NTooltip } from 'naive-ui'
 
 import { useI18n } from '@shared/lib'
 import type { RelationsCounts } from '@entities/nsi-dashboard'
 
-defineOptions({
-  name: 'NsiDashboardRelationsMap',
-})
+defineOptions({ name: 'NsiDashboardRelationsMap' })
 
-const viewBoxWidth = 600
-const viewBoxHeight = 360
-
-const viewBox = `0 0 ${viewBoxWidth} ${viewBoxHeight}`
-
-const props = defineProps<{ counts: RelationsCounts | null; loading?: boolean; partial?: boolean }>()
+// ----- ПАРАМЕТРЫ / ПРОПСЫ -----
+const props = defineProps<{
+  counts: RelationsCounts | null
+  loading?: boolean
+  partial?: boolean
+}>()
 const emit = defineEmits<{ (e: 'select-node', id: keyof RelationsCounts): void }>()
 
 const { t, tm } = useI18n()
@@ -93,61 +114,63 @@ const helpLabel = computed(() => t('nsi.dashboard.relations.helpLabel'))
 const helpTooltip = computed(() => t('nsi.dashboard.relations.helpTooltip'))
 const helpPoints = computed(() => tm<string>('nsi.dashboard.relations.helpPoints'))
 
+// ----- РАСКЛАДКА УЗЛОВ (% от контейнера) -----
 const rawNodes = [
   {
     id: 'sources',
-    x: 10,
-    y: 60,
+    x: 80,
+    y: 90,
     labelKey: 'nsi.dashboard.relations.nodes.sources.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.sources.tooltip',
   },
   {
     id: 'types',
-    x: 32,
-    y: 28,
+    x: 10,
+    y: 44,
     labelKey: 'nsi.dashboard.relations.nodes.types.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.types.tooltip',
   },
   {
     id: 'components',
-    x: 52,
+    x: 40,
     y: 28,
     labelKey: 'nsi.dashboard.relations.nodes.components.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.components.tooltip',
   },
   {
     id: 'params',
-    x: 74,
-    y: 18,
+    x: 80,
+    y: 50,
     labelKey: 'nsi.dashboard.relations.nodes.params.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.params.tooltip',
   },
   {
     id: 'defects',
-    x: 74,
-    y: 44,
+    x: 80,
+    y: 10,
     labelKey: 'nsi.dashboard.relations.nodes.defects.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.defects.tooltip',
   },
   {
     id: 'works',
-    x: 48,
+    x: 40,
     y: 70,
     labelKey: 'nsi.dashboard.relations.nodes.works.label',
     tooltipKey: 'nsi.dashboard.relations.nodes.works.tooltip',
   },
 ] as const
 
+type NodeMeta = { x: number; y: number; label: string; tooltip: string; count: number }
 const nodeMap = computed(() => {
-  const result = new Map<string, { x: number; y: number; label: string; tooltip: string; count: number }>()
-  for (const node of rawNodes) {
-    const label = t(node.labelKey)
-    const tooltip = t(node.tooltipKey)
-    const countKey = node.id as keyof RelationsCounts
+  const map = new Map<string, NodeMeta>()
+  for (const n of rawNodes) {
+    const label = t(n.labelKey)
+    const tooltip = t(n.tooltipKey)
+    const countKey = n.id as keyof RelationsCounts
     const count = props.counts?.[countKey] ?? 0
-    result.set(node.id, { x: node.x, y: node.y, label, tooltip, count })
+    map.set(n.id, { x: n.x, y: n.y, label, tooltip, count })
   }
-  return result
+  return map
 })
 
 const nodes = computed(() =>
@@ -156,19 +179,23 @@ const nodes = computed(() =>
     label: meta.label,
     tooltip: meta.tooltip,
     count: meta.count,
-    style: {
-      left: `${meta.x}%`,
-      top: `${meta.y}%`,
-    },
+    style: { left: `${meta.x}%`, top: `${meta.y}%` },
   })),
 )
 
+// ----- РЁБРА (логические связи) -----
 const rawEdges: Array<{ id: string; from: string; to: string; tooltipKey: string }> = [
   {
     id: 'sources-works',
     from: 'sources',
     to: 'works',
     tooltipKey: 'nsi.dashboard.relations.edges.sourcesWorks',
+  },
+  {
+    id: 'sources-params',
+    from: 'sources',
+    to: 'params',
+    tooltipKey: 'nsi.dashboard.relations.edges.sourcesParams',
   },
   {
     id: 'types-components',
@@ -196,20 +223,138 @@ const rawEdges: Array<{ id: string; from: string; to: string; tooltipKey: string
   },
 ]
 
-const edges = computed(() => {
-  return rawEdges
-    .map((edge) => {
-      const start = nodeMap.value.get(edge.from)
-      const end = nodeMap.value.get(edge.to)
-      if (!start || !end) return null
-      const x1 = (start.x / 100) * viewBoxWidth
-      const y1 = (start.y / 100) * viewBoxHeight
-      const x2 = (end.x / 100) * viewBoxWidth
-      const y2 = (end.y / 100) * viewBoxHeight
-      return { id: edge.id, x1, y1, x2, y2, tooltip: t(edge.tooltipKey) }
-    })
-    .filter((edge): edge is NonNullable<typeof edge> => Boolean(edge))
+// ----- РЕАЛЬНЫЕ РАЗМЕРЫ ХОЛСТА/УЗЛОВ -----
+const canvasRef = ref<HTMLElement | null>(null)
+const nodeBtnRefs = ref<HTMLButtonElement[] | null>(null)
+
+const canvasSize = reactive({ w: 600, h: 360 })
+
+// размеры каждой «пилюльки»
+type Size = { w: number; h: number }
+const nodeSizes = reactive(new Map<string, Size>())
+
+// наблюдатель за холстом
+let ro: ResizeObserver | null = null
+
+function measureCanvas() {
+  const el = canvasRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  // fallback на min размеры, чтобы не было нулей
+  canvasSize.w = Math.max(1, Math.round(rect.width))
+  canvasSize.h = Math.max(1, Math.round(rect.height))
+}
+
+function measureNodes() {
+  // собираем размеры кнопок-узлов по data-node-id
+  nodeSizes.clear()
+  const buttons = canvasRef.value?.querySelectorAll<HTMLButtonElement>('.relations-map__node-btn')
+  buttons?.forEach((btn) => {
+    const id = btn.getAttribute('data-node-id')
+    if (!id) return
+    const r = btn.getBoundingClientRect()
+    nodeSizes.set(id, { w: r.width, h: r.height })
+  })
+}
+
+onMounted(async () => {
+  measureCanvas()
+  await nextTick()
+  measureNodes()
+
+  ro = new ResizeObserver(() => {
+    measureCanvas()
+    // после изменения размеров холста — переизмерим кнопки
+    // (их размеры могут чуть измениться из-за reflow)
+    requestAnimationFrame(measureNodes)
+  })
+  if (canvasRef.value) ro.observe(canvasRef.value)
 })
+
+onBeforeUnmount(() => {
+  ro?.disconnect()
+  ro = null
+})
+
+// когда меняется набор узлов/подписи/числа — после рендера переизмерить
+watch(nodes, async () => {
+  await nextTick()
+  measureNodes()
+})
+
+// ----- МАТЕМАТИКА ДЛЯ «УПИРАЕМСЯ В ГРАНИЦУ ПИЛЮЛЬКИ» -----
+
+/**
+ * Возвращает точку пересечения луча (из центра start в сторону end)
+ * с эллипсом, аппроксимирующим «пилюльку»:
+ * rx = width/2, ry = height/2
+ */
+function pointOnEllipseBorder(
+  startCx: number,
+  startCy: number,
+  endCx: number,
+  endCy: number,
+  rx: number,
+  ry: number,
+) {
+  // направляющий вектор из центра start к центру end
+  const dx = endCx - startCx
+  const dy = endCy - startCy
+  // защита от нулевого вектора
+  if (dx === 0 && dy === 0) return { x: startCx, y: startCy }
+  // масштаб s, при котором (dx*s, dy*s) лежит на эллипсе:
+  // (dx*s)^2/rx^2 + (dy*s)^2/ry^2 = 1  =>  s = 1 / sqrt((dx^2/rx^2)+(dy^2/ry^2))
+  const s = 1 / Math.sqrt((dx * dx) / (rx * rx || 1) + (dy * dy) / (ry * ry || 1))
+  return { x: startCx + dx * s, y: startCy + dy * s }
+}
+
+const edges = computed(() => {
+  // центр узла в ПИКСЕЛЯХ
+  const center = (id: string) => {
+    const m = nodeMap.value.get(id)
+    if (!m) return { cx: 0, cy: 0 }
+    return {
+      cx: (m.x / 100) * canvasSize.w,
+      cy: (m.y / 100) * canvasSize.h,
+    }
+  }
+  // размеры узла в ПИКСЕЛЯХ (fallback к разумным)
+  const sizeOf = (id: string): Size => {
+    return nodeSizes.get(id) ?? { w: 140, h: 56 }
+  }
+
+  return rawEdges
+    .map((e) => {
+      const s = center(e.from)
+      const t = center(e.to)
+      // радиусы «пилюлек»
+      const sSize = sizeOf(e.from)
+      const tSize = sizeOf(e.to)
+      const sRx = sSize.w / 2
+      const sRy = sSize.h / 2
+      const tRx = tSize.w / 2
+      const tRy = tSize.h / 2
+
+      // точки на границе эллипсов, чтобы линия не «втыкалась» в центр
+      const startPoint = pointOnEllipseBorder(s.cx, s.cy, t.cx, t.cy, sRx, sRy)
+      const endPoint = pointOnEllipseBorder(t.cx, t.cy, s.cx, s.cy, tRx, tRy)
+
+      return {
+        id: e.id,
+        x1: startPoint.x,
+        y1: startPoint.y,
+        x2: endPoint.x,
+        y2: endPoint.y,
+        tooltip: t_(e.tooltipKey),
+      }
+    })
+    .filter(Boolean)
+})
+
+// локальный помощник для i18n (чтобы читаемее в маппинге)
+function t_(key: string) {
+  return t(key)
+}
 
 const loading = computed(() => Boolean(props.loading))
 
@@ -317,7 +462,10 @@ function handleNodeClick(id: keyof RelationsCounts) {
   background: var(--s360-color-neutral-soft);
   color: inherit;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
   box-shadow: 0 4px 12px rgba(21, 46, 110, 0.12);
 }
 
