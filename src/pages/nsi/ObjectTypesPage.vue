@@ -6,13 +6,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Типы обслуживаемых объектов»
+          {{ t('nsi.objectTypes.title', {}, { default: 'Справочник «Типы обслуживаемых объектов»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,17 +21,23 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты
+          {{ t('nsi.objectTypes.subtitle', {}, { default: 'Классифицируйте обслуживаемые объекты, объединяя их в типы и выделяя компоненты' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable round style="width: 340px" />
+        <NInput
+          v-model:value="q"
+          :placeholder="t('nsi.objectTypes.searchPlaceholder', {}, { default: 'Поиск…' })"
+          clearable
+          round
+          style="width: 340px"
+        />
         <NRadioGroup v-model:value="shapeFilter" class="geom-filter" size="small">
-          <NRadioButton :value="'*'">Все</NRadioButton>
-          <NRadioButton :value="'точка'">Точка</NRadioButton>
-          <NRadioButton :value="'линия'">Линия</NRadioButton>
-          <NRadioButton :value="'полигон'">Полигон</NRadioButton>
+          <NRadioButton :value="'*'">{{ t('nsi.objectTypes.filter.all', {}, { default: 'Все' }) }}</NRadioButton>
+          <NRadioButton :value="'точка'">{{ t('nsi.objectTypes.filter.point', {}, { default: 'Точка' }) }}</NRadioButton>
+          <NRadioButton :value="'линия'">{{ t('nsi.objectTypes.filter.line', {}, { default: 'Линия' }) }}</NRadioButton>
+          <NRadioButton :value="'полигон'">{{ t('nsi.objectTypes.filter.polygon', {}, { default: 'Полигон' }) }}</NRadioButton>
         </NRadioGroup>
         <NSelect
           v-if="isMobile"
@@ -39,7 +45,7 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.sortAria', {}, { default: 'Порядок сортировки' })"
         />
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
@@ -47,7 +53,7 @@
           </template>
           Ассистент
         </NButton>
-        <NButton type="primary" @click="openCreate">+ Добавить тип</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.add', {}, { default: 'Добавить тип' }) }}</NButton>
       </div>
     </NCard>
 
@@ -63,7 +69,9 @@
       />
 
       <div v-else class="cards">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -97,7 +105,9 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">
+          {{ t('nsi.objectTypes.showMore', {}, { default: 'Показать ещё' }) }}
+        </NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -108,10 +118,12 @@
           :item-count="total"
           show-size-picker
           show-quick-jumper
-          aria-label="Постраничная навигация по типам объектов"
+          :aria-label="t('nsi.objectTypes.paginationAria', {}, { default: 'Постраничная навигация по типам объектов' })"
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">
+              {{ t('nsi.objectTypes.total', { total }, { default: 'Всего: ' + total }) }}
+            </span>
           </template>
         </NPagination>
       </div>
@@ -120,12 +132,16 @@
     <NModal
       v-model:show="dialog"
       preset="card"
-      :title="editing ? 'Изменить тип' : 'Создать тип'"
+      :title="
+        editing
+          ? t('nsi.objectTypes.dialog.editTitle', {}, { default: 'Изменить тип' })
+          : t('nsi.objectTypes.dialog.createTitle', {}, { default: 'Создать тип' })
+      "
       style="width: 560px"
     >
       <NForm :model="form" label-width="120px">
         <NFormItem
-          label="Тип обслуживаемого объекта"
+          :label="t('nsi.objectTypes.form.name.label', {}, { default: 'Тип обслуживаемого объекта' })"
           :feedback="errors.name ?? undefined"
           :validation-status="errors.name ? 'error' : undefined"
         >
@@ -135,22 +151,22 @@
           </div>
         </NFormItem>
 
-        <NFormItem label="Форма на карте">
+        <NFormItem :label="t('nsi.objectTypes.form.geometry.label', {}, { default: 'Форма на карте' })">
           <NRadioGroup v-model:value="form.geometry">
-            <NRadioButton value="точка">Точка</NRadioButton>
-            <NRadioButton value="линия">Линия</NRadioButton>
-            <NRadioButton value="полигон">Полигон</NRadioButton>
+            <NRadioButton value="точка">{{ t('nsi.objectTypes.form.geometry.point', {}, { default: 'Точка' }) }}</NRadioButton>
+            <NRadioButton value="линия">{{ t('nsi.objectTypes.form.geometry.line', {}, { default: 'Линия' }) }}</NRadioButton>
+            <NRadioButton value="полигон">{{ t('nsi.objectTypes.form.geometry.polygon', {}, { default: 'Полигон' }) }}</NRadioButton>
           </NRadioGroup>
         </NFormItem>
 
-        <NFormItem label="Компоненты">
+        <NFormItem :label="t('nsi.objectTypes.form.components.label', {}, { default: 'Компоненты' })">
           <div class="field-stack">
             <ComponentsSelect
               :value="form.component"
               :options="componentSelectOptions"
               :multiple="true"
               value-kind="name"
-              :placeholder="'Начните вводить, чтобы найти компонент'"
+              :placeholder="t('nsi.objectTypes.form.components.placeholder', {}, { default: 'Начните вводить, чтобы найти компонент' })"
               @update:value="handleUpdateComponentValue"
               @blur="handleComponentBlur"
               @created="handleComponentCreated"
@@ -165,9 +181,9 @@
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="dialog = false">Отмена</NButton>
+          <NButton @click="dialog = false">{{ t('nsi.objectTypes.actions.cancel', {}, { default: 'Отмена' }) }}</NButton>
           <NButton type="primary" class="btn-primary" :loading="saving" @click="save">
-            Сохранить
+            {{ t('nsi.objectTypes.actions.save', {}, { default: 'Сохранить' }) }}
           </NButton>
         </div>
       </template>
@@ -303,6 +319,7 @@ import {
   h,
   defineComponent,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import type { PropType, VNodeChild } from 'vue'
@@ -361,6 +378,8 @@ import { getErrorMessage, normalizeText } from '@shared/lib'
 
 const router = useRouter()
 const route = useRoute()
+
+const { t } = useI18n()
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {

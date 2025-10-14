@@ -9,8 +9,6 @@ import {
   deleteComponentEntry,
   type CreateComponentPayload,
   type UpdateComponentPayload,
-  type LoadedComponentWithRelations,
-  type ComponentsSnapshot,
 } from '@entities/component'
 
 export function useComponentMutations() {
