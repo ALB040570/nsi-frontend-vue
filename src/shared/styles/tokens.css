@@ -37,3 +37,12 @@
   --s360-font-body: 14px;
   --s360-font-caption: 13px;
 }
+
+/* Minimal palette tokens requested */
+:root {
+  --s360-bg: #ffffff;
+  --s360-surface: #f7f7f8;
+  --s360-border: #e5e7eb;
+  --s360-text: #111827;
+  --s360-accent: #2563eb;
+}
