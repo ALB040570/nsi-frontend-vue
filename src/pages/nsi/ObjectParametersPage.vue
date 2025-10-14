@@ -1412,7 +1412,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1430,7 +1430,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -1510,12 +1510,12 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -1537,12 +1537,12 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 .tag-unit {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--s360-surface);
+  color: var(--s360-accent);
 }
 
 .tag-component {
-  background: #fff;
+  background: var(--s360-bg);
 }
 
 .note-text {
@@ -1671,7 +1671,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--s360-surface);
   max-width: 100%;
   min-width: 0;
   flex-shrink: 1;
@@ -1712,10 +1712,10 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   max-width: 100%;
   width: 100%;
@@ -1820,7 +1820,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--s360-surface);
 }
 
 @media (max-width: 768px) {
