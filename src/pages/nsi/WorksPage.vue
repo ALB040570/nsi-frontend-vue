@@ -31,6 +31,8 @@
           <NSelect
             v-model:value="workTypeFilter"
             :options="workTypeOptions"
+            multiple
+            filterable
             placeholder="Вид работы"
             clearable
             size="small"
@@ -39,6 +41,8 @@
           <NSelect
             v-model:value="objectTypeFilter"
             :options="objectTypeOptions"
+            multiple
+            filterable
             placeholder="Тип объекта"
             clearable
             size="small"
@@ -47,6 +51,8 @@
           <NSelect
             v-model:value="sourceFilter"
             :options="sourceOptions"
+            multiple
+            filterable
             placeholder="Источник"
             clearable
             size="small"
@@ -55,6 +61,8 @@
           <NSelect
             v-model:value="periodTypeFilter"
             :options="periodTypeOptions"
+            multiple
+            filterable
             placeholder="Периодичность"
             clearable
             size="small"
@@ -468,10 +476,10 @@ interface ConfirmDialogOptions {
 const tableLoading = ref(false)
 const q = ref('')
 const infoOpen = ref(false)
-const workTypeFilter = ref<string | null>(null)
-const objectTypeFilter = ref<string | null>(null)
-const sourceFilter = ref<string | null>(null)
-const periodTypeFilter = ref<string | null>(null)
+const workTypeFilter = ref<string[]>([])
+const objectTypeFilter = ref<string[]>([])
+const sourceFilter = ref<string[]>([])
+const periodTypeFilter = ref<string[]>([])
 
 const workTypeOptions = ref<Array<{ label: string; value: string }>>([])
 const objectTypeOptions = ref<Array<{ label: string; value: string }>>([])
@@ -720,10 +728,24 @@ const filteredRows = computed(() => {
   const search = normalizeText(q.value)
 
   return works.value.filter((item) => {
-    if (workTypeFilter.value && item.workTypeId !== workTypeFilter.value) return false
-    if (objectTypeFilter.value && item.objectTypeName !== objectTypeFilter.value) return false
-    if (sourceFilter.value && item.sourceId !== sourceFilter.value) return false
-    if (periodTypeFilter.value && item.periodTypeId !== periodTypeFilter.value) return false
+    if (workTypeFilter.value.length && !workTypeFilter.value.includes(item.workTypeId)) {
+      return false
+    }
+    if (
+      objectTypeFilter.value.length &&
+      !objectTypeFilter.value.includes(item.objectTypeName)
+    ) {
+      return false
+    }
+    if (sourceFilter.value.length && !sourceFilter.value.includes(item.sourceId)) {
+      return false
+    }
+    if (
+      periodTypeFilter.value.length &&
+      !periodTypeFilter.value.includes(item.periodTypeId)
+    ) {
+      return false
+    }
 
     if (search) {
       const inName = normalizeText(item.name).includes(search)

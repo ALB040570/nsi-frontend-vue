@@ -32,6 +32,8 @@
           <NSelect
             v-model:value="categoryFilter"
             :options="categoryFilterOptions"
+            multiple
+            filterable
             placeholder="Категория"
             clearable
             size="small"
@@ -40,6 +42,8 @@
           <NSelect
             v-model:value="componentFilter"
             :options="componentFilterOptions"
+            multiple
+            filterable
             placeholder="Компонент объекта"
             clearable
             size="small"
@@ -497,8 +501,8 @@ interface ConfirmDialogOptions {
 const message = useMessage()
 const discreteDialog = useDialog()
 const q = ref('')
-const categoryFilter = ref<string | null>(null)
-const componentFilter = ref<string | null>(null)
+const categoryFilter = ref<string[]>([])
+const componentFilter = ref<string[]>([])
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
 let mediaQueryList: MediaQueryList | null = null
@@ -1357,21 +1361,25 @@ watch(assistantOpen, (value) => {
 
 const filteredRows = computed(() => {
   const search = normalizeText(q.value)
-  const selectedCategory = categoryFilter.value
-  const selectedComponent = componentFilter.value ? normalizeText(componentFilter.value) : ''
+  const selectedCategories = new Set(categoryFilter.value.map(String))
+  const selectedComponents = new Set(
+    componentFilter.value.map((v) => normalizeText(String(v))),
+  )
 
   return defects.value.filter((item) => {
-    if (selectedCategory) {
-      if (item.categoryFvId !== selectedCategory && item.categoryPvId !== selectedCategory) {
+    if (selectedCategories.size) {
+      const catId1 = item.categoryFvId
+      const catId2 = item.categoryPvId
+      if (!selectedCategories.has(catId1) && !selectedCategories.has(catId2)) {
         return false
       }
     }
 
-    if (selectedComponent) {
+    if (selectedComponents.size) {
       const componentName = normalizeText(item.componentName ?? '')
       const componentId = normalizeText(item.componentId ?? '')
       const componentValue = componentName || componentId
-      if (!componentValue || componentValue !== selectedComponent) {
+      if (!componentValue || !selectedComponents.has(componentValue)) {
         return false
       }
     }

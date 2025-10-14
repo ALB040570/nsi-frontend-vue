@@ -35,6 +35,8 @@
           <NSelect
             v-model:value="filterModel.author"
             :options="authorOptions"
+            multiple
+            filterable
             placeholder="Орган (регулятор)"
             clearable
             size="small"
@@ -229,7 +231,7 @@ import { formatDateIsoToRu, formatPeriod, getErrorMessage, timestampToIsoDate } 
 
 interface FiltersModel {
   search: string
-  author: string | null
+  author: string[]
   approvalRange: [number, number] | null
   periodRange: [number, number] | null
   departments: number[]
@@ -309,7 +311,7 @@ const DETAILS_CONCURRENCY_LIMIT = 3
 
 const filterModel = reactive<FiltersModel>({
   search: '',
-  author: null,
+  author: [],
   approvalRange: null,
   periodRange: null,
   departments: [],
@@ -466,7 +468,10 @@ const filteredSources = computed(() => {
   const query = normalizeText(filters.search)
 
   return enrichedSources.value.filter((item) => {
-    if (filters.author && item.DocumentAuthor !== filters.author) return false
+    if (filters.author.length) {
+      const author = (item.DocumentAuthor ?? '').trim()
+      if (!filters.author.includes(author)) return false
+    }
 
     if (filters.approvalRange) {
       const normalized = normalizeRange(filters.approvalRange)

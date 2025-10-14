@@ -905,7 +905,18 @@ const filteredRows = computed(() => {
   if (!search) return parameters.value
 
   return parameters.value.filter((item) => {
-    const fields = [item.name, item.unitName, item.sourceName, item.code, item.note]
+    const fields: Array<string | null | undefined> = [
+      item.name,
+      item.componentName,
+      item.unitName,
+      item.sourceName,
+      item.code,
+      item.description,
+      item.note,
+      item.minValue != null ? String(item.minValue) : null,
+      item.maxValue != null ? String(item.maxValue) : null,
+      item.normValue != null ? String(item.normValue) : null,
+    ]
     return fields.some((field) => normalizeText(field ?? '').includes(search))
   })
 })
