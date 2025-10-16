@@ -6,13 +6,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Компоненты обслуживаемых объектов»
+          {{ t('nsi.objectTypes.components.title', {}, { default: 'Справочник «Компоненты обслуживаемых объектов»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Информация о справочнике"
+            :aria-label="t('nsi.objectTypes.components.help', {}, { default: 'Информация о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,15 +21,14 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Здесь можно просмотреть перечень компонентов и их связи с типами объектов, параметрами и
-          дефектами
+          {{ t('nsi.objectTypes.components.subtitle', {}, { default: 'Здесь можно просмотреть перечень компонентов и их связи с типами объектов, параметрами и дефектами' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
         <NInput
           v-model:value="search"
-          placeholder="Поиск…"
+          :placeholder="t('nsi.objectTypes.components.searchPlaceholder', {}, { default: 'Поиск…' })"
           clearable
           round
           class="toolbar__search"
@@ -44,7 +43,7 @@
             multiple
             filterable
             clearable
-            placeholder="Типы объектов"
+            :placeholder="t('nsi.objectTypes.components.filter.objectTypes', {}, { default: 'Типы объектов' })"
             @update:value="handleObjectTypeFilterChange"
           />
           <NSelect
@@ -55,7 +54,7 @@
             multiple
             filterable
             clearable
-            placeholder="Параметры"
+            :placeholder="t('nsi.objectTypes.components.filter.parameters', {}, { default: 'Параметры' })"
             @update:value="handleParameterFilterChange"
           />
           <NSelect
@@ -66,7 +65,7 @@
             multiple
             filterable
             clearable
-            placeholder="Дефекты"
+            :placeholder="t('nsi.objectTypes.components.filter.defects', {}, { default: 'Дефекты' })"
             @update:value="handleDefectFilterChange"
           />
         </div>
@@ -77,7 +76,7 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.components.sortAria', {}, { default: 'Порядок сортировки' })"
         />
       </div>
     </NCard>
@@ -95,7 +94,9 @@
       />
 
       <div v-else class="cards" role="list">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.components.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -108,13 +109,13 @@
           </header>
 
           <dl class="card__grid">
-            <dt>Типы объектов</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.objectTypes', {}, { default: 'Типы объектов' }) }}</dt>
             <dd><RelationsList :relations="item.objectTypes" /></dd>
-            <dt>Параметры</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.parameters', {}, { default: 'Параметры' }) }}</dt>
             <dd>
               <RelationsList :relations="item.parameters" :formatter="formatParameterRelation" />
             </dd>
-            <dt>Дефекты</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.defects', {}, { default: 'Дефекты' }) }}</dt>
             <dd><RelationsList :relations="item.defects" :formatter="formatDefectRelation" /></dd>
           </dl>
 
@@ -123,7 +124,7 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.components.showMore', {}, { default: 'Показать ещё' }) }}</NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -142,18 +143,15 @@
       </div>
     </div>
 
-    <NModal v-model:show="infoOpen" preset="card" title="О справочнике" style="max-width: 640px">
+    <NModal v-model:show="infoOpen" preset="card" :title="t('nsi.objectTypes.components.info.title', {}, { default: 'О справочнике' })" style="max-width: 640px">
       <p>
-        Компоненты описывают элементы обслуживаемых объектов и используются при настройке
-        параметров, дефектов и работ. Здесь можно посмотреть текущие связи.
+        {{ t('nsi.objectTypes.components.info.p1', {}, { default: 'Компоненты описывают элементы обслуживаемых объектов и используются при настройке параметров, дефектов и работ. Здесь можно посмотреть текущие связи.' }) }}
       </p>
       <p>
-        Используйте фильтры, чтобы сузить список по типам объектов, параметрам или дефектам.
-        Добавление новых компонентов осуществляется только при создании типов, дефектов или
-        параметров на соответствующих страницах справочников.
+        {{ t('nsi.objectTypes.components.info.p2', {}, { default: 'Используйте фильтры, чтобы сузить список по типам объектов, параметрам или дефектам. Добавление новых компонентов осуществляется только при создании типов, дефектов или параметров на соответствующих страницах справочников.' }) }}
       </p>
       <template #footer>
-        <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+        <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.components.info.ok', {}, { default: 'Понятно' }) }}</NButton>
       </template>
     </NModal>
 
@@ -175,6 +173,7 @@ import {
   type PropType,
   type VNodeChild,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import {
   NButton,
   NCard,
@@ -199,6 +198,7 @@ import { useObjectTypesQuery } from '@features/object-type-crud'
 import { normalizeText } from '@shared/lib'
 import type { LoadedObjectParameter } from '@entities/object-parameter'
 
+const { t } = useI18n()
 interface PaginationState {
   page: number
   pageSize: number
