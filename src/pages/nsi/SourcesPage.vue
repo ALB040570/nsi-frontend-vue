@@ -1141,7 +1141,7 @@ async function handleDelete(row: NormalizedRow) {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1170,7 +1170,7 @@ async function handleDelete(row: NormalizedRow) {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -1202,12 +1202,12 @@ async function handleDelete(row: NormalizedRow) {
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -1354,10 +1354,10 @@ async function handleDelete(row: NormalizedRow) {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   width: 100%;
   box-sizing: border-box;
