@@ -1939,7 +1939,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1957,7 +1957,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -2000,12 +2000,12 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -2037,12 +2037,12 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 }
 
 .tag-category {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--s360-surface);
+  color: var(--s360-accent);
 }
 
 .tag-component {
-  background: #fff;
+  background: var(--s360-bg);
 }
 
 .note-text {
@@ -2079,10 +2079,10 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   max-width: 100%;
   width: 100%;
@@ -2161,7 +2161,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--s360-surface);
 }
 
 .badge.ok {
@@ -2232,7 +2232,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   flex: 1;
   overflow-y: auto;
   padding: 8px 4px;
-  background: #f8fafc;
+  background: var(--s360-surface);
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -2246,7 +2246,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   max-width: 85%;
   padding: 8px 32px 8px 12px;
   border-radius: 12px;
-  background: #ffffff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   line-height: 1.35;
   word-break: break-word;
@@ -2274,11 +2274,11 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 
 .assistant-message__undo:hover,
 .assistant-message__undo:focus-visible {
-  color: #1f2937;
+  color: var(--s360-text);
 }
 
 .assistant-message__undo:focus-visible {
-  outline: 2px solid #818cf8;
+  outline: 2px solid var(--s360-accent);
   border-radius: 4px;
 }
 
@@ -2302,7 +2302,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: #f1f5f9;
+  background: var(--s360-surface);
   border-radius: 12px;
   padding: 10px 12px;
 }
@@ -2356,7 +2356,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
 }
 
 .assistant__voice:focus-visible {
-  outline: 3px solid #4c6ef5;
+  outline: 3px solid var(--s360-accent);
   outline-offset: 4px;
 }
 
