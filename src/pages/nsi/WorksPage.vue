@@ -1711,7 +1711,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1741,7 +1741,7 @@ onBeforeUnmount(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -1772,12 +1772,12 @@ onBeforeUnmount(() => {
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -1833,8 +1833,8 @@ onBeforeUnmount(() => {
 }
 
 .source-chip {
-  background: #eef2ff;
-  color: #312e81;
+  background: var(--s360-surface);
+  color: var(--s360-accent);
   font-weight: 500;
 }
 
@@ -1889,10 +1889,10 @@ onBeforeUnmount(() => {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   max-width: 100%;
   width: 100%;
