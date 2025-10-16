@@ -1,4 +1,4 @@
-<!-- Файл: src/pages/nsi/WorksPage.vue
+﻿<!-- Файл: src/pages/nsi/WorksPage.vue
      Назначение: справочник технологических работ по содержанию и восстановлению объектов.
      Использование: подключается в маршрутизаторе по пути /nsi/works. -->
 <template>
@@ -6,13 +6,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Технологические работы»
+          {{ t('nsi.objectTypes.works.title', {}, { default: 'Справочник «Технологические работы»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.works.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,19 +21,25 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Ведите перечень технологических работ обслуживаемых объектов: указывайте вид, тип объекта, источник и периодичность
+          {{ t('nsi.objectTypes.works.subtitle', {}, { default: 'Ведите перечень технологических работ обслуживаемых объектов: указывайте вид, тип объекта, источник и периодичность' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <NInput
+          v-model:value="q"
+          :placeholder="t('nsi.objectTypes.works.searchPlaceholder', {}, { default: 'Поиск…' })"
+          clearable
+          round
+          class="toolbar__search"
+        />
         <div class="toolbar__filters">
           <NSelect
             v-model:value="workTypeFilter"
             :options="workTypeOptions"
             multiple
             filterable
-            placeholder="Вид работы"
+            :placeholder="t('nsi.objectTypes.works.filter.workType', {}, { default: 'Вид работы' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -43,7 +49,7 @@
             :options="objectTypeOptions"
             multiple
             filterable
-            placeholder="Тип объекта"
+            :placeholder="t('nsi.objectTypes.works.filter.objectType', {}, { default: 'Тип объекта' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -53,7 +59,7 @@
             :options="sourceOptions"
             multiple
             filterable
-            placeholder="Источник"
+            :placeholder="t('nsi.objectTypes.works.filter.source', {}, { default: 'Источник' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -63,7 +69,7 @@
             :options="periodTypeOptions"
             multiple
             filterable
-            placeholder="Периодичность"
+            :placeholder="t('nsi.objectTypes.works.filter.period', {}, { default: 'Периодичность' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -75,9 +81,9 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.works.sortAria', {}, { default: 'Порядок сортировки' })"
         />
-        <NButton type="primary" @click="openCreate">+ Добавить работу</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.works.add', {}, { default: 'Добавить работу' }) }}</NButton>
       </div>
     </NCard>
 
@@ -93,7 +99,9 @@
       />
 
       <div v-else class="cards" role="list">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.works.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -127,7 +135,7 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.works.showMore', {}, { default: 'Показать ещё' }) }}</NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -138,10 +146,10 @@
           :item-count="total"
           show-size-picker
           show-quick-jumper
-          aria-label="Постраничная навигация по технологическим работам"
+          :aria-label="t('nsi.objectTypes.works.paginationAria', {}, { default: 'Постраничная навигация по технологическим работам' })"
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">{{ t('nsi.objectTypes.works.total', { total }, { default: 'Всего: ' + total }) }}</span>
           </template>
         </NPagination>
       </div>
@@ -155,15 +163,15 @@
     >
       <NForm :model="workForm" label-width="180px" class="work-form">
         <NFormItem
-          label="Наименование"
+          :label="t('nsi.objectTypes.works.form.name.label', {}, { default: 'Наименование' })"
           :feedback="workFormErrors.name ?? undefined"
           :validation-status="workFormErrors.name ? 'error' : undefined"
         >
-          <NInput v-model:value="workForm.name" placeholder="Введите наименование" />
+          <NInput v-model:value="workForm.name" :placeholder="t('nsi.objectTypes.works.form.name.placeholder', {}, { default: 'Введите наименование' })" />
         </NFormItem>
 
         <NFormItem
-          label="Тип объекта"
+          :label="t('nsi.objectTypes.works.form.objectType.label', {}, { default: 'Тип объекта' })"
           :feedback="workFormErrors.objectTypeId ?? undefined"
           :validation-status="workFormErrors.objectTypeId ? 'error' : undefined"
         >
@@ -171,7 +179,7 @@
             <NSelect
               v-model:value="selectedObjectTypeId"
               :options="relationSelectOptions"
-              placeholder="Выберите тип объекта"
+              :placeholder="t('nsi.objectTypes.works.form.objectType.placeholder', {}, { default: 'Выберите тип объекта' })"
               :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
               filterable
               clearable
@@ -179,25 +187,25 @@
             />
           </NSpin>
           <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
-            Для работы пока нет доступных типов объектов.
+            {{ t('nsi.objectTypes.works.form.objectType.empty', {}, { default: 'Для работы пока нет доступных типов объектов.' }) }}
           </p>
         </NFormItem>
 
         <NFormItem
-          label="Вид работы"
+          :label="t('nsi.objectTypes.works.form.workType.label', {}, { default: 'Вид работы' })"
           :feedback="workFormErrors.workTypeId ?? undefined"
           :validation-status="workFormErrors.workTypeId ? 'error' : undefined"
         >
           <NSelect
             v-model:value="workForm.workTypeId"
             :options="workTypeOptions"
-            placeholder="Выберите вид работы"
+            :placeholder="t('nsi.objectTypes.works.form.workType.placeholder', {}, { default: 'Выберите вид работы' })"
             filterable
           />
         </NFormItem>
 
         <NFormItem
-          label="Источник"
+          :label="t('nsi.objectTypes.works.form.source.label', {}, { default: 'Источник' })"
           :feedback="workFormErrors.sourceId ?? undefined"
           :validation-status="workFormErrors.sourceId ? 'error' : undefined"
         >
@@ -206,59 +214,59 @@
             :options="sourceFormOptions"
             :loading="sourceOptionsLoading"
             :multiple="false"
-            :placeholder="'Выберите источник данных'"
+            :placeholder="t('nsi.objectTypes.works.form.source.placeholder', {}, { default: 'Выберите источник данных' })"
             @update:value="(v) => (workForm.sourceId = typeof v === 'string' ? v : null)"
           />
         </NFormItem>
 
         <NFormItem
-          label="Номер в источнике"
+          :label="t('nsi.objectTypes.works.form.sourceNumber.label', {}, { default: 'Номер в источнике' })"
           :feedback="workFormErrors.sourceNumber ?? undefined"
           :validation-status="workFormErrors.sourceNumber ? 'error' : undefined"
         >
-          <NInput v-model:value="workForm.sourceNumber" placeholder="Например, 99" />
+          <NInput v-model:value="workForm.sourceNumber" :placeholder="t('nsi.objectTypes.works.form.sourceNumber.placeholder', {}, { default: 'Например, 99' })" />
         </NFormItem>
 
         <NFormItem
-          label="Тип периода"
+          :label="t('nsi.objectTypes.works.form.periodType.label', {}, { default: 'Тип периода' })"
           :feedback="workFormErrors.periodTypeId ?? undefined"
           :validation-status="workFormErrors.periodTypeId ? 'error' : undefined"
         >
           <NSelect
             v-model:value="workForm.periodTypeId"
             :options="periodTypeFormOptions"
-            placeholder="Выберите тип периода"
+            :placeholder="t('nsi.objectTypes.works.form.periodType.placeholder', {}, { default: 'Выберите тип периода' })"
             filterable
           />
         </NFormItem>
 
         <NFormItem
-          label="Число повторений"
+          :label="t('nsi.objectTypes.works.form.periodicity.label', {}, { default: 'Число повторений' })"
           :feedback="workFormErrors.periodicity ?? undefined"
           :validation-status="workFormErrors.periodicity ? 'error' : undefined"
         >
-          <NInputNumber v-model:value="workForm.periodicity" :min="1" placeholder="1" />
+          <NInputNumber v-model:value="workForm.periodicity" :min="1" :placeholder="t('nsi.objectTypes.works.form.periodicity.placeholder', {}, { default: '1' })" />
         </NFormItem>
       </NForm>
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="dialogOpen = false" :disabled="savingWork">Отмена</NButton>
+          <NButton @click="dialogOpen = false" :disabled="savingWork">{{ t('nsi.objectTypes.works.actions.cancel', {}, { default: 'Отмена' }) }}</NButton>
           <NButton type="primary" class="btn-primary" :loading="savingWork" @click="saveWork">
-            {{ isEditMode ? 'Сохранить' : 'Создать' }}
+            {{ isEditMode ? t('nsi.objectTypes.works.actions.save', {}, { default: 'Сохранить' }) : t('nsi.objectTypes.works.actions.create', {}, { default: 'Создать' }) }}
           </NButton>
         </div>
       </template>
     </NModal>
 
-    <NModal v-model:show="infoOpen" preset="card" title="О справочнике работ" style="max-width: 520px">
+    <NModal v-model:show="infoOpen" preset="card" :title="t('nsi.objectTypes.works.info.title', {}, { default: 'О справочнике работ' })" style="max-width: 520px">
       <p class="text-body">
-        Справочник содержит технологические работы по содержанию и восстановлению обслуживаемых объектов.
-        В таблице указаны вид работы, тип объекта, источник регламента и периодичность выполнения.
+        {{ t('nsi.objectTypes.works.info.p1', {}, { default: 'Справочник содержит технологические работы по содержанию и восстановлению обслуживаемых объектов.' }) }}
+        {{ t('nsi.objectTypes.works.info.p2', {}, { default: 'В таблице указаны вид работы, тип объекта, источник регламента и периодичность выполнения.' }) }}
       </p>
       <template #footer>
         <div class="modal-footer">
-          <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+          <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.works.info.ok', {}, { default: 'Понятно' }) }}</NButton>
         </div>
       </template>
     </NModal>
@@ -279,6 +287,7 @@ import {
   type PropType,
   type VNodeChild,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { DataTableColumns } from 'naive-ui'
 import {
   NButton,
@@ -306,6 +315,8 @@ import { loadParameterSources } from '@entities/object-parameter'
 import type { ParameterSourceOption } from '@entities/object-parameter'
 import { CreatableSelect } from '@features/creatable-select'
 
+
+const { t } = useI18n()
 interface RawWorkTypeRecord {
   id?: number | string
   ID?: number | string
