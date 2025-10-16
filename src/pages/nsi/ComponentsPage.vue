@@ -650,7 +650,7 @@ const handleDefectFilterChange = (value: Array<string | number> | null) => {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -668,7 +668,7 @@ const handleDefectFilterChange = (value: Array<string | number> | null) => {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -810,10 +810,10 @@ const handleDefectFilterChange = (value: Array<string | number> | null) => {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   max-width: 100%;
   width: 100%;
