@@ -6,13 +6,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Дефекты обслуживаемых объектов»
+          {{ t('nsi.objectTypes.defects.title', {}, { default: 'Справочник «Дефекты обслуживаемых объектов»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.defects.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,20 +21,25 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Ведите перечень дефектов обслуживаемых объектов с указанием категории, компонента, индекса
-          и статуса
+          {{ t('nsi.objectTypes.defects.subtitle', {}, { default: 'Ведите перечень дефектов обслуживаемых объектов с указанием категории, компонента, индекса и статуса' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <NInput
+          v-model:value="q"
+          :placeholder="t('nsi.objectTypes.defects.searchPlaceholder', {}, { default: 'Поиск…' })"
+          clearable
+          round
+          class="toolbar__search"
+        />
         <div class="toolbar__filters">
           <NSelect
             v-model:value="categoryFilter"
             :options="categoryFilterOptions"
             multiple
             filterable
-            placeholder="Категория"
+            :placeholder="t('nsi.objectTypes.defects.filter.category', {}, { default: 'Категория' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -44,7 +49,7 @@
             :options="componentFilterOptions"
             multiple
             filterable
-            placeholder="Компонент объекта"
+            :placeholder="t('nsi.objectTypes.defects.filter.component', {}, { default: 'Компонент объекта' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -56,7 +61,7 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.defects.sortAria', {}, { default: 'Порядок сортировки' })"
         />
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
@@ -64,7 +69,7 @@
           </template>
           Ассистент
         </NButton>
-        <NButton type="primary" @click="openCreate">+ Добавить дефект</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.defects.add', {}, { default: 'Добавить дефект' }) }}</NButton>
       </div>
     </NCard>
 
@@ -80,7 +85,9 @@
       />
 
       <div v-else class="cards">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.defects.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -126,7 +133,9 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">
+          {{ t('nsi.objectTypes.defects.showMore', {}, { default: 'Показать ещё' }) }}
+        </NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -137,10 +146,10 @@
           :item-count="total"
           show-size-picker
           show-quick-jumper
-          aria-label="Постраничная навигация по дефектам объектов"
+          :aria-label="t('nsi.objectTypes.defects.paginationAria', {}, { default: 'Постраничная навигация по дефектам объектов' })"
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">{{ t('nsi.objectTypes.defects.total', { total }, { default: 'Всего: ' + total }) }}</span>
           </template>
         </NPagination>
       </div>
@@ -149,52 +158,52 @@
     <NModal
       v-model:show="dialog"
       preset="card"
-      :title="editing ? 'Изменить дефект' : 'Создать дефект'"
+      :title="editing ? t('nsi.objectTypes.defects.dialog.editTitle', {}, { default: 'Изменить дефект' }) : t('nsi.objectTypes.defects.dialog.createTitle', {}, { default: 'Создать дефект' })"
       style="width: 560px"
     >
       <NForm :model="form" label-width="140px">
         <NFormItem
-          label="Название"
+          :label="t('nsi.objectTypes.defects.form.name.label', {}, { default: 'Название' })"
           :feedback="errors.name ?? undefined"
           :validation-status="errors.name ? 'error' : undefined"
         >
-          <NInput v-model:value="form.name" placeholder="Введите название дефекта" />
+          <NInput v-model:value="form.name" :placeholder="t('nsi.objectTypes.defects.form.name.placeholder', {}, { default: 'Введите название дефекта' })" />
           <div v-if="nameWarning" class="warning-text" style="margin-top: 4px">
             {{ nameWarning }}
           </div>
         </NFormItem>
 
-        <NFormItem label="Категория">
+        <NFormItem :label="t('nsi.objectTypes.defects.form.category.label', {}, { default: 'Категория' })">
           <CreatableSelect
             :value="form.categoryFvId"
             :options="categorySelectOptions"
             :multiple="false"
-            :placeholder="'Выберите категорию'"
+            :placeholder="t('nsi.objectTypes.defects.form.category.placeholder', {}, { default: 'Выберите категорию' })"
             :create="createCategoryOption"
             @update:value="(v) => handleCategoryChange(typeof v === 'string' ? v : null)"
           />
         </NFormItem>
 
-        <NFormItem label="Компонент">
+        <NFormItem :label="t('nsi.objectTypes.defects.form.component.label', {}, { default: 'Компонент' })">
           <ComponentsSelect
             :value="form.componentId"
             :options="componentSelectOptions"
             :multiple="false"
             :value-kind="'id'"
-            :placeholder="'Выберите компонент'"
+            :placeholder="t('nsi.objectTypes.defects.form.component.placeholder', {}, { default: 'Выберите компонент' })"
             @update:value="(v) => handleComponentChange(typeof v === 'string' ? v : null)"
           />
         </NFormItem>
 
-        <NFormItem label="Индекс">
-          <NInput v-model:value="form.index" placeholder="Например, D-01" />
+        <NFormItem :label="t('nsi.objectTypes.defects.form.index.label', {}, { default: 'Индекс' })">
+          <NInput v-model:value="form.index" :placeholder="t('nsi.objectTypes.defects.form.index.placeholder', {}, { default: 'Например, D-01' })" />
         </NFormItem>
 
-        <NFormItem label="Комментарий / статус">
+        <NFormItem :label="t('nsi.objectTypes.defects.form.note.label', {}, { default: 'Комментарий / статус' })">
           <NInput
             v-model:value="form.note"
             type="textarea"
-            placeholder="Уточните статус или важные примечания"
+            :placeholder="t('nsi.objectTypes.defects.form.note.placeholder', {}, { default: 'Уточните статус или важные примечания' })"
             :autosize="{ minRows: 2, maxRows: 5 }"
           />
         </NFormItem>
@@ -202,9 +211,9 @@
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="dialog = false">Отмена</NButton>
+          <NButton @click="dialog = false">{{ t('nsi.objectTypes.defects.actions.cancel', {}, { default: 'Отмена' }) }}</NButton>
           <NButton type="primary" class="btn-primary" :loading="saving" @click="save">
-            Сохранить
+            {{ t('nsi.objectTypes.defects.actions.save', {}, { default: 'Сохранить' }) }}
           </NButton>
         </div>
       </template>
@@ -325,23 +334,20 @@
     <NModal
       v-model:show="infoOpen"
       preset="card"
-      title="О справочнике"
+      :title="t('nsi.objectTypes.defects.info.title', {}, { default: 'О справочнике' })"
       style="max-width: 640px; width: 92vw"
     >
       <p>
-        Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние,
-        планировать обслуживание и вести аналитику по категориям и компонентам.
+        {{ t('nsi.objectTypes.defects.info.p1', {}, { default: 'Это список дефектов инфраструктурных объектов. Он помогает фиксировать состояние, планировать обслуживание и вести аналитику по категориям и компонентам.' }) }}
       </p>
       <p>
-        Чтобы добавить дефект: укажите название, выберите категорию и компонент (при необходимости),
-        задайте индекс и опишите статус в комментарии.
+        {{ t('nsi.objectTypes.defects.info.p2', {}, { default: 'Чтобы добавить дефект: укажите название, выберите категорию и компонент (при необходимости), задайте индекс и опишите статус в комментарии.' }) }}
       </p>
       <p>
-        Редактировать можно только те дефекты, с которыми нет ограничений на стороне подсистем.
-        Вносите изменения внимательно, чтобы не потерять связь с категориями и компонентами.
+        {{ t('nsi.objectTypes.defects.info.p3', {}, { default: 'Редактировать можно только те дефекты, с которыми нет ограничений на стороне подсистем. Вносите изменения внимательно, чтобы не потерять связь с категориями и компонентами.' }) }}
       </p>
       <template #footer>
-        <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+        <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.defects.info.ok', {}, { default: 'Понятно' }) }}</NButton>
       </template>
     </NModal>
   </section>
@@ -361,6 +367,7 @@ import {
   defineComponent,
 } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 
 import type { PropType, VNodeChild } from 'vue'
 
@@ -415,6 +422,7 @@ import { getErrorMessage, normalizeText } from '@shared/lib'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 const isMobile = ref(false)
 if (typeof window !== 'undefined') {
