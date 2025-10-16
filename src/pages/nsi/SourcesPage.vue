@@ -3,13 +3,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Источники (нормативные документы)»
+          {{ t('nsi.objectTypes.sources.title', {}, { default: 'Справочник «Источники (нормативные документы)»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.sources.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -18,14 +18,14 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
+          {{ t('nsi.objectTypes.sources.subtitle', {}, { default: 'Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
         <NInput
           v-model:value="filterModel.search"
-          placeholder="Поиск…"
+          :placeholder="t('nsi.objectTypes.sources.searchPlaceholder', {}, { default: 'Поиск…' })"
           clearable
           round
           class="toolbar__search"
@@ -37,7 +37,7 @@
             :options="authorOptions"
             multiple
             filterable
-            placeholder="Орган (регулятор)"
+            :placeholder="t('nsi.objectTypes.sources.filter.author', {}, { default: 'Орган (регулятор)' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -48,7 +48,7 @@
             format="dd.MM.yyyy"
             clearable
             size="small"
-            placeholder="Дата утверждения"
+            :placeholder="t('nsi.objectTypes.sources.filter.approvalDate', {}, { default: 'Дата утверждения' })"
             class="toolbar__select"
           />
           <NDatePicker
@@ -57,13 +57,13 @@
             format="dd.MM.yyyy"
             clearable
             size="small"
-            placeholder="Период действия"
+            :placeholder="t('nsi.objectTypes.sources.filter.period', {}, { default: 'Период действия' })"
             class="toolbar__select"
           />
           <NSelect
             v-model:value="filterModel.departments"
             :options="departmentOptions"
-            placeholder="Исполнитель (подразделение)"
+            :placeholder="t('nsi.objectTypes.sources.filter.department', {}, { default: 'Исполнитель (подразделение)' })"
             multiple
             filterable
             clearable
@@ -77,9 +77,9 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.sources.sortAria', {}, { default: 'Порядок сортировки' })"
         />
-        <NButton type="primary" @click="openCreate">+ Добавить документ</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.sources.add', {}, { default: 'Добавить документ' }) }}</NButton>
       </div>
     </NCard>
 
@@ -97,7 +97,9 @@
       />
 
       <div v-else class="cards" role="list">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.sources.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in normalizedRows"
           :key="item.id"
@@ -131,7 +133,7 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Дальше</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.sources.showMore', {}, { default: 'Дальше' }) }}</NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -144,7 +146,7 @@
           show-quick-jumper
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">{{ t('nsi.objectTypes.sources.total', { total }, { default: 'Всего: ' + total }) }}</span>
           </template>
         </NPagination>
       </div>
@@ -153,17 +155,15 @@
     <NModal
       v-model:show="infoOpen"
       preset="card"
-      title="О справочнике источников"
+      :title="t('nsi.objectTypes.sources.info.title', {}, { default: 'О справочнике источников' })"
       style="max-width: 560px; width: min(92vw, 560px)"
     >
       <p class="text-body">
-        Здесь собраны нормативные документы, на основании которых выполняются технологические работы
-        и обслуживание объектов. Поддерживайте в справочнике актуальные реквизиты, сроки действия и
-        ответственных исполнителей, чтобы коллеги всегда использовали проверенные данные.
+        {{ t('nsi.objectTypes.sources.info.p1', {}, { default: 'Здесь собраны нормативные документы, на основании которых выполняются технологические работы и обслуживание объектов. Поддерживайте в справочнике актуальные реквизиты, сроки действия и ответственных исполнителей, чтобы коллеги всегда использовали проверенные данные.' }) }}
       </p>
       <template #footer>
         <div class="modal-footer">
-          <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+          <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.sources.info.ok', {}, { default: 'Понятно' }) }}</NButton>
         </div>
       </template>
     </NModal>
@@ -184,6 +184,7 @@
 
 <script setup lang="ts">
 import { computed, defineComponent, h, reactive, ref, watch, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { PropType, VNodeChild } from 'vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
@@ -277,6 +278,7 @@ interface CardField {
 }
 
 const { isMobile } = useIsMobile('(max-width: 720px)')
+const { t } = useI18n()
 
 const message = useMessage()
 const dialog = useDialog()
