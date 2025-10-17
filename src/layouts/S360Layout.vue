@@ -165,7 +165,6 @@ import {
   ClipboardOutline,
   BookOutline,
   EllipsisHorizontal,
-  CompassOutline,
 } from '@vicons/ionicons5'
 
 import logoMark from '@/assets/logo.svg'
