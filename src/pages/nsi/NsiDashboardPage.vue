@@ -103,7 +103,7 @@ import {
   useNsiActivityQuery,
   useNsiCoverageQuery,
   useNsiDiagnosticsQuery,
-  useNsiRelationsQuery,
+  useNsiCountsQuery,
 } from '@features/nsi-dashboard'
 import type {
   ActivityItem,
@@ -113,8 +113,9 @@ import type {
   NsiCoverage,
   NsiCoverageResponse,
   NsiSearchResult,
-  RelationsCountsResponse,
+  RelationsCounts,
 } from '@entities/nsi-dashboard'
+import type { NsiCounts } from '@features/nsi-dashboard'
 
 type TargetKey = 'sources' | 'types' | 'components' | 'params' | 'defects' | 'works'
 
@@ -128,12 +129,23 @@ const assistantEnabled = ref(false)
 const coverageQuery = useNsiCoverageQuery()
 const diagnosticsQuery = useNsiDiagnosticsQuery()
 const activityQuery = useNsiActivityQuery(7)
-const relationsQuery = useNsiRelationsQuery()
+const countsQuery = useNsiCountsQuery()
 
 const coverageResponse = computed<NsiCoverageResponse | null>(() => coverageQuery.data.value ?? null)
-const coverage = computed(() => coverageResponse.value ?? null)
+const countsData = computed<NsiCounts | null>(() => countsQuery.data.value ?? null)
+const coverage = computed<NsiCoverage | null>(() => {
+  const base = coverageResponse.value ?? null
+  const counts = countsData.value
+  if (!counts) return base
+  return mergeCoverageWithCounts(base, counts)
+})
 const coveragePartial = computed(() => Boolean(coverageResponse.value?.partial))
-const coverageLoading = computed(() => coverageQuery.isLoading.value)
+const coverageLoading = computed(
+  () =>
+    coverageQuery.isLoading.value ||
+    countsQuery.isLoading.value ||
+    countsQuery.isFetching.value,
+)
 
 const diagnosticsResponse = computed<DiagnosticsResponse | null>(() => diagnosticsQuery.data.value ?? null)
 const diagnosticsItems = computed(() => diagnosticsResponse.value?.items ?? [])
@@ -146,10 +158,22 @@ const activityPartial = computed(() => Boolean(activityResponse.value?.partial))
 const activityEmpty = computed(() => t('nsi.dashboard.activity.empty'))
 const activityTitle = computed(() => t('nsi.dashboard.activity.title'))
 
-const relationsResponse = computed<RelationsCountsResponse | null>(() => relationsQuery.data.value ?? null)
-const relationsCounts = computed(() => relationsResponse.value ?? null)
-const relationsPartial = computed(() => Boolean(relationsResponse.value?.partial))
-const relationsLoading = computed(() => relationsQuery.isLoading.value)
+const relationsCounts = computed<RelationsCounts | null>(() => {
+  const counts = countsData.value
+  if (!counts) return null
+  return {
+    sources: counts.sources,
+    types: counts.objectTypes,
+    components: counts.components,
+    params: counts.parameters,
+    defects: counts.defects,
+    works: counts.works,
+  }
+})
+const relationsPartial = computed(() => false)
+const relationsLoading = computed(
+  () => countsQuery.isLoading.value || countsQuery.isFetching.value,
+)
 
 const pageTitle = computed(() => t('nsi.dashboard.title'))
 const pageSubtitle = computed(() => t('nsi.dashboard.subtitle'))
@@ -212,6 +236,37 @@ const quickActions = computed(() => [
     to: { name: 'works', query: { action: 'create' } },
   },
 ])
+
+function mergeCoverageWithCounts(base: NsiCoverage | null, counts: NsiCounts): NsiCoverage {
+  return {
+    sources: {
+      total: counts.sources,
+      withIssuerDateExec: base?.sources.withIssuerDateExec ?? 0,
+    },
+    types: {
+      total: counts.objectTypes,
+      withShape: base?.types.withShape ?? 0,
+      withComponents: base?.types.withComponents ?? 0,
+    },
+    components: {
+      total: counts.components,
+      withParams: base?.components.withParams ?? 0,
+      withDefects: base?.components.withDefects ?? 0,
+    },
+    params: {
+      total: counts.parameters,
+      withUnitsAndBounds: base?.params.withUnitsAndBounds ?? 0,
+    },
+    defects: {
+      total: counts.defects,
+      withCategoryAndComponent: base?.defects.withCategoryAndComponent ?? 0,
+    },
+    works: {
+      total: counts.works,
+      withTypePeriodSource: base?.works.withTypePeriodSource ?? 0,
+    },
+  }
+}
 
 const checklistTitle = computed(() => t('nsi.dashboard.checklist.title'))
 const checklistGo = computed(() => t('nsi.dashboard.checklistActions.go'))
