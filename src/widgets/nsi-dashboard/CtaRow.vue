@@ -52,8 +52,8 @@
             <div v-else-if="shouldSuggest">{{ searchTypingHint }}</div>
             <template v-else>
               <button
-                v-for="item in searchResults"
-                :key="item.id + item.type"
+                v-for="(item, i) in searchResults"
+                :key="`${item.type ?? 'unknown'}:${String(item.id ?? item.title ?? i)}`"
                 type="button"
                 class="search-result"
                 role="option"
@@ -61,7 +61,7 @@
               >
                 <span class="search-result__title">{{ item.title }}</span>
                 <span class="search-result__meta">
-                  <span class="search-result__type">{{ searchTypes[item.type] }}</span>
+                  <span class="search-result__type">{{ searchTypes[item.type] || item.type }}</span>
                   <span v-if="item.extra" class="search-result__extra">{{ item.extra }}</span>
                 </span>
                 <span class="search-result__action">{{ searchOpenLabel }}</span>
@@ -172,15 +172,59 @@ watch(trimmedQuery, (value) => {
     void runSearch(value)
   }, 250)
 })
+function normalizeToArray(input: any): any[] {
+  if (!input) return []
+  if (Array.isArray(input)) return input
+
+  // самые частые варианты обёрток
+  if (Array.isArray(input.items)) return input.items
+  if (Array.isArray(input.records)) return input.records
+  if (Array.isArray(input.data)) return input.data
+  if (Array.isArray(input.result)) return input.result
+  if (input.result && Array.isArray(input.result.items)) return input.result.items
+  if (input.payload && Array.isArray(input.payload.items)) return input.payload.items
+
+  // single item → массив из одного элемента
+  return [input]
+}
+
+function mapResultRecord(r: any, i: number) {
+  const type = r.type ?? r.kind ?? r.entity ?? r.category ?? 'unknown'
+
+  const id = r.id ?? r.uuid ?? r.idro ?? r.iddoc ?? r.obj ?? `${type}-${i}`
+
+  // подставь все встречающиеся поля названий из ваших RPC
+  const title =
+    r.title ??
+    r.name ??
+    r.cisname2 ??
+    r.cisname1 ??
+    r.namerom2 ??
+    r.namerom1 ??
+    r.caption ??
+    String(id)
+
+  const extra = r.code ?? r.shortCode ?? r.path ?? r.group ?? undefined
+
+  return {
+    ...r,
+    id: String(id),
+    type: String(type),
+    title: String(title),
+    extra,
+  }
+}
 
 async function runSearch(query: string) {
   requestToken += 1
   const currentToken = requestToken
   searchLoading.value = true
   try {
-    const data = await searchMutation.mutateAsync(query)
+    const raw = await searchMutation.mutateAsync(query)
+    const list = normalizeToArray(raw).map(mapResultRecord)
+
     if (currentToken === requestToken) {
-      searchResults.value = data
+      searchResults.value = list
     }
   } catch (error) {
     if (currentToken === requestToken) {

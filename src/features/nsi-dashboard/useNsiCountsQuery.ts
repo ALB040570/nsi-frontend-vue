@@ -95,9 +95,10 @@ function resolveCount(value: unknown, fallback?: () => number): number {
 async function safeCount(label: string, loader: () => Promise<number>): Promise<number> {
   try {
     const total = await loader()
+    console.debug(`[count:${label}]`, total)
     return Number.isFinite(total) ? total : 0
   } catch (error) {
-    console.warn(`[nsi-dashboard] Failed to load ${label} count`, error)
+    console.warn(`[count:${label}] failed`, error)
     return 0
   }
 }
@@ -146,5 +147,30 @@ async function loadNsiCounts(): Promise<NsiCounts> {
 }
 
 export function useNsiCountsQuery(): UseQueryReturnType<NsiCounts, unknown> {
-  return useQuery({ queryKey: ['nsi', 'counts'], queryFn: loadNsiCounts })
+  return useQuery({
+    queryKey: ['nsi', 'counts'],
+    queryFn: loadNsiCounts,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    retry: 1,
+    // Сразу отдаём объект с нулями, чтобы верстка не зависела от null
+    placeholderData: () => ({
+      objectTypes: 0,
+      components: 0,
+      defects: 0,
+      parameters: 0,
+      works: 0,
+      sources: 0,
+    }),
+    select: (data) =>
+      data ?? {
+        objectTypes: 0,
+        components: 0,
+        defects: 0,
+        parameters: 0,
+        works: 0,
+        sources: 0,
+      },
+  })
 }

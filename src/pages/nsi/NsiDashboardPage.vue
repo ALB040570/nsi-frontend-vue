@@ -130,9 +130,29 @@ const coverageQuery = useNsiCoverageQuery()
 const diagnosticsQuery = useNsiDiagnosticsQuery()
 const activityQuery = useNsiActivityQuery(7)
 const countsQuery = useNsiCountsQuery()
+import { watchEffect } from 'vue'
 
-const coverageResponse = computed<NsiCoverageResponse | null>(() => coverageQuery.data.value ?? null)
-const countsData = computed<NsiCounts | null>(() => countsQuery.data.value ?? null)
+watchEffect(() => {
+  // статус запроса и готовые данные
+  console.debug('[counts] status:', countsQuery.status.value)
+  console.debug('[counts] data:', countsQuery.data.value)
+  console.debug('[counts] error:', countsQuery.error.value)
+})
+
+const coverageResponse = computed<NsiCoverageResponse | null>(
+  () => coverageQuery.data.value ?? null,
+)
+const countsData = computed<NsiCounts>(
+  () =>
+    countsQuery.data.value ?? {
+      objectTypes: 0,
+      components: 0,
+      defects: 0,
+      parameters: 0,
+      works: 0,
+      sources: 0,
+    },
+)
 const coverage = computed<NsiCoverage | null>(() => {
   const base = coverageResponse.value ?? null
   const counts = countsData.value
@@ -140,14 +160,14 @@ const coverage = computed<NsiCoverage | null>(() => {
   return mergeCoverageWithCounts(base, counts)
 })
 const coveragePartial = computed(() => Boolean(coverageResponse.value?.partial))
+// Спиннер только пока нет первого ответа
 const coverageLoading = computed(
-  () =>
-    coverageQuery.isLoading.value ||
-    countsQuery.isLoading.value ||
-    countsQuery.isFetching.value,
+  () => coverageQuery.status.value === 'pending' || countsQuery.status.value === 'pending',
 )
 
-const diagnosticsResponse = computed<DiagnosticsResponse | null>(() => diagnosticsQuery.data.value ?? null)
+const diagnosticsResponse = computed<DiagnosticsResponse | null>(
+  () => diagnosticsQuery.data.value ?? null,
+)
 const diagnosticsItems = computed(() => diagnosticsResponse.value?.items ?? [])
 const diagnosticsPartial = computed(() => Boolean(diagnosticsResponse.value?.partial))
 const diagnosticsLoading = computed(() => diagnosticsQuery.isLoading.value)
@@ -171,9 +191,7 @@ const relationsCounts = computed<RelationsCounts | null>(() => {
   }
 })
 const relationsPartial = computed(() => false)
-const relationsLoading = computed(
-  () => countsQuery.isLoading.value || countsQuery.isFetching.value,
-)
+const relationsLoading = computed(() => countsQuery.status.value === 'pending')
 
 const pageTitle = computed(() => t('nsi.dashboard.title'))
 const pageSubtitle = computed(() => t('nsi.dashboard.subtitle'))
@@ -238,32 +256,33 @@ const quickActions = computed(() => [
 ])
 
 function mergeCoverageWithCounts(base: NsiCoverage | null, counts: NsiCounts): NsiCoverage {
+  const b = base ?? ({} as NsiCoverage)
   return {
     sources: {
       total: counts.sources,
-      withIssuerDateExec: base?.sources.withIssuerDateExec ?? 0,
+      withIssuerDateExec: b.sources?.withIssuerDateExec ?? 0,
     },
     types: {
       total: counts.objectTypes,
-      withShape: base?.types.withShape ?? 0,
-      withComponents: base?.types.withComponents ?? 0,
+      withShape: b.types?.withShape ?? 0,
+      withComponents: b.types?.withComponents ?? 0,
     },
     components: {
       total: counts.components,
-      withParams: base?.components.withParams ?? 0,
-      withDefects: base?.components.withDefects ?? 0,
+      withParams: b.components?.withParams ?? 0,
+      withDefects: b.components?.withDefects ?? 0,
     },
     params: {
       total: counts.parameters,
-      withUnitsAndBounds: base?.params.withUnitsAndBounds ?? 0,
+      withUnitsAndBounds: b.params?.withUnitsAndBounds ?? 0,
     },
     defects: {
       total: counts.defects,
-      withCategoryAndComponent: base?.defects.withCategoryAndComponent ?? 0,
+      withCategoryAndComponent: b.defects?.withCategoryAndComponent ?? 0,
     },
     works: {
       total: counts.works,
-      withTypePeriodSource: base?.works.withTypePeriodSource ?? 0,
+      withTypePeriodSource: b.works?.withTypePeriodSource ?? 0,
     },
   }
 }
