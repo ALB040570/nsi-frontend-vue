@@ -101,11 +101,21 @@
         aria-modal="true"
         aria-label="Навигация"
       >
-        <button type="button" class="drawer-backdrop" aria-label="Закрыть меню" @click="closeMobileDrawer" />
+        <button
+          type="button"
+          class="drawer-backdrop"
+          aria-label="Закрыть меню"
+          @click="closeMobileDrawer"
+        />
         <div class="drawer-panel">
           <header class="drawer-header">
             <span class="drawer-title">Навигация</span>
-            <button type="button" class="drawer-close" aria-label="Закрыть меню" @click="closeMobileDrawer">
+            <button
+              type="button"
+              class="drawer-close"
+              aria-label="Закрыть меню"
+              @click="closeMobileDrawer"
+            >
               <NIcon :component="CloseOutline" />
             </button>
           </header>
@@ -129,7 +139,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
+import {
+  computed,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type Component as VueComponent,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -193,7 +211,7 @@ const withTooltip = (text: string, tooltip?: string) => () =>
 
 const menuRouteByKey: Record<string, string> = {
   dashboard: '/',
-  'nsi-dashboard': '/nsi',
+
   'object-types': '/nsi/object-types',
   'object-defects': '/nsi/object-defects',
   'object-parameters': '/nsi/object-parameters',
@@ -209,13 +227,6 @@ const MENU_ITEMS = [
     menuLabel: 'Главная',
     mobileLabel: 'Главная',
     tooltip: 'Главная панель',
-  },
-  {
-    key: 'nsi-dashboard',
-    icon: CompassOutline,
-    menuLabel: 'НСИ — Главная',
-    mobileLabel: 'НСИ',
-    tooltip: 'Главная страница нормативной базы',
   },
   {
     key: 'object-types',
@@ -395,7 +406,13 @@ watch(
   { immediate: true },
 )
 
-const MOBILE_PRIMARY_KEYS = ['dashboard', 'nsi-dashboard', 'works', 'object-parameters', 'components'] as const
+const MOBILE_PRIMARY_KEYS = [
+  'dashboard',
+  'nsi-dashboard',
+  'works',
+  'object-parameters',
+  'components',
+] as const
 const primaryKeySet = new Set<string>(MOBILE_PRIMARY_KEYS)
 
 const bottomNavItems = computed<BottomNavItem[]>(() => {

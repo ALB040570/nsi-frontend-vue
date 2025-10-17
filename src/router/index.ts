@@ -5,7 +5,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@features/auth'
 
-const Home = () => import('@pages/HomePage.vue')
 const NsiDashboardPage = () => import('@pages/nsi/NsiDashboardPage.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
 const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
@@ -22,8 +21,6 @@ const router = createRouter({
     // root now opens NSI Dashboard; keep any guards/meta from old '/'
     // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
     { path: '/', name: 'home', component: NsiDashboardPage },
-    // legacy home remains accessible
-    { path: '/home-legacy', name: 'home-legacy', component: Home },
     {
       path: '/nsi',
       name: 'nsi-dashboard',
