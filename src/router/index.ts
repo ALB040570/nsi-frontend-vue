@@ -19,8 +19,11 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
+    // root now opens NSI Dashboard; keep any guards/meta from old '/'
     // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
-    { path: '/', name: 'home', component: Home },
+    { path: '/', name: 'home', component: NsiDashboardPage },
+    // legacy home remains accessible
+    { path: '/home-legacy', name: 'home-legacy', component: Home },
     {
       path: '/nsi',
       name: 'nsi-dashboard',
