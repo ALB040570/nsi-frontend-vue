@@ -15,7 +15,7 @@ const ComponentsPage = () => import('@pages/nsi/ComponentsPage.vue')
 const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory('/dtj/nsi'),
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
     // root now opens NSI Dashboard; keep any guards/meta from old '/'

@@ -136,26 +136,31 @@ async function resolvePwaPlugin(): Promise<PluginOption | null> {
   try {
     const mod = await import('vite-plugin-pwa')
     if (typeof mod?.VitePWA !== 'function') return null
-return mod.VitePWA({
-  registerType: 'autoUpdate',
-  injectRegister: false,        // у тебя своя регистрация через pwa.ts — норм
-  devOptions: { enabled: false }, // <— ДОБАВЬ ЭТО
-  includeAssets: ['favicon.ico'],
-  manifest: {
-    name: 'NSI',
-    short_name: 'NSI',
-    start_url: '/',
-    display: 'standalone',
-    background_color: '#006d77',
-    theme_color: '#006d77',
-    icons: [
-      { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-      { src: '/icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
-      { src: '/icons/maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
-    ]
-  },
-  workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg}'] }
-})
+    return mod.VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: false, // у тебя своя регистрация через pwa.ts — норм
+      devOptions: { enabled: false }, // <— ДОБАВЬ ЭТО
+      includeAssets: ['favicon.ico'],
+      manifest: {
+        name: 'NSI',
+        short_name: 'NSI',
+        start_url: '/dtj/nsi/',
+        display: 'standalone',
+        background_color: '#006d77',
+        theme_color: '#006d77',
+        icons: [
+          { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: '/icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          {
+            src: '/icons/maskable-icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: { globPatterns: ['**/*.{js,css,html,ico,png,svg}'] },
+    })
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     console.warn(`[vite-config] vite-plugin-pwa unavailable: ${reason}`)
@@ -174,6 +179,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins,
+    base: '/dtj/nsi/',
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),
