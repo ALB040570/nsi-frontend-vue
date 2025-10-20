@@ -809,22 +809,38 @@ export async function createParameter(
 interface SaveParamComponentValuePayload {
   codProp: string
   value: number | null
+  valueId: number | null | undefined
 }
 
 async function saveParamComponentValue(
   relationId: number,
   relationName: string,
-  { codProp, value }: SaveParamComponentValuePayload,
+  { codProp, value, valueId }: SaveParamComponentValuePayload,
 ) {
   if (value === null || value === undefined) return
+
+  const hasExistingValue = valueId !== null && valueId !== undefined
+  const relationOwn = Number(relationId)
+  const ensuredRelationOwn = Number.isFinite(relationOwn) ? relationOwn : relationId
 
   const basePayload: Record<string, unknown> = {
     name: relationName,
     codProp,
-    own: relationId,
+    own: ensuredRelationOwn,
     isObj: 0,
     val: String(value),
-    mode: 'upd',
+    mode: hasExistingValue ? 'upd' : 'ins',
+  }
+
+  if (hasExistingValue) {
+    const numericId = Number(valueId)
+    const ensuredId = Number.isFinite(numericId) ? numericId : valueId
+    basePayload.idPropVal = ensuredId
+
+    if (typeof codProp === 'string' && codProp.startsWith('Prop_')) {
+      const specificIdKey = `id${codProp.slice('Prop_'.length)}`
+      basePayload[specificIdKey] = ensuredId
+    }
   }
 
   try {
@@ -934,14 +950,17 @@ export async function updateParameter(
   await saveParamComponentValue(relationId, relationName, {
     codProp: 'Prop_ParamsLimitMax',
     value: limitMax,
+    valueId: details.limitMaxId,
   })
   await saveParamComponentValue(relationId, relationName, {
     codProp: 'Prop_ParamsLimitMin',
     value: limitMin,
+    valueId: details.limitMinId,
   })
   await saveParamComponentValue(relationId, relationName, {
     codProp: 'Prop_ParamsLimitNorm',
     value: limitNorm,
+    valueId: details.limitNormId,
   })
 
   await rpcWithDebug(
