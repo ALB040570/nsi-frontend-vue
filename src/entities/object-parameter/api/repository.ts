@@ -46,10 +46,7 @@ async function rpcWithDebug<T = unknown, TParams = unknown>(
     return await rpc<T>(method, params)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    console.error(
-      `[object-parameter] RPC ${method} failed at ${context}: ${message}`,
-      { params },
-    )
+    console.error(`[object-parameter] RPC ${method} failed at ${context}: ${message}`, { params })
     throw new Error(`${context}: ${message}`)
   }
 }
@@ -137,7 +134,12 @@ function pickBoolean(source: Record<string, unknown>, keys: string[]): boolean {
       const normalized = raw.trim().toLowerCase()
       if (!normalized) continue
       if (STRING_TRUE.has(normalized)) return true
-      if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'n') {
+      if (
+        normalized === '0' ||
+        normalized === 'false' ||
+        normalized === 'no' ||
+        normalized === 'n'
+      ) {
         return false
       }
     }
@@ -166,7 +168,10 @@ function createDirectoryLookup(options: DirectoryOption[]): DirectoryLookup {
   }, {})
 }
 
-function toMeasureOption(item: RpcDirectoryItem, fallbackName: string): ParameterMeasureOption | null {
+function toMeasureOption(
+  item: RpcDirectoryItem,
+  fallbackName: string,
+): ParameterMeasureOption | null {
   const record = asRecord(item)
   const id = pickNumber(record, ['id', 'measureId', 'meaParamsMeasure'])
   const pv = pickNumber(record, ['pv', 'pvParamsMeasure'])
@@ -181,7 +186,10 @@ function toMeasureOption(item: RpcDirectoryItem, fallbackName: string): Paramete
   }
 }
 
-function toSourceOption(item: RpcDirectoryItem, fallbackName: string): ParameterSourceOption | null {
+function toSourceOption(
+  item: RpcDirectoryItem,
+  fallbackName: string,
+): ParameterSourceOption | null {
   const record = asRecord(item)
   const id = pickNumber(record, ['id', 'collectionId', 'objCollections'])
   const pv = pickNumber(record, ['pv', 'pvCollections'])
@@ -217,7 +225,8 @@ function toComponentOption(item: RpcParamsComponentRecord): ParameterComponentOp
   }
 }
 
-const compareByNameRu = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'ru')
+const compareByNameRu = (a: { name: string }, b: { name: string }) =>
+  a.name.localeCompare(b.name, 'ru')
 
 function mapParameter(
   item: RpcParameterItem,
@@ -228,11 +237,19 @@ function mapParameter(
   const id = pickString(record, ['id', 'parameterId', 'parameter_id']) ?? `parameter-${index}`
   const numericId = pickNumber(record, ['id', 'ID', 'number'])
   const name =
-    pickString(record, ['name', 'parameterName', 'parameter_name', 'title', 'ParamsName', 'paramsName']) ??
-    `Параметр ${index + 1}`
+    pickString(record, [
+      'name',
+      'parameterName',
+      'parameter_name',
+      'title',
+      'ParamsName',
+      'paramsName',
+    ]) ?? `Параметр ${index + 1}`
   const code = pickString(record, ['code', 'parameterCode', 'mnemo', 'mnemonic'])
   const valueType =
-    pickString(record, ['valueType', 'value_type', 'type']) ?? pickString(record, ['dataType', 'data_type']) ?? 'string'
+    pickString(record, ['valueType', 'value_type', 'type']) ??
+    pickString(record, ['dataType', 'data_type']) ??
+    'string'
   const unitId =
     pickString(record, ['unitId', 'unit_id', 'measureId', 'measure_id', 'pvParamsMeasure']) ??
     pickString(record, ['unit', 'measure'])
@@ -245,13 +262,16 @@ function mapParameter(
       'collectionId',
       'collection_id',
       'pvCollections',
-    ]) ??
-    pickString(record, ['collection', 'source'])
+    ]) ?? pickString(record, ['collection', 'source'])
   const minValue = pickNumber(record, ['minValue', 'min_value', 'min'])
   const maxValue = pickNumber(record, ['maxValue', 'max_value', 'max'])
   const isRequired = pickBoolean(record, ['isRequired', 'required', 'is_required', 'mandatory'])
   const note = pickString(record, ['note', 'comment', 'description', 'remark', 'ParamsComment'])
-  const description = pickString(record, ['ParamsDescription', 'description', 'parameterDescription'])
+  const description = pickString(record, [
+    'ParamsDescription',
+    'description',
+    'parameterDescription',
+  ])
   const cls = pickNumber(record, ['cls', 'CLS'])
   const accessLevel = pickNumber(record, ['accessLevel'])
   const idCollections = pickNumber(record, ['idCollections'])
@@ -365,10 +385,14 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
 
   // Дополнительно: связи параметр ↔ компонент и справочник компонентов
   const [relationsResponse, componentsResponse] = await Promise.all([
-    rpcWithDebug('data/loadComponentsObject2', ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components'], 'Снапшот: загрузка доп. связей').catch(
+    rpcWithDebug(
+      'data/loadComponentsObject2',
+      ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components'],
+      'Снапшот: загрузка доп. связей',
+    ).catch(() => null),
+    rpcWithDebug('data/loadComponents', [0], 'Снапшот: загрузка справочника компонентов').catch(
       () => null,
     ),
-    rpcWithDebug('data/loadComponents', [0], 'Снапшот: загрузка справочника компонентов').catch(() => null),
   ])
 
   const unitItems = extractArray<RpcDirectoryItem>(measureResponse)
@@ -379,26 +403,30 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
   const allComponentItems = extractArray<Record<string, unknown>>(componentsResponse)
 
   const unitOptions = unitItems.map((item, index) =>
-    toDirectoryOption(item, `unit-${index}`, ['pv', 'id', 'measureId', 'measure_id', 'unitId', 'unit_id'], [
-      'name',
-      'shortName',
-      'short_name',
-      'fullName',
-      'full_name',
-      'caption',
-      'title',
-      'ParamsMeasureName',
-    ]),
+    toDirectoryOption(
+      item,
+      `unit-${index}`,
+      ['pv', 'id', 'measureId', 'measure_id', 'unitId', 'unit_id'],
+      [
+        'name',
+        'shortName',
+        'short_name',
+        'fullName',
+        'full_name',
+        'caption',
+        'title',
+        'ParamsMeasureName',
+      ],
+    ),
   )
 
   const sourceOptions = sourceItems.map((item, index) =>
-    toDirectoryOption(item, `source-${index}`, ['id', 'collectionId', 'collection_id', 'sourceId', 'source_id', 'pv'], [
-      'name',
-      'caption',
-      'title',
-      'description',
-      'ParamsCollectionName',
-    ]),
+    toDirectoryOption(
+      item,
+      `source-${index}`,
+      ['id', 'collectionId', 'collection_id', 'sourceId', 'source_id', 'pv'],
+      ['name', 'caption', 'title', 'description', 'ParamsCollectionName'],
+    ),
   )
 
   const unitDirectory = createDirectoryLookup(unitOptions)
@@ -552,7 +580,9 @@ export async function loadParameterComponents(): Promise<ParameterComponentOptio
 const ensureFiniteNumber = (value: number | null | undefined): number | null =>
   typeof value === 'number' && Number.isFinite(value) ? value : null
 
-export async function createParameter(payload: CreateParameterPayload): Promise<LoadedObjectParameter> {
+export async function createParameter(
+  payload: CreateParameterPayload,
+): Promise<LoadedObjectParameter> {
   const name = payload.name.trim()
   if (!name) throw new Error('Укажите наименование параметра')
 
@@ -794,11 +824,15 @@ async function saveParamComponentValue(
     own: relationId,
     isObj: 0,
     val: String(value),
-    mode: 'ins',
+    mode: 'upd',
   }
 
   try {
-    await rpcWithDebug('data/saveParamComponentValue', [basePayload], `Сохранение значения ${codProp}`)
+    await rpcWithDebug(
+      'data/saveParamComponentValue',
+      [basePayload],
+      `Сохранение значения ${codProp}`,
+    )
   } catch (error) {
     throw error
   }
@@ -831,7 +865,9 @@ function buildUpdatedDetails(
   }
 }
 
-export async function updateParameter(payload: UpdateParameterPayload): Promise<LoadedObjectParameter> {
+export async function updateParameter(
+  payload: UpdateParameterPayload,
+): Promise<LoadedObjectParameter> {
   const name = payload.name.trim()
   if (!name) throw new Error('Укажите наименование параметра')
 
@@ -867,7 +903,8 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
 
   if (details.sourceRecordId !== null) paramsPayload.idCollections = details.sourceRecordId
   if (details.measureRecordId !== null) paramsPayload.idParamsMeasure = details.measureRecordId
-  if (details.descriptionRecordId !== null) paramsPayload.idParamsDescription = details.descriptionRecordId
+  if (details.descriptionRecordId !== null)
+    paramsPayload.idParamsDescription = details.descriptionRecordId
 
   const saveParamsResponse = await rpcWithDebug(
     'data/saveParams',
@@ -879,17 +916,18 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
   const saveRecord = saveRecords[0] ? asRecord(saveRecords[0]) : null
 
   const nextSourceRecordId = saveRecord
-    ? pickNumber(saveRecord, ['idCollections']) ?? details.sourceRecordId
+    ? (pickNumber(saveRecord, ['idCollections']) ?? details.sourceRecordId)
     : details.sourceRecordId
   const nextMeasureRecordId = saveRecord
-    ? pickNumber(saveRecord, ['idParamsMeasure']) ?? details.measureRecordId
+    ? (pickNumber(saveRecord, ['idParamsMeasure']) ?? details.measureRecordId)
     : details.measureRecordId
   const nextDescriptionRecordId = saveRecord
-    ? pickNumber(saveRecord, ['idParamsDescription']) ?? details.descriptionRecordId
+    ? (pickNumber(saveRecord, ['idParamsDescription']) ?? details.descriptionRecordId)
     : details.descriptionRecordId
 
   const relationId = details.componentRelationId
-  if (!relationId) throw new Error('Не удалось определить идентификатор связи параметра и компонента')
+  if (!relationId)
+    throw new Error('Не удалось определить идентификатор связи параметра и компонента')
 
   const relationName = `${name} <=> ${payload.component.name}`
 
@@ -959,7 +997,9 @@ export async function updateParameter(payload: UpdateParameterPayload): Promise<
     sourcePv: payload.source.pv,
     componentRelationName: relationName,
     descriptionRecordId:
-      nextDescriptionRecordId !== null ? Number(nextDescriptionRecordId) : details.descriptionRecordId,
+      nextDescriptionRecordId !== null
+        ? Number(nextDescriptionRecordId)
+        : details.descriptionRecordId,
     componentCls: payload.component.cls,
     componentRelcls: payload.component.relcls,
     componentRcm: payload.component.rcm,

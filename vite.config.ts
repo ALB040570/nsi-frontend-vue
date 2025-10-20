@@ -140,7 +140,7 @@ async function resolvePwaPlugin(): Promise<PluginOption | null> {
       registerType: 'autoUpdate',
       injectRegister: false, // у тебя своя регистрация через pwa.ts — норм
       devOptions: { enabled: false }, // <— ДОБАВЬ ЭТО
-      includeAssets: ['favicon.ico'],
+      includeAssets: ['favicon.png'],
       manifest: {
         name: 'NSI',
         short_name: 'NSI',

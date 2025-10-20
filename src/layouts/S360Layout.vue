@@ -17,7 +17,6 @@
 
         <router-link to="/" class="s360-logo">
           <img :src="logoMark" alt="Service 360" class="logo-mark" />
-          <span class="logo-text">Service 360</span>
         </router-link>
       </div>
 
@@ -167,7 +166,7 @@ import {
   EllipsisHorizontal,
 } from '@vicons/ionicons5'
 
-import logoMark from '@/assets/logo.svg'
+import logoMark from '@/assets/logo.png'
 import { useAuth } from '@features/auth'
 import { useUiSidebar } from '@features/ui'
 
@@ -716,8 +715,8 @@ onBeforeUnmount(() => {
 }
 
 .logo-mark {
-  width: 34px;
-  height: 34px;
+  width: 70.51px;
+  height: 50px;
 }
 
 .logo-text {

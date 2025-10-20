@@ -95,7 +95,7 @@ import { NButton, NIcon, NInput, NSpin, NSwitch, NTooltip } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 
 import { useNsiSearch } from '@features/nsi-dashboard'
-import type { NsiSearchResult } from '@entities/nsi-dashboard'
+import type { NsiSearchResult, NsiSearchResultType } from '@entities/nsi-dashboard'
 
 defineOptions({
   name: 'NsiDashboardCtaRow',
@@ -172,23 +172,31 @@ watch(trimmedQuery, (value) => {
     void runSearch(value)
   }, 250)
 })
-function normalizeToArray(input: any): any[] {
+function normalizeToArray<T = Record<string, unknown>>(input: unknown): T[] {
   if (!input) return []
-  if (Array.isArray(input)) return input
+  if (Array.isArray(input)) return input as T[]
+
+  const obj = input as {
+    items?: T[]
+    records?: T[]
+    data?: T[]
+    result?: T[] | { items?: T[] }
+    payload?: { items?: T[] }
+  }
 
   // самые частые варианты обёрток
-  if (Array.isArray(input.items)) return input.items
-  if (Array.isArray(input.records)) return input.records
-  if (Array.isArray(input.data)) return input.data
-  if (Array.isArray(input.result)) return input.result
-  if (input.result && Array.isArray(input.result.items)) return input.result.items
-  if (input.payload && Array.isArray(input.payload.items)) return input.payload.items
+  if (Array.isArray(obj.items)) return obj.items
+  if (Array.isArray(obj.records)) return obj.records
+  if (Array.isArray(obj.data)) return obj.data
+  if (Array.isArray(obj.result)) return obj.result as T[]
+  if (obj.result && Array.isArray((obj.result as { items?: T[] }).items)) return (obj.result as { items?: T[] }).items as T[]
+  if (obj.payload && Array.isArray(obj.payload.items)) return obj.payload.items
 
   // single item → массив из одного элемента
-  return [input]
+  return [input as T]
 }
 
-function mapResultRecord(r: any, i: number) {
+function mapResultRecord(r: Record<string, unknown>, i: number) {
   const type = r.type ?? r.kind ?? r.entity ?? r.category ?? 'unknown'
 
   const id = r.id ?? r.uuid ?? r.idro ?? r.iddoc ?? r.obj ?? `${type}-${i}`
@@ -204,15 +212,24 @@ function mapResultRecord(r: any, i: number) {
     r.caption ??
     String(id)
 
-  const extra = r.code ?? r.shortCode ?? r.path ?? r.group ?? undefined
+  const extra =
+    (typeof r.code === 'string'
+      ? r.code
+      : typeof r.shortCode === 'string'
+        ? r.shortCode
+        : typeof r.path === 'string'
+          ? r.path
+          : typeof r.group === 'string'
+            ? r.group
+            : undefined) as string | undefined
 
   return {
     ...r,
     id: String(id),
-    type: String(type),
+    type: String(type) as NsiSearchResultType,
     title: String(title),
     extra,
-  }
+  } as NsiSearchResult & Record<string, unknown>
 }
 
 async function runSearch(query: string) {
