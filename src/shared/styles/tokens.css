@@ -4,7 +4,45 @@
 
 :root{
   --s360-radius: 12px;
+  --s360-radius-lg: 16px;
   --s360-gap: 10px;
+  --s360-space-xs: 4px;
+  --s360-space-sm: 8px;
+  --s360-space-md: 12px;
+  --s360-space-lg: 16px;
+  --s360-space-xl: 24px;
+  --s360-space-xxl: 32px;
   --s360-shadow: 0 1px 6px rgba(0,0,0,.08);
+  --s360-shadow-lg: 0 18px 40px rgba(15,23,42,0.08);
   --s360-color-primary: #006d77;
+  --s360-color-primary-soft: rgba(0,109,119,0.08);
+  --s360-color-surface: #ffffff;
+  --s360-color-elevated: #ffffff;
+  --s360-color-border-subtle: rgba(15,23,42,0.08);
+  --s360-text-primary: #1f2937;
+  --s360-text-muted: #6b7280;
+  --s360-text-accent: #006d77;
+  --s360-text-success: #18a058;
+  --s360-text-warning: #c99700;
+  --s360-text-critical: #d03050;
+  --s360-color-info-soft: rgba(64,128,255,0.12);
+  --s360-color-warning-soft: rgba(250,173,20,0.12);
+  --s360-color-critical-soft: rgba(208,48,80,0.12);
+  --s360-color-success-soft: rgba(24,160,88,0.12);
+  --s360-color-neutral-soft: rgba(15,23,42,0.04);
+  --s360-container-max-width: 1280px;
+  --s360-overlay-veil: rgba(255,255,255,0.85);
+  --s360-font-title-lg: 24px;
+  --s360-font-title-md: 18px;
+  --s360-font-body: 14px;
+  --s360-font-caption: 13px;
+}
+
+/* Minimal palette tokens requested */
+:root {
+  --s360-bg: #ffffff;
+  --s360-surface: #f7f7f8;
+  --s360-border: #e5e7eb;
+  --s360-text: #111827;
+  --s360-accent: #2563eb;
 }

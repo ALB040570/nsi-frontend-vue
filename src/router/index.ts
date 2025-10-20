@@ -5,7 +5,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '@features/auth'
 
-const Home = () => import('@pages/HomePage.vue')
+const NsiDashboardPage = () => import('@pages/nsi/NsiDashboardPage.vue')
 const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
 const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
@@ -18,8 +18,15 @@ const router = createRouter({
   history: createWebHistory(),
   routes: [
     { path: '/login', name: 'login', component: LoginPage },
+    // root now opens NSI Dashboard; keep any guards/meta from old '/'
     // { path: '/', name: 'home', component: Home, meta: { requiresAuth: true } },
-    { path: '/', name: 'home', component: Home },
+    { path: '/', name: 'home', component: NsiDashboardPage },
+    {
+      path: '/nsi',
+      name: 'nsi-dashboard',
+      component: NsiDashboardPage,
+      // meta: { requiresAuth: true },
+    },
     {
       path: '/nsi/object-types',
       name: 'object-types',

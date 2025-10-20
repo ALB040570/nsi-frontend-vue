@@ -27,7 +27,7 @@ import type { ComponentRecord, ComponentSaveRecord } from '../model/dto'
 const LOAD_COMPONENTS_METHOD = 'data/loadComponents'
 const LOAD_DEFECTS_METHOD = 'data/loadDefects'
 const SAVE_COMPONENTS_METHOD = 'data/saveComponents'
-const DELETE_COMPONENTS_METHOD = 'data/deleteComponents'
+const DELETE_COMPONENTS_METHOD = 'data/deleteOwnerWithProperties'
 
 const OBJECT_TYPE_REL_ARGS = ['RT_Components', 'Typ_ObjectTyp', 'Typ_Components'] as const
 const PARAMETER_REL_ARGS = ['RT_ParamsComponent', 'Typ_Parameter', 'Typ_Components'] as const
@@ -509,7 +509,7 @@ export async function deleteComponentEntry(id: number | string): Promise<void> {
   const key = String(id)
   memoryComponents.delete(key)
   try {
-    await rpc(DELETE_COMPONENTS_METHOD, [id])
+    await rpc(DELETE_COMPONENTS_METHOD, [Number(id), 1])
   } catch (error) {
     console.error('Не удалось удалить компонент', error)
   }

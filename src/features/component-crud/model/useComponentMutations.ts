@@ -9,8 +9,6 @@ import {
   deleteComponentEntry,
   type CreateComponentPayload,
   type UpdateComponentPayload,
-  type LoadedComponentWithRelations,
-  type ComponentsSnapshot,
 } from '@entities/component'
 
 export function useComponentMutations() {
@@ -19,18 +17,8 @@ export function useComponentMutations() {
 
   const create = useMutation({
     mutationFn: (payload: CreateComponentPayload) => createComponentEntry(payload),
-    onSuccess: (created: LoadedComponentWithRelations) => {
-      const prev = qc.getQueryData<ComponentsSnapshot>(['components'])
-      if (prev) {
-        const items = [created, ...prev.items]
-        qc.setQueryData<ComponentsSnapshot>(['components'], {
-          ...prev,
-          items: items.sort((a, b) => a.name.localeCompare(b.name, 'ru')),
-        })
-      } else {
-        invalidate()
-      }
-    },
+    // Invalidate explicitly after relations sync on the page to avoid double refresh here
+    onSuccess: () => {},
   })
 
   const update = useMutation({

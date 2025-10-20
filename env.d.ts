@@ -1,7 +1,7 @@
 /// <reference types="vite-plugin-pwa/client" />
 /// <reference types="vite/client" />
 
-
+/// <reference types="msw" />
 
 interface ImportMetaEnv {
   readonly VITE_API_BASE?: string

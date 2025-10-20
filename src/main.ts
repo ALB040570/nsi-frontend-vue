@@ -9,6 +9,7 @@ import './assets/styles/service360.css'
 import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import { i18n } from '@shared/i18n'
 import {
   NConfigProvider,
   NDialogProvider,
@@ -83,6 +84,7 @@ app.provide(loadingBarKey, discreteApis.loadingBar)
 app.use(createPinia())
 app.use(VueQueryPlugin, { queryClient })
 app.use(router)
+app.use(i18n)
 
 app.mount('#app')
 registerPWA()
