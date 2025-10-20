@@ -46,6 +46,9 @@ import router from '@app/router'
 import { http } from '@shared/api/httpClient'
 import { useObjectTypesQuery } from '@features/object-type-crud'
 import { objectTypeRepo } from '@entities/object-type'
+import { useSourcesQuery } from '@features/source-crud'
+import { fetchNsiCoverage } from '@entities/nsi-dashboard'
+import { useUiSidebar } from '@features/ui'
 ```
 
 ---
@@ -118,8 +121,14 @@ src/pages/<ns>/NewPage.vue
 
 ## Чек-лист перед коммитом/PR
 
-1. `npm run typecheck`  
-2. `npm run lint` (или `lint:fix`)  
-3. `npm run format` (или `format:fix`)  
-4. Скриншот/описание UI-изменений в PR  
-5. Обновите `.env.example` и документацию, если менялось окружение  
+1. `npm run typecheck`
+2. `npm run lint` (или `lint:fix`)
+3. `npm run format` (или `format:fix`)
+4. Скриншот/описание UI-изменений в PR
+5. Обновите `.env.example` и документацию, если менялось окружение
+
+---
+
+## Codemods
+
+- `node scripts/codemods/replace-nsi-dashboard-imports.mjs` — массовая замена импортов `@/services/nsiDashboard.api` на публичный API `@entities/nsi-dashboard`.

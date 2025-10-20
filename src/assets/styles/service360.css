@@ -20,52 +20,52 @@ body {
 
 /* Основная кнопка — морская волна */
 .btn-primary {
-  background-color: #006d77;
+  background-color: #2b6cb0;
   color: #fff;
   border: none;
 }
 .btn-primary:hover {
-  background-color: #00565d;
+  background-color: #2c5282;
 }
 
 /* Вторичная кнопка (светлая рамка) */
 .btn-outline {
   background: transparent;
-  color: #006d77;
-  border: 1px solid #006d77;
+  color: #212529;
+  border: 1px solid #DEE2E6;
 }
 .btn-outline:hover {
-  background: rgba(0, 109, 119, 0.08);
+  background: #f8fafc;
 }
 
 /* Кнопка-danger (удаление/критические действия) */
 .btn-danger {
-  background-color: #d64550;
+  background-color: #DC3545;
   color: #fff;
   border: none;
 }
 .btn-danger:hover {
-  background-color: #ab3740;
+  background-color: #BB2D3B;
 }
 
 /* Кнопка-warning (предупреждения) */
 .btn-warning {
-  background-color: #e2b100;
-  color: #fff;
+  background-color: #FFC107;
+  color: #212529;
   border: none;
 }
 .btn-warning:hover {
-  background-color: #b58d00;
+  background-color: #FFCA2C;
 }
 
 /* Кнопка-success (сохранение/подтверждение) */
 .btn-success {
-  background-color: #3b9d78;
+  background-color: #198754;
   color: #fff;
   border: none;
 }
 .btn-success:hover {
-  background-color: #2f7e60;
+  background-color: #157347;
 }
 
 /* ========================
@@ -82,8 +82,8 @@ body {
 
 /* Заголовок таблицы */
 .table-s360 thead th {
-  background-color: #006d77;
-  color: #fff;
+  background-color: #f8fafc;
+  color: #212529;
   text-align: left;
   padding: 8px 12px;
 }
@@ -106,7 +106,7 @@ body {
 .h1-s360 {
   font-size: 24px;
   font-weight: bold;
-  color: #006d77;
+  color: #2b6cb0;
   margin-bottom: 16px;
 }
 
@@ -151,52 +151,52 @@ body {
 
 /* Основная кнопка — морская волна */
 .btn-primary {
-  background-color: #006d77;
+  background-color: #2b6cb0;
   color: #fff;
   border: none;
 }
 .btn-primary:hover {
-  background-color: #00565d;
+  background-color: #2c5282;
 }
 
 /* Вторичная кнопка (светлая рамка) */
 .btn-outline {
   background: transparent;
-  color: #006d77;
-  border: 1px solid #006d77;
+  color: #2b6cb0;
+  border: 1px solid #2b6cb0;
 }
 .btn-outline:hover {
-  background: rgba(0, 109, 119, 0.08);
+  background: rgba(43, 108, 176, 0.08);
 }
 
 /* Кнопка-danger (удаление/критические действия) */
 .btn-danger {
-  background-color: #d64550;
+  background-color: #DC3545;
   color: #fff;
   border: none;
 }
 .btn-danger:hover {
-  background-color: #ab3740;
+  background-color: #BB2D3B;
 }
 
 /* Кнопка-warning (предупреждения) */
 .btn-warning {
-  background-color: #e2b100;
-  color: #fff;
+  background-color: #FFC107;
+  color: #212529;
   border: none;
 }
 .btn-warning:hover {
-  background-color: #b58d00;
+  background-color: #FFCA2C;
 }
 
 /* Кнопка-success (сохранение/подтверждение) */
 .btn-success {
-  background-color: #3b9d78;
+  background-color: #198754;
   color: #fff;
   border: none;
 }
 .btn-success:hover {
-  background-color: #2f7e60;
+  background-color: #157347;
 }
 
 /* ========================
@@ -205,7 +205,7 @@ body {
 
 /* Общий стиль таблицы */
 .table-s360 {
-  border: 1px solid #ddd;
+  border: 1px solid #E9ECEF;
   border-radius: 8px;
   overflow: hidden;
   font-size: 14px;
@@ -213,8 +213,8 @@ body {
 
 /* Заголовок таблицы */
 .table-s360 thead th {
-  background-color: #006d77;
-  color: #fff;
+  background-color: #f8fafc;
+  color: #212529;
   text-align: left;
   padding: 8px 12px;
 }
@@ -237,7 +237,7 @@ body {
 .h1-s360 {
   font-size: 24px;
   font-weight: bold;
-  color: #006d77;
+  color: #2b6cb0;
   margin-bottom: 16px;
 }
 
@@ -304,3 +304,4 @@ body {
   --s360-shadow-hover: 0 4px 12px rgba(20, 30, 50, 0.08);
   --s360-text-head: #334155;
 }
+

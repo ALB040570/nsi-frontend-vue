@@ -9,6 +9,7 @@ import './assets/styles/service360.css'
 import { createApp, h } from 'vue'
 import { createPinia } from 'pinia'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
+import { i18n } from '@shared/i18n'
 import {
   NConfigProvider,
   NDialogProvider,
@@ -27,14 +28,16 @@ import { registerPWA } from './pwa'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#006d77',
-    primaryColorHover: '#338f94',
-    primaryColorPressed: '#00565d',
-    primaryColorSuppl: '#338f94',
-    infoColor: '#4ecdc4',
-    successColor: '#3b9d78',
-    warningColor: '#e2b100',
-    errorColor: '#d64550',
+    // Brand (cool blue)
+    primaryColor: '#2b6cb0',
+    primaryColorHover: '#2c5282',
+    primaryColorPressed: '#2A4365',
+    primaryColorSuppl: '#3182ce',
+    // Status
+    infoColor: '#63b3ed',
+    successColor: '#198754',
+    warningColor: '#FFC107',
+    errorColor: '#DC3545',
   },
 }
 
@@ -83,6 +86,7 @@ app.provide(loadingBarKey, discreteApis.loadingBar)
 app.use(createPinia())
 app.use(VueQueryPlugin, { queryClient })
 app.use(router)
+app.use(i18n)
 
 app.mount('#app')
 registerPWA()

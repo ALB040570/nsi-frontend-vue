@@ -6,13 +6,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Параметры обслуживаемых объектов»
+          {{ t('nsi.objectTypes.params.title', {}, { default: 'Справочник «Параметры обслуживаемых объектов»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.params.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,22 +21,27 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Управляйте перечнем параметров обслуживаемых объектов и контролируйте их диапазоны
-          значений
+          {{ t('nsi.objectTypes.params.subtitle', {}, { default: 'Управляйте перечнем параметров обслуживаемых объектов и контролируйте их диапазоны значений' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
-        <NInput v-model:value="q" placeholder="Поиск…" clearable round class="toolbar__search" />
+        <NInput
+          v-model:value="q"
+          :placeholder="t('nsi.objectTypes.params.searchPlaceholder', {}, { default: 'Поиск…' })"
+          clearable
+          round
+          class="toolbar__search"
+        />
         <NSelect
           v-if="isMobile"
           v-model:value="sortOrder"
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.params.sortAria', {}, { default: 'Порядок сортировки' })"
         />
-        <NButton type="primary" @click="openCreate">+ Добавить параметр</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.params.add', {}, { default: 'Добавить параметр' }) }}</NButton>
       </div>
     </NCard>
 
@@ -53,7 +58,9 @@
       />
 
       <div v-else class="cards">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.params.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in rows"
           :key="item.id"
@@ -90,7 +97,9 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Показать ещё</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">
+          {{ t('nsi.objectTypes.params.showMore', {}, { default: 'Показать ещё' }) }}
+        </NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -101,10 +110,10 @@
           :item-count="total"
           show-size-picker
           show-quick-jumper
-          aria-label="Постраничная навигация по параметрам"
+          :aria-label="t('nsi.objectTypes.params.paginationAria', {}, { default: 'Постраничная навигация по параметрам' })"
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">{{ t('nsi.objectTypes.params.total', { total }, { default: 'Всего: ' + total }) }}</span>
           </template>
         </NPagination>
       </div>
@@ -113,19 +122,17 @@
     <NModal
       v-model:show="infoOpen"
       preset="card"
-      title="О справочнике"
+      :title="t('nsi.objectTypes.params.info.title', {}, { default: 'О справочнике' })"
       style="max-width: 640px; width: 92vw"
     >
       <p>
-        Здесь собраны параметры, необходимые для контроля состояния и эксплуатации обслуживаемых
-        объектов. Указывайте единицу измерения, компонент и допустимые границы значений.
+        {{ t('nsi.objectTypes.params.info.p1', {}, { default: 'Здесь собраны параметры, необходимые для контроля состояния и эксплуатации обслуживаемых объектов. Указывайте единицу измерения, компонент и допустимые границы значений.' }) }}
       </p>
       <p>
-        Используйте кнопку «Добавить параметр», чтобы создать запись, выбрать компонент и задать
-        допустимые границы значений. Имеется возможность редактирования и удаления существующих записей, которые еще не использовались в системе учета работ или мониторинга.
+        {{ t('nsi.objectTypes.params.info.p2', {}, { default: 'Используйте кнопку «Добавить параметр», чтобы создать запись, выбрать компонент и задать допустимые границы значений. Имеется возможность редактирования и удаления существующих записей, которые еще не использовались в системе учета работ или мониторинга.' }) }}
       </p>
       <template #footer>
-        <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+        <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.params.info.ok', {}, { default: 'Понятно' }) }}</NButton>
       </template>
     </NModal>
 
@@ -145,54 +152,54 @@
           :label-placement="isMobile ? 'top' : 'left'"
           :class="['creation-form', { 'creation-form--mobile': isMobile }]"
         >
-          <NFormItem label="Наименование параметра" path="name">
+          <NFormItem :label="t('nsi.objectTypes.params.form.name.label', {}, { default: 'Наименование параметра' })" path="name">
             <NInput
               v-model:value="creationForm.name"
-              placeholder="Введите наименование нового параметра"
+              :placeholder="t('nsi.objectTypes.params.form.name.placeholder', {}, { default: 'Введите наименование нового параметра' })"
             />
           </NFormItem>
 
-          <NFormItem label="Единица измерения" path="measureId">
+          <NFormItem :label="t('nsi.objectTypes.params.form.measure.label', {}, { default: 'Единица измерения' })" path="measureId">
             <CreatableSelect
               :value="creationForm.measureId"
               :options="measureSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
               :multiple="false"
-              :placeholder="'Выберите единицу измерения'"
+              :placeholder="t('nsi.objectTypes.params.form.measure.placeholder', {}, { default: 'Выберите единицу измерения' })"
               :create="createMeasureOption"
               @created="handleMeasureCreated"
               @update:value="(v) => (creationForm.measureId = typeof v === 'string' ? v : null)"
             />
           </NFormItem>
 
-          <NFormItem label="Источник" path="sourceId">
+          <NFormItem :label="t('nsi.objectTypes.params.form.source.label', {}, { default: 'Источник' })" path="sourceId">
             <CreatableSelect
               :value="creationForm.sourceId"
               :options="sourceSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
               :multiple="false"
-              :placeholder="'Выберите источник данных'"
+              :placeholder="t('nsi.objectTypes.params.form.source.placeholder', {}, { default: 'Выберите источник данных' })"
               @update:value="(v) => (creationForm.sourceId = typeof v === 'string' ? v : null)"
             />
           </NFormItem>
 
-          <NFormItem label="Описание">
+          <NFormItem :label="t('nsi.objectTypes.params.form.description.label', {}, { default: 'Описание' })">
             <NInput
               v-model:value="creationForm.description"
               type="textarea"
               :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="Добавьте описание параметра"
+              :placeholder="t('nsi.objectTypes.params.form.description.placeholder', {}, { default: 'Добавьте описание параметра' })"
             />
           </NFormItem>
 
-          <NFormItem label="Компонент" path="componentEnt">
+          <NFormItem :label="t('nsi.objectTypes.params.form.component.label', {}, { default: 'Компонент' })" path="componentEnt">
             <ComponentsSelect
               :value="creationForm.componentEnt"
               :options="componentSelectOptions"
               :loading="directoriesLoading && !directoriesLoaded"
               :multiple="false"
               :value-kind="'id'"
-              :placeholder="'Выберите компонент'"
+              :placeholder="t('nsi.objectTypes.params.form.component.placeholder', {}, { default: 'Выберите компонент' })"
               :disabled="isEditMode"
               @created="handleComponentCreated"
               @update:value="(v) => (creationForm.componentEnt = typeof v === 'string' ? v : null)"
@@ -200,32 +207,32 @@
 
           </NFormItem>
 
-          <NFormItem label="Предельные значения (если применимо)">
+          <NFormItem :label="t('nsi.objectTypes.params.form.limits.label', {}, { default: 'Предельные значения (если применимо)' })">
             <div class="limits-grid">
               <div class="limits-grid__item">
-                <span class="limits-grid__label">Максимум</span>
+                <span class="limits-grid__label">{{ t('nsi.objectTypes.params.form.limits.max.label', {}, { default: 'Максимум' }) }}</span>
                 <NInputNumber
                   v-model:value="creationForm.limitMax"
                   :show-button="false"
-                  placeholder="Максимальное значение"
+                  :placeholder="t('nsi.objectTypes.params.form.limits.max.placeholder', {}, { default: 'Максимальное значение' })"
                   clearable
                 />
               </div>
               <div class="limits-grid__item">
-                <span class="limits-grid__label">Минимум</span>
+                <span class="limits-grid__label">{{ t('nsi.objectTypes.params.form.limits.min.label', {}, { default: 'Минимум' }) }}</span>
                 <NInputNumber
                   v-model:value="creationForm.limitMin"
                   :show-button="false"
-                  placeholder="Минимальное значение"
+                  :placeholder="t('nsi.objectTypes.params.form.limits.min.placeholder', {}, { default: 'Минимальное значение' })"
                   clearable
                 />
               </div>
               <div class="limits-grid__item">
-                <span class="limits-grid__label">Норма</span>
+                <span class="limits-grid__label">{{ t('nsi.objectTypes.params.form.limits.norm.label', {}, { default: 'Норма' }) }}</span>
                 <NInputNumber
                   v-model:value="creationForm.limitNorm"
                   :show-button="false"
-                  placeholder="Нормативное значение"
+                  :placeholder="t('nsi.objectTypes.params.form.limits.norm.placeholder', {}, { default: 'Нормативное значение' })"
                   clearable
                 />
               </div>
@@ -234,12 +241,12 @@
           </NFormItem>
 
 
-          <NFormItem label="Комментарий">
+          <NFormItem :label="t('nsi.objectTypes.params.form.comment.label', {}, { default: 'Комментарий' })">
             <NInput
               v-model:value="creationForm.comment"
               type="textarea"
               :autosize="{ minRows: 2, maxRows: 4 }"
-              placeholder="Комментарий к диапазону"
+              :placeholder="t('nsi.objectTypes.params.form.comment.placeholder', {}, { default: 'Комментарий к диапазону' })"
             />
           </NFormItem>
         </NForm>
@@ -247,14 +254,14 @@
 
       <template #footer>
         <div class="modal-footer">
-          <NButton @click="handleCancelCreate" :disabled="creationPending">Отмена</NButton>
+          <NButton @click="handleCancelCreate" :disabled="creationPending">{{ t('nsi.objectTypes.params.actions.cancel', {}, { default: 'Отмена' }) }}</NButton>
           <NButton
             type="primary"
             :loading="creationPending"
             :disabled="creationPending || saveDisabled"
             @click="handleSubmit"
           >
-            Сохранить
+            {{ t('nsi.objectTypes.params.actions.save', {}, { default: 'Сохранить' }) }}
           </NButton>
         </div>
       </template>
@@ -276,6 +283,7 @@ import {
   type PropType,
   type VNodeChild,
 } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 
 import {
@@ -350,6 +358,8 @@ interface CreateParameterForm {
 
 const router = useRouter()
 const route = useRoute()
+
+const { t } = useI18n()
 
 const message = useMessage()
 const formRef = ref<FormInst | null>(null)
@@ -905,7 +915,18 @@ const filteredRows = computed(() => {
   if (!search) return parameters.value
 
   return parameters.value.filter((item) => {
-    const fields = [item.name, item.unitName, item.sourceName, item.code, item.note]
+    const fields: Array<string | null | undefined> = [
+      item.name,
+      item.componentName,
+      item.unitName,
+      item.sourceName,
+      item.code,
+      item.description,
+      item.note,
+      item.minValue != null ? String(item.minValue) : null,
+      item.maxValue != null ? String(item.maxValue) : null,
+      item.normValue != null ? String(item.normValue) : null,
+    ]
     return fields.some((field) => normalizeText(field ?? '').includes(search))
   })
 })
@@ -1391,7 +1412,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1409,7 +1430,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -1489,12 +1510,12 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -1516,12 +1537,12 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 .tag-unit {
-  background: #eff6ff;
-  color: #1d4ed8;
+  background: var(--s360-surface);
+  color: var(--s360-accent);
 }
 
 .tag-component {
-  background: #fff;
+  background: var(--s360-bg);
 }
 
 .note-text {
@@ -1650,7 +1671,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--s360-surface);
   max-width: 100%;
   min-width: 0;
   flex-shrink: 1;
@@ -1691,10 +1712,10 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   max-width: 100%;
   width: 100%;
@@ -1799,7 +1820,7 @@ const deleteParameter = async (row: LoadedObjectParameter) => {
   font-size: 12px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: #f3f4f6;
+  background: var(--s360-surface);
 }
 
 @media (max-width: 768px) {

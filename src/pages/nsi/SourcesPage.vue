@@ -3,13 +3,13 @@
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          Справочник «Источники (нормативные документы)»
+          {{ t('nsi.objectTypes.sources.title', {}, { default: 'Справочник «Источники (нормативные документы)»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            aria-label="Справка о справочнике"
+            :aria-label="t('nsi.objectTypes.sources.help', {}, { default: 'Справка о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -18,14 +18,14 @@
           </NButton>
         </h2>
         <div class="subtext">
-          Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.
+          {{ t('nsi.objectTypes.sources.subtitle', {}, { default: 'Управляйте перечнем нормативных документов, регламентирующих сервисную деятельность.' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
         <NInput
           v-model:value="filterModel.search"
-          placeholder="Поиск…"
+          :placeholder="t('nsi.objectTypes.sources.searchPlaceholder', {}, { default: 'Поиск…' })"
           clearable
           round
           class="toolbar__search"
@@ -35,7 +35,9 @@
           <NSelect
             v-model:value="filterModel.author"
             :options="authorOptions"
-            placeholder="Орган (регулятор)"
+            multiple
+            filterable
+            :placeholder="t('nsi.objectTypes.sources.filter.author', {}, { default: 'Орган (регулятор)' })"
             clearable
             size="small"
             class="toolbar__select"
@@ -46,7 +48,7 @@
             format="dd.MM.yyyy"
             clearable
             size="small"
-            placeholder="Дата утверждения"
+            :placeholder="t('nsi.objectTypes.sources.filter.approvalDate', {}, { default: 'Дата утверждения' })"
             class="toolbar__select"
           />
           <NDatePicker
@@ -55,13 +57,13 @@
             format="dd.MM.yyyy"
             clearable
             size="small"
-            placeholder="Период действия"
+            :placeholder="t('nsi.objectTypes.sources.filter.period', {}, { default: 'Период действия' })"
             class="toolbar__select"
           />
           <NSelect
             v-model:value="filterModel.departments"
             :options="departmentOptions"
-            placeholder="Исполнитель (подразделение)"
+            :placeholder="t('nsi.objectTypes.sources.filter.department', {}, { default: 'Исполнитель (подразделение)' })"
             multiple
             filterable
             clearable
@@ -75,9 +77,9 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          aria-label="Порядок сортировки"
+          :aria-label="t('nsi.objectTypes.sources.sortAria', {}, { default: 'Порядок сортировки' })"
         />
-        <NButton type="primary" @click="openCreate">+ Добавить документ</NButton>
+        <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.sources.add', {}, { default: 'Добавить документ' }) }}</NButton>
       </div>
     </NCard>
 
@@ -95,7 +97,9 @@
       />
 
       <div v-else class="cards" role="list">
-        <div class="list-info">Показано: {{ visibleCount }} из {{ total }}</div>
+        <div class="list-info">
+          {{ t('nsi.objectTypes.sources.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
+        </div>
         <article
           v-for="item in normalizedRows"
           :key="item.id"
@@ -129,7 +133,7 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">Дальше</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.sources.showMore', {}, { default: 'Дальше' }) }}</NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -142,7 +146,7 @@
           show-quick-jumper
         >
           <template #prefix>
-            <span class="pagination-total">Всего: {{ total }}</span>
+            <span class="pagination-total">{{ t('nsi.objectTypes.sources.total', { total }, { default: 'Всего: ' + total }) }}</span>
           </template>
         </NPagination>
       </div>
@@ -151,17 +155,15 @@
     <NModal
       v-model:show="infoOpen"
       preset="card"
-      title="О справочнике источников"
+      :title="t('nsi.objectTypes.sources.info.title', {}, { default: 'О справочнике источников' })"
       style="max-width: 560px; width: min(92vw, 560px)"
     >
       <p class="text-body">
-        Здесь собраны нормативные документы, на основании которых выполняются технологические работы
-        и обслуживание объектов. Поддерживайте в справочнике актуальные реквизиты, сроки действия и
-        ответственных исполнителей, чтобы коллеги всегда использовали проверенные данные.
+        {{ t('nsi.objectTypes.sources.info.p1', {}, { default: 'Здесь собраны нормативные документы, на основании которых выполняются технологические работы и обслуживание объектов. Поддерживайте в справочнике актуальные реквизиты, сроки действия и ответственных исполнителей, чтобы коллеги всегда использовали проверенные данные.' }) }}
       </p>
       <template #footer>
         <div class="modal-footer">
-          <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
+          <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.sources.info.ok', {}, { default: 'Понятно' }) }}</NButton>
         </div>
       </template>
     </NModal>
@@ -181,8 +183,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref, watch, watchEffect } from 'vue'
+import { computed, defineComponent, h, reactive, ref, watch, watchEffect } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { PropType, VNodeChild } from 'vue'
+import { useQueryClient } from '@tanstack/vue-query'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 
 import {
@@ -206,28 +210,29 @@ import {
 } from 'naive-ui'
 import { CreateOutline, DocumentTextOutline, InformationCircleOutline, TrashOutline } from '@vicons/ionicons5'
 
-import SourcesForm, { type SourcesFormModel } from '@/components/nsi/SourcesForm.vue'
 import {
-  deleteSourceCollection,
-  loadDepartments,
-  loadDepartmentsWithFile,
-  loadSourceCollections,
-  saveDepartment,
-  saveSourceCollectionIns,
-  saveSourceCollectionUpd,
-  type DepartmentRecord,
+  SourcesForm,
+  type SourcesFormModel,
+  sourceQueryKeys,
+  useSourceDepartmentsQuery,
+  useSourceMutations,
+  useSourcesQuery,
+} from '@features/source-crud'
+import {
+  fetchSourceDetails,
+  type Department,
   type SaveSourceCollectionInsPayload,
   type SaveSourceCollectionUpdPayload,
-  type SourceCollectionRecord,
-  type SourceDetailsResult,
-  type SourceFileRecord,
-} from '@/api/rpc'
+  type Source,
+  type SourceDetails,
+  type SourceFile,
+} from '@entities/source'
 import { formatDateIsoToRu, formatPeriod, getErrorMessage, timestampToIsoDate } from '@shared/lib'
 
 
 interface FiltersModel {
   search: string
-  author: string | null
+  author: string[]
   approvalRange: [number, number] | null
   periodRange: [number, number] | null
   departments: number[]
@@ -241,12 +246,12 @@ interface SourceIdMeta {
   idDocumentEndDate: number | null
 }
 
-interface SourceDetailsEntry extends SourceDetailsResult {
+interface SourceDetailsEntry extends SourceDetails {
   loaded: boolean
   error: boolean
 }
 
-interface NormalizedRow extends SourceCollectionRecord {
+interface NormalizedRow extends Source {
   formattedApprovalDate: string
   periodText: string
   formattedStartDate: string
@@ -255,11 +260,11 @@ interface NormalizedRow extends SourceCollectionRecord {
   deptLoadError: boolean
   detailsLoading: boolean
   authorLabel: string
-  files: SourceFileRecord[]
+  files: SourceFile[]
   departmentIds: number[]
 }
 
-interface SourceRow extends SourceCollectionRecord {
+interface SourceRow extends Source {
   formattedApprovalDate: string
   periodText: string
 }
@@ -273,13 +278,18 @@ interface CardField {
 }
 
 const { isMobile } = useIsMobile('(max-width: 720px)')
-
+const { t } = useI18n()
 
 const message = useMessage()
 const dialog = useDialog()
 const infoOpen = ref(false)
 
-const departments = ref<DepartmentRecord[]>([])
+const queryClient = useQueryClient()
+const sourcesQuery = useSourcesQuery()
+const departmentsQuery = useSourceDepartmentsQuery()
+const { createMutation, updateMutation, deleteMutation, saveDepartmentsMutation } = useSourceMutations()
+
+const departments = computed<Department[]>(() => departmentsQuery.data.value ?? [])
 const deptById = computed(() => {
   const map = new Map<number, string>()
   for (const item of departments.value) {
@@ -294,7 +304,7 @@ const departmentOptions = computed<SelectOption[]>(() =>
     .sort((a, b) => String(a.label).localeCompare(String(b.label), 'ru')),
 )
 
-const sources = ref<SourceCollectionRecord[]>([])
+const sources = computed<Source[]>(() => sourcesQuery.data.value ?? [])
 const detailsCache = ref(new Map<number, SourceDetailsEntry>())
 const detailsQueue: Array<() => void> = []
 const detailsInFlight = new Map<number, Promise<SourceDetailsEntry>>()
@@ -303,7 +313,7 @@ const DETAILS_CONCURRENCY_LIMIT = 3
 
 const filterModel = reactive<FiltersModel>({
   search: '',
-  author: null,
+  author: [],
   approvalRange: null,
   periodRange: null,
   departments: [],
@@ -315,7 +325,7 @@ const sortOptions = [
   { label: 'А-Я', value: 'asc' },
   { label: 'Я-А', value: 'desc' },
 ]
-const tableLoading = ref(false)
+const tableLoading = computed(() => sourcesQuery.isFetching.value || sourcesQuery.isLoading.value)
 const removingId = ref<number | null>(null)
 
 const modalOpen = ref(false)
@@ -381,7 +391,7 @@ function normalizeText(value: string | null | undefined): string {
     .trim()
 }
 
-function toSourceRow(record: SourceCollectionRecord): SourceRow {
+function toSourceRow(record: Source): SourceRow {
   return {
     ...record,
     formattedApprovalDate: formatDateIsoToRu(record.DocumentApprovalDate),
@@ -422,6 +432,14 @@ watch(
 )
 
 watch(
+  () => sources.value,
+  () => {
+    pagination.page = 1
+  },
+  { deep: true },
+)
+
+watch(
   () => normalizeText(filterModel.search),
   (query) => {
     if (query) {
@@ -452,7 +470,10 @@ const filteredSources = computed(() => {
   const query = normalizeText(filters.search)
 
   return enrichedSources.value.filter((item) => {
-    if (filters.author && item.DocumentAuthor !== filters.author) return false
+    if (filters.author.length) {
+      const author = (item.DocumentAuthor ?? '').trim()
+      if (!filters.author.includes(author)) return false
+    }
 
     if (filters.approvalRange) {
       const normalized = normalizeRange(filters.approvalRange)
@@ -589,9 +610,16 @@ function setDetails(id: number, entry: SourceDetailsEntry) {
   detailsCache.value = next
 }
 
-function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
+function ensureSourceDetails(id: number, options: { force?: boolean } = {}): Promise<SourceDetailsEntry> {
   if (!Number.isFinite(id)) {
     return Promise.resolve({ departmentIds: [], files: [], loaded: true, error: true })
+  }
+
+  if (options.force) {
+    const next = new Map(detailsCache.value)
+    next.delete(id)
+    detailsCache.value = next
+    detailsInFlight.delete(id)
   }
 
   if (detailsInFlight.has(id)) {
@@ -599,7 +627,7 @@ function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
   }
 
   const cached = detailsCache.value.get(id)
-  if (cached && (cached.loaded || cached.error)) {
+  if (cached && !options.force && (cached.loaded || cached.error)) {
     return Promise.resolve(cached)
   }
 
@@ -607,7 +635,10 @@ function ensureSourceDetails(id: number): Promise<SourceDetailsEntry> {
     enqueueDetails(() => {
       void (async () => {
         try {
-          const result = await loadDepartmentsWithFile(Number(id))
+          const result = await queryClient.fetchQuery({
+            queryKey: sourceQueryKeys.details(id),
+            queryFn: () => fetchSourceDetails(Number(id)),
+          })
           const entry: SourceDetailsEntry = { ...result, loaded: true, error: false }
           setDetails(id, entry)
           resolve(entry)
@@ -841,7 +872,7 @@ function renderDepartments(row: NormalizedRow): VNodeChild {
   return h('div', { class: 'executor-cell' }, chips)
 }
 
-function resolveFileName(file: SourceFileRecord): string {
+function resolveFileName(file: SourceFile): string {
   return (
     (typeof file.name === 'string' && file.name) ||
     (typeof file.fileName === 'string' && file.fileName) ||
@@ -851,7 +882,7 @@ function resolveFileName(file: SourceFileRecord): string {
   )
 }
 
-function resolveFileUrl(file: SourceFileRecord): string | null {
+function resolveFileUrl(file: SourceFile): string | null {
   const candidates = [file.url, file.href, file.link, file.path, file.FilePath]
   for (const candidate of candidates) {
     if (typeof candidate === 'string' && candidate) {
@@ -977,14 +1008,23 @@ async function handleSubmit() {
         DocumentStartDate: state.DocumentStartDate,
         DocumentEndDate: state.DocumentEndDate,
       }
-      const result = await saveSourceCollectionIns(payload)
+      const result = await createMutation.mutateAsync(payload)
       const newId = result.id
       if (typeof newId !== 'number') {
         throw new Error('Не удалось определить идентификатор созданного документа')
       }
-      await saveDepartment(newId, state.departmentIds)
-      await ensureSourceDetails(newId)
-      await fetchSources()
+      if (state.departmentIds.length) {
+        await saveDepartmentsMutation.mutateAsync({ id: newId, ids: state.departmentIds })
+      }
+      const existing = detailsCache.value.get(newId)
+      setDetails(newId, {
+        departmentIds: [...state.departmentIds],
+        files: existing?.files ?? [],
+        loaded: true,
+        error: false,
+      })
+      await ensureSourceDetails(newId, { force: true })
+      await sourcesQuery.refetch()
       message.success('Документ создан')
     } else if (modalMode.value === 'edit' && editingId != null && editingMeta) {
       const payload: SaveSourceCollectionUpdPayload = {
@@ -1003,22 +1043,22 @@ async function handleSubmit() {
         idDocumentEndDate: editingMeta.idDocumentEndDate,
         DocumentEndDate: state.DocumentEndDate,
       }
-      await saveSourceCollectionUpd(payload)
+      await updateMutation.mutateAsync(payload)
       const departmentsChanged =
         initialDepartmentIds.length !== state.departmentIds.length ||
         initialDepartmentIds.some((id) => !state.departmentIds.includes(id))
       if (departmentsChanged) {
-        await saveDepartment(editingId, state.departmentIds)
+        await saveDepartmentsMutation.mutateAsync({ id: editingId, ids: state.departmentIds })
         const existing = detailsCache.value.get(editingId)
-        const entry: SourceDetailsEntry = {
+        setDetails(editingId, {
           departmentIds: [...state.departmentIds],
           files: existing?.files ?? [],
           loaded: true,
           error: false,
-        }
-        setDetails(editingId, entry)
+        })
       }
-      await fetchSources()
+      await ensureSourceDetails(editingId, { force: true })
+      await sourcesQuery.refetch()
       message.success('Документ обновлён')
     }
 
@@ -1055,8 +1095,11 @@ async function handleDelete(row: NormalizedRow) {
 
   removingId.value = row.id
   try {
-    await deleteSourceCollection(row.id)
-    await fetchSources()
+    await deleteMutation.mutateAsync(row.id)
+    const next = new Map(detailsCache.value)
+    next.delete(row.id)
+    detailsCache.value = next
+    await sourcesQuery.refetch()
     message.success('Документ удалён')
   } catch (error) {
     message.error(getErrorMessage(error))
@@ -1065,32 +1108,6 @@ async function handleDelete(row: NormalizedRow) {
   }
 }
 
-async function fetchDepartments() {
-  try {
-    const data = await loadDepartments()
-    departments.value = data
-  } catch (error) {
-    message.error(getErrorMessage(error))
-  }
-}
-
-async function fetchSources() {
-  tableLoading.value = true
-  try {
-    const records = await loadSourceCollections()
-    sources.value = records
-    pagination.page = 1
-  } catch (error) {
-    message.error(getErrorMessage(error))
-  } finally {
-    tableLoading.value = false
-  }
-}
-
-onMounted(() => {
-  void fetchDepartments()
-  void fetchSources()
-})
 </script>
 
 <style scoped lang="scss">
@@ -1124,7 +1141,7 @@ onMounted(() => {
 }
 
 :deep(.n-data-table .n-data-table-tbody .n-data-table-tr) {
-  background: var(--n-card-color, #fff);
+  background: var(--n-card-color, var(--s360-bg));
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
   border-radius: 12px;
   overflow: hidden;
@@ -1153,7 +1170,7 @@ onMounted(() => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--n-table-header-color, var(--n-card-color, #fff));
+  background: var(--n-table-header-color, var(--n-card-color, var(--s360-bg)));
   box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
@@ -1185,12 +1202,12 @@ onMounted(() => {
 
 .page-title__info:hover,
 .page-title__info:focus {
-  background: #edf1f7;
+  background: var(--s360-surface);
   color: var(--n-text-color);
 }
 
 .page-title__info:active {
-  background: #e2e8f0;
+  background: var(--s360-surface);
 }
 
 .subtext {
@@ -1337,10 +1354,10 @@ onMounted(() => {
 }
 
 .card {
-  border: 1px solid #eee;
+  border: 1px solid var(--s360-border);
   border-radius: 14px;
   padding: 12px;
-  background: #fff;
+  background: var(--s360-bg);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
   width: 100%;
   box-sizing: border-box;

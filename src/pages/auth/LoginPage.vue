@@ -153,7 +153,7 @@ const handleSubmit = async () => {
   width: 100%;
   max-width: 420px;
   border-radius: 16px;
-  box-shadow: 0 12px 28px rgba(15, 62, 68, 0.12);
+  box-shadow: 0 12px 28px rgba(43, 108, 176, 0.10);
 }
 
 .login-header {
@@ -189,3 +189,4 @@ const handleSubmit = async () => {
   min-width: 120px;
 }
 </style>
+

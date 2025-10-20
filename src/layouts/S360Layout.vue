@@ -17,7 +17,6 @@
 
         <router-link to="/" class="s360-logo">
           <img :src="logoMark" alt="Service 360" class="logo-mark" />
-          <span class="logo-text">Service 360</span>
         </router-link>
       </div>
 
@@ -101,11 +100,21 @@
         aria-modal="true"
         aria-label="Навигация"
       >
-        <button type="button" class="drawer-backdrop" aria-label="Закрыть меню" @click="closeMobileDrawer" />
+        <button
+          type="button"
+          class="drawer-backdrop"
+          aria-label="Закрыть меню"
+          @click="closeMobileDrawer"
+        />
         <div class="drawer-panel">
           <header class="drawer-header">
             <span class="drawer-title">Навигация</span>
-            <button type="button" class="drawer-close" aria-label="Закрыть меню" @click="closeMobileDrawer">
+            <button
+              type="button"
+              class="drawer-close"
+              aria-label="Закрыть меню"
+              @click="closeMobileDrawer"
+            >
               <NIcon :component="CloseOutline" />
             </button>
           </header>
@@ -129,8 +138,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onBeforeUnmount, onMounted, ref, watch, type Component as VueComponent } from 'vue'
-import { storeToRefs } from 'pinia'
+import {
+  computed,
+  h,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type Component as VueComponent,
+} from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { DropdownDividerOption, DropdownOption, MenuOption } from 'naive-ui'
 import { NAvatar, NDropdown, NIcon, NMenu, NTooltip } from 'naive-ui'
@@ -150,9 +166,9 @@ import {
   EllipsisHorizontal,
 } from '@vicons/ionicons5'
 
-import logoMark from '@/assets/logo.svg'
+import logoMark from '@/assets/logo.png'
 import { useAuth } from '@features/auth'
-import { useUiStore } from '@/stores/ui'
+import { useUiSidebar } from '@features/ui'
 
 interface LanguageOption {
   label: string
@@ -173,9 +189,9 @@ const auth = useAuth()
 const router = useRouter()
 const route = useRoute()
 
-const ui = useUiStore()
+const ui = useUiSidebar()
 ui.hydrateSidebarCollapsed()
-const { isSidebarCollapsed } = storeToRefs(ui)
+const { isSidebarCollapsed } = ui
 
 const COLLAPSED_WIDTH = 72
 
@@ -193,6 +209,7 @@ const withTooltip = (text: string, tooltip?: string) => () =>
 
 const menuRouteByKey: Record<string, string> = {
   dashboard: '/',
+
   'object-types': '/nsi/object-types',
   'object-defects': '/nsi/object-defects',
   'object-parameters': '/nsi/object-parameters',
@@ -387,7 +404,13 @@ watch(
   { immediate: true },
 )
 
-const MOBILE_PRIMARY_KEYS = ['dashboard', 'works', 'object-parameters', 'components'] as const
+const MOBILE_PRIMARY_KEYS = [
+  'dashboard',
+  'nsi-dashboard',
+  'works',
+  'object-parameters',
+  'components',
+] as const
 const primaryKeySet = new Set<string>(MOBILE_PRIMARY_KEYS)
 
 const bottomNavItems = computed<BottomNavItem[]>(() => {
@@ -606,7 +629,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f3f6f6;
+  background: #f8fafc;
 }
 
 .s360-top-bar {
@@ -615,8 +638,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 0 24px;
   min-height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #e6eaea;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--s360-color-border-subtle);
   box-sizing: border-box;
   gap: 16px;
 }
@@ -658,22 +681,22 @@ onBeforeUnmount(() => {
 
 .s360-toggle:hover,
 .s360-toggle:focus-visible {
-  background: #eef4f5;
+  background: var(--s360-color-primary-soft);
   border-color: #c0d4d4;
-  color: #006d77;
+  color: var(--s360-color-primary);
 }
 
 .s360-icon-btn:hover,
 .s360-icon-btn:focus-visible {
-  background: #e6f2f2;
-  color: #006d77;
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-color-primary);
 }
 
 .s360-toggle:focus-visible,
 .s360-icon-btn:focus-visible,
 .s360-lang-switcher:focus-visible,
 .s360-profile:focus-visible {
-  outline: 2px solid #006d77;
+  outline: 2px solid var(--s360-color-primary);
   outline-offset: 2px;
 }
 
@@ -681,19 +704,17 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #0f3e44;
+  color: var(--s360-text-primary);
   text-decoration: none;
   font-weight: 700;
   font-size: 18px;
 }
 
-.s360-logo:hover {
-  color: #006d77;
-}
+.s360-logo:hover { color: var(--s360-color-primary); }
 
 .logo-mark {
-  width: 34px;
-  height: 34px;
+  width: 70.51px;
+  height: 50px;
 }
 
 .logo-text {
@@ -707,7 +728,7 @@ onBeforeUnmount(() => {
   padding: 6px 12px;
   border-radius: 999px;
   background: #f5f7f8;
-  color: #0f3e44;
+  color: var(--s360-text-primary);
   font-weight: 500;
   font-size: 14px;
   cursor: pointer;
@@ -717,10 +738,7 @@ onBeforeUnmount(() => {
     color 0.2s ease;
 }
 
-.s360-lang-switcher:hover {
-  background: #e6f2f2;
-  color: #006d77;
-}
+.s360-lang-switcher:hover { background: var(--s360-color-primary-soft); color: var(--s360-color-primary); }
 
 .lang-arrow {
   font-size: 14px;
@@ -752,6 +770,7 @@ onBeforeUnmount(() => {
   flex: 1 1 auto;
   display: flex;
   min-height: 0;
+  background: #f8fafc;
 }
 
 .s360-aside {
@@ -759,13 +778,13 @@ onBeforeUnmount(() => {
   width: 240px;
   min-height: 100%;
   box-sizing: border-box;
-  background: #f7fbfb;
-  border-right: 1px solid #e6eaea;
+  background: #f8fafc;
+  border-right: 1px solid #DEE2E6;
   transition: width 0.2s ease;
 }
 
 .s360-aside.is-collapsed {
-  border-right: 1px solid #e0e6e6;
+  border-right: 1px solid #DEE2E6;
 }
 
 .s360-aside.is-collapsed .s360-aside-inner {
@@ -795,7 +814,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
 }
 
 .s360-nav {
@@ -812,7 +831,7 @@ onBeforeUnmount(() => {
 .s360-nav :deep(.n-menu-item-content) {
   border-radius: 8px;
   padding: 10px 12px;
-  color: #0f3e44;
+  color: var(--s360-text-primary);
   overflow: hidden;
   transition:
     background-color 0.2s ease,
@@ -834,11 +853,16 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.s360-nav :deep(.n-menu-item-content:hover),
+.s360-nav :deep(.n-menu-item-content:hover) {
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-color-primary);
+}
 .s360-nav :deep(.n-menu-item-content--selected) {
-  background: #e6f2f2;
-  color: #006d77;
+  position: relative;
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-color-primary);
   font-weight: 600;
+  box-shadow: inset 4px 0 0 var(--s360-color-primary);
 }
 
 .s360-main {
@@ -847,7 +871,7 @@ onBeforeUnmount(() => {
   width: auto;
   max-width: none;
   padding: 24px 28px;
-  background: #fff;
+  background: var(--s360-color-surface);
   overflow: auto;
 }
 
@@ -896,7 +920,7 @@ onBeforeUnmount(() => {
 .drawer-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(15, 62, 68, 0.35);
+  background: rgba(43, 108, 176, 0.22);
   border: none;
   padding: 0;
   margin: 0;
@@ -908,7 +932,7 @@ onBeforeUnmount(() => {
   width: min(320px, 86vw);
   height: 100%;
   background: #ffffff;
-  box-shadow: -12px 0 32px rgba(15, 62, 68, 0.14);
+  box-shadow: -12px 0 32px rgba(43, 108, 176, 0.10);
   display: flex;
   flex-direction: column;
 }
@@ -918,26 +942,26 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   padding: 20px 20px 12px;
-  border-bottom: 1px solid #e6eaea;
+  border-bottom: 1px solid var(--s360-color-border-subtle);
 }
 
 .drawer-title {
   font-size: 16px;
   font-weight: 600;
-  color: #0f3e44;
+  color: var(--s360-text-primary);
 }
 
 .drawer-close {
   appearance: none;
   border: none;
-  background: #f3f6f6;
+  background: #f8fafc;
   border-radius: 50%;
   width: 36px;
   height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: #0f3e44;
+  color: var(--s360-text-primary);
   cursor: pointer;
 }
 
@@ -964,11 +988,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.drawer-link.active {
-  background: #e6f2f2;
-  color: #006d77;
-  font-weight: 600;
-}
+.drawer-link.active { background: var(--s360-color-primary-soft); color: var(--s360-color-primary); font-weight: 600; }
 
 .drawer-link :deep(.n-icon) {
   font-size: 20px;
@@ -1022,9 +1042,9 @@ onBeforeUnmount(() => {
     justify-content: space-around;
     gap: 8px;
     padding: 8px 12px calc(env(safe-area-inset-bottom) + 12px);
-    background: #ffffff;
-    border-top: 1px solid #e6eaea;
-    box-shadow: 0 -4px 16px rgba(15, 62, 68, 0.12);
+    background: #FFFFFF;
+    border-top: 1px solid var(--s360-color-border-subtle);
+    box-shadow: 0 -4px 16px rgba(43, 108, 176, 0.10);
     z-index: 1100;
   }
 
@@ -1047,19 +1067,17 @@ onBeforeUnmount(() => {
       background-color 0.2s ease;
   }
 
-  .bottom-nav-item.active {
-    color: #006d77;
-    background: rgba(0, 109, 119, 0.14);
-  }
+  .bottom-nav-item.active { color: var(--s360-color-primary); background: rgba(43, 108, 176, 0.14); }
 
-  .bottom-nav-item:focus-visible {
-    outline: 2px solid #006d77;
-    outline-offset: 2px;
-  }
+  .bottom-nav-item:focus-visible { outline: 2px solid var(--s360-color-primary); outline-offset: 2px; }
 
   .bottom-nav-label {
     font-size: 11px;
     line-height: 1;
   }
 }
+@media (max-width: 480px) {
+  .logo-mark { width: 56.4px; height: 40px; }
+}
 </style>
+
