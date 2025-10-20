@@ -518,4 +518,13 @@ function handleImport(action: 'import' | 'download') {
     align-items: stretch;
   }
 }
+
+@media (max-width: 480px) {
+  .nsi-dashboard-page {
+    padding: var(--s360-space-md);
+  }
+  .nsi-dashboard-page__container {
+    gap: var(--s360-space-lg);
+  }
+}
 </style>

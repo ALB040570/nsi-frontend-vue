@@ -1,18 +1,18 @@
-п»ї<!-- Р¤Р°Р№Р»: src/pages/nsi/ComponentsPage.vue
-     РќР°Р·РЅР°С‡РµРЅРёРµ: СЃС‚СЂР°РЅРёС†Р° СЃРїСЂР°РІРѕС‡РЅРёРєР° В«РљРѕРјРїРѕРЅРµРЅС‚С‹В» СЃ С‚Р°Р±Р»РёС†РµР№, С„РёР»СЊС‚СЂР°РјРё Рё CRUD-РјРѕРґР°Р»РєРѕР№.
-     РСЃРїРѕР»СЊР·РѕРІР°РЅРёРµ: РґРѕСЃС‚СѓРїРЅР° РїРѕ РјР°СЂС€СЂСѓС‚Сѓ /nsi/components. -->
+<!-- Файл: src/pages/nsi/ComponentsPage.vue
+     Назначение: страница справочника «Компоненты» с таблицей, фильтрами и CRUD-модалкой.
+     Использование: доступна по маршруту /nsi/components. -->
 <template>
   <section class="components-page">
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
       <div class="toolbar__left">
         <h2 class="page-title">
-          {{ t('nsi.objectTypes.components.title', {}, { default: 'РЎРїСЂР°РІРѕС‡РЅРёРє В«РљРѕРјРїРѕРЅРµРЅС‚С‹ РѕР±СЃР»СѓР¶РёРІР°РµРјС‹С… РѕР±СЉРµРєС‚РѕРІВ»' }) }}
+          {{ t('nsi.objectTypes.components.title', {}, { default: 'Справочник «Компоненты обслуживаемых объектов»' }) }}
           <NButton
             quaternary
             circle
             size="small"
             class="page-title__info"
-            :aria-label="t('nsi.objectTypes.components.help', {}, { default: 'РРЅС„РѕСЂРјР°С†РёСЏ Рѕ СЃРїСЂР°РІРѕС‡РЅРёРєРµ' })"
+            :aria-label="t('nsi.objectTypes.components.help', {}, { default: 'Информация о справочнике' })"
             @click="infoOpen = true"
           >
             <template #icon>
@@ -21,14 +21,14 @@
           </NButton>
         </h2>
         <div class="subtext">
-          {{ t('nsi.objectTypes.components.subtitle', {}, { default: 'Р—РґРµСЃСЊ РјРѕР¶РЅРѕ РїСЂРѕСЃРјРѕС‚СЂРµС‚СЊ РїРµСЂРµС‡РµРЅСЊ РєРѕРјРїРѕРЅРµРЅС‚РѕРІ Рё РёС… СЃРІСЏР·Рё СЃ С‚РёРїР°РјРё РѕР±СЉРµРєС‚РѕРІ, РїР°СЂР°РјРµС‚СЂР°РјРё Рё РґРµС„РµРєС‚Р°РјРё' }) }}
+          {{ t('nsi.objectTypes.components.subtitle', {}, { default: 'Здесь можно просмотреть перечень компонентов и их связи с типами объектов, параметрами и дефектами' }) }}
         </div>
       </div>
 
       <div class="toolbar__controls">
         <NInput
           v-model:value="search"
-          :placeholder="t('nsi.objectTypes.components.searchPlaceholder', {}, { default: 'РџРѕРёСЃРєвЂ¦' })"
+          :placeholder="t('nsi.objectTypes.components.searchPlaceholder', {}, { default: 'Поиск…' })"
           clearable
           round
           class="toolbar__search"
@@ -43,7 +43,7 @@
             multiple
             filterable
             clearable
-            :placeholder="t('nsi.objectTypes.components.filter.objectTypes', {}, { default: 'РўРёРїС‹ РѕР±СЉРµРєС‚РѕРІ' })"
+            :placeholder="t('nsi.objectTypes.components.filter.objectTypes', {}, { default: 'Типы объектов' })"
             @update:value="handleObjectTypeFilterChange"
           />
           <NSelect
@@ -54,7 +54,7 @@
             multiple
             filterable
             clearable
-            :placeholder="t('nsi.objectTypes.components.filter.parameters', {}, { default: 'РџР°СЂР°РјРµС‚СЂС‹' })"
+            :placeholder="t('nsi.objectTypes.components.filter.parameters', {}, { default: 'Параметры' })"
             @update:value="handleParameterFilterChange"
           />
           <NSelect
@@ -65,7 +65,7 @@
             multiple
             filterable
             clearable
-            :placeholder="t('nsi.objectTypes.components.filter.defects', {}, { default: 'Р”РµС„РµРєС‚С‹' })"
+            :placeholder="t('nsi.objectTypes.components.filter.defects', {}, { default: 'Дефекты' })"
             @update:value="handleDefectFilterChange"
           />
         </div>
@@ -76,7 +76,7 @@
           :options="sortOptions"
           size="small"
           class="toolbar__select"
-          :aria-label="t('nsi.objectTypes.components.sortAria', {}, { default: 'РџРѕСЂСЏРґРѕРє СЃРѕСЂС‚РёСЂРѕРІРєРё' })"
+          :aria-label="t('nsi.objectTypes.components.sortAria', {}, { default: 'Порядок сортировки' })"
         />
       </div>
     </NCard>
@@ -95,7 +95,7 @@
 
       <div v-else class="cards" role="list">
         <div class="list-info">
-          {{ t('nsi.objectTypes.components.listInfo', { shown: visibleCount, total }, { default: 'РџРѕРєР°Р·Р°РЅРѕ: ' + visibleCount + ' РёР· ' + total }) }}
+          {{ t('nsi.objectTypes.components.listInfo', { shown: visibleCount, total }, { default: 'Показано: ' + visibleCount + ' из ' + total }) }}
         </div>
         <article
           v-for="item in rows"
@@ -109,13 +109,13 @@
           </header>
 
           <dl class="card__grid">
-            <dt>{{ t('nsi.objectTypes.components.section.objectTypes', {}, { default: 'РўРёРїС‹ РѕР±СЉРµРєС‚РѕРІ' }) }}</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.objectTypes', {}, { default: 'Типы объектов' }) }}</dt>
             <dd><RelationsList :relations="item.objectTypes" :expandable="true" /></dd>
-            <dt>{{ t('nsi.objectTypes.components.section.parameters', {}, { default: 'РџР°СЂР°РјРµС‚СЂС‹' }) }}</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.parameters', {}, { default: 'Параметры' }) }}</dt>
             <dd>
               <RelationsList :relations="item.parameters" :formatter="formatParameterRelation" :expandable="true" />
             </dd>
-            <dt>{{ t('nsi.objectTypes.components.section.defects', {}, { default: 'Р”РµС„РµРєС‚С‹' }) }}</dt>
+            <dt>{{ t('nsi.objectTypes.components.section.defects', {}, { default: 'Дефекты' }) }}</dt>
             <dd><RelationsList :relations="item.defects" :formatter="formatDefectRelation" :expandable="true" /></dd>
           </dl>
 
@@ -124,7 +124,7 @@
       </div>
 
       <div v-if="isMobile && pagination.page < maxPage" class="show-more-bar">
-        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.components.showMore', {}, { default: 'РџРѕРєР°Р·Р°С‚СЊ РµС‰С‘' }) }}</NButton>
+        <NButton tertiary @click="showMore" :loading="tableLoading">{{ t('nsi.objectTypes.components.showMore', {}, { default: 'Показать ещё' }) }}</NButton>
       </div>
 
       <div class="pagination-bar" v-if="!isMobile">
@@ -137,21 +137,21 @@
           show-quick-jumper
         >
           <template #prefix>
-            <span class="pagination-total">Р’СЃРµРіРѕ: {{ total }}</span>
+            <span class="pagination-total">Всего: {{ total }}</span>
           </template>
         </NPagination>
       </div>
     </div>
 
-    <NModal v-model:show="infoOpen" preset="card" :title="t('nsi.objectTypes.components.info.title', {}, { default: 'Рћ СЃРїСЂР°РІРѕС‡РЅРёРєРµ' })" style="max-width: 640px">
+    <NModal v-model:show="infoOpen" preset="card" :title="t('nsi.objectTypes.components.info.title', {}, { default: 'О справочнике' })" style="max-width: 640px">
       <p>
-        {{ t('nsi.objectTypes.components.info.p1', {}, { default: 'РљРѕРјРїРѕРЅРµРЅС‚С‹ РѕРїРёСЃС‹РІР°СЋС‚ СЌР»РµРјРµРЅС‚С‹ РѕР±СЃР»СѓР¶РёРІР°РµРјС‹С… РѕР±СЉРµРєС‚РѕРІ Рё РёСЃРїРѕР»СЊР·СѓСЋС‚СЃСЏ РїСЂРё РЅР°СЃС‚СЂРѕР№РєРµ РїР°СЂР°РјРµС‚СЂРѕРІ, РґРµС„РµРєС‚РѕРІ Рё СЂР°Р±РѕС‚. Р—РґРµСЃСЊ РјРѕР¶РЅРѕ РїРѕСЃРјРѕС‚СЂРµС‚СЊ С‚РµРєСѓС‰РёРµ СЃРІСЏР·Рё.' }) }}
+        {{ t('nsi.objectTypes.components.info.p1', {}, { default: 'Компоненты описывают элементы обслуживаемых объектов и используются при настройке параметров, дефектов и работ. Здесь можно посмотреть текущие связи.' }) }}
       </p>
       <p>
-        {{ t('nsi.objectTypes.components.info.p2', {}, { default: 'РСЃРїРѕР»СЊР·СѓР№С‚Рµ С„РёР»СЊС‚СЂС‹, С‡С‚РѕР±С‹ СЃСѓР·РёС‚СЊ СЃРїРёСЃРѕРє РїРѕ С‚РёРїР°Рј РѕР±СЉРµРєС‚РѕРІ, РїР°СЂР°РјРµС‚СЂР°Рј РёР»Рё РґРµС„РµРєС‚Р°Рј. Р”РѕР±Р°РІР»РµРЅРёРµ РЅРѕРІС‹С… РєРѕРјРїРѕРЅРµРЅС‚РѕРІ РѕСЃСѓС‰РµСЃС‚РІР»СЏРµС‚СЃСЏ С‚РѕР»СЊРєРѕ РїСЂРё СЃРѕР·РґР°РЅРёРё С‚РёРїРѕРІ, РґРµС„РµРєС‚РѕРІ РёР»Рё РїР°СЂР°РјРµС‚СЂРѕРІ РЅР° СЃРѕРѕС‚РІРµС‚СЃС‚РІСѓСЋС‰РёС… СЃС‚СЂР°РЅРёС†Р°С… СЃРїСЂР°РІРѕС‡РЅРёРєРѕРІ.' }) }}
+        {{ t('nsi.objectTypes.components.info.p2', {}, { default: 'Используйте фильтры, чтобы сузить список по типам объектов, параметрам или дефектам. Добавление новых компонентов осуществляется только при создании типов, дефектов или параметров на соответствующих страницах справочников.' }) }}
       </p>
       <template #footer>
-        <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.components.info.ok', {}, { default: 'РџРѕРЅСЏС‚РЅРѕ' }) }}</NButton>
+        <NButton type="primary" @click="infoOpen = false">{{ t('nsi.objectTypes.components.info.ok', {}, { default: 'Понятно' }) }}</NButton>
       </template>
     </NModal>
 
@@ -271,10 +271,10 @@ const parameterMetaById = computed<Map<string, ParameterMeta>>(() => {
 // no edit/create modes in read-only view
 
 const sortOrder = ref<'asc' | 'desc'>('asc')
-const sortOptions = computed(() => ([
-  { label: t('nsi.objectTypes.components.sortAsc'), value: 'asc' },
-  { label: t('nsi.objectTypes.components.sortDesc'), value: 'desc' },
-]))
+const sortOptions = [
+  { label: 'А-Я', value: 'asc' },
+  { label: 'Я-А', value: 'desc' },
+]
 
 const isMobile = ref(false)
 let mediaQueryList: MediaQueryList | null = null
@@ -377,7 +377,7 @@ const rowKey = (row: LoadedComponentWithRelations) => row.id
 const MAX_CHIPS = 4
 
 const formatNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return 'вЂ”'
+  if (value === null || value === undefined) return '—'
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 }).format(value)
 }
 
@@ -385,16 +385,16 @@ const formatParameterRelation = (
   rel: LoadedComponentWithRelations['parameters'][number],
 ): string => {
   const meta = parameterMetaById.value.get(rel.id)
-  const unit = meta?.unit?.trim() || 'вЂ”'
+  const unit = meta?.unit?.trim() || '—'
   const min = formatNumber(meta?.min)
   const max = formatNumber(meta?.max)
   const norm = formatNumber(meta?.norm)
-  return `${rel.name} (Р•Р: ${unit}, РјРёРЅ: ${min}, РјР°РєСЃ: ${max}, РЅРѕСЂРј: ${norm})`
+  return `${rel.name} (ЕИ: ${unit}, мин: ${min}, макс: ${max}, норм: ${norm})`
 }
 
 const formatDefectRelation = (rel: LoadedComponentWithRelations['defects'][number]): string => {
   if (!rel.categoryName) return rel.name
-  return `${rel.name} (РєР°С‚РµРіРѕСЂРёСЏ: ${rel.categoryName})`
+  return `${rel.name} (категория: ${rel.categoryName})`
 }
 
 type AnyRelation =
@@ -454,11 +454,11 @@ const RelationsList = defineComponent({
       if (props.expandable) {
         if (!rest.length) return row
         if (!expanded.value) {
-          const toggleBtn = h('button', { type: 'button', class: 'relations-toggle', onClick: toggle }, `РџРѕРєР°Р·Р°С‚СЊ РІСЃРµ (+${rest.length})`)
+          const toggleBtn = h('button', { type: 'button', class: 'relations-toggle', onClick: toggle }, `Показать все (+${rest.length})`)
           return h('div', { class: 'relations-collapsed' }, [row, toggleBtn])
         }
         const list = relations.map((rel) => h('div', { class: 'relations-expanded__item', key: `${rel.id}-${rel.name}` }, props.formatter(rel)))
-        const collapseBtn = h('button', { type: 'button', class: 'relations-toggle', onClick: toggle }, 'РЎРІРµСЂРЅСѓС‚СЊ')
+        const collapseBtn = h('button', { type: 'button', class: 'relations-toggle', onClick: toggle }, 'Свернуть')
         return h('div', { class: 'relations-expanded' }, [...list, collapseBtn])
       }
 
@@ -485,7 +485,7 @@ const renderRelationsCell = <T extends AnyRelation>(
   relations: T[],
   formatter: (relation: T) => string,
 ): VNodeChild => {
-  if (!relations.length) return h('span', { class: 'empty-cell' }, 'вЂ”')
+  if (!relations.length) return h('span', { class: 'empty-cell' }, '—')
 
   const tooltip = h(
     'div',
@@ -512,7 +512,7 @@ const renderNameCell = (row: LoadedComponentWithRelations): VNodeChild =>
 
 const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
   {
-    title: 'РљРѕРјРїРѕРЅРµРЅС‚С‹',
+    title: 'Компоненты',
     key: 'name',
     className: 'col-name',
     width: 240,
@@ -521,7 +521,7 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
     render: renderNameCell,
   },
   {
-    title: 'РўРёРїС‹ РѕР±СЉРµРєС‚РѕРІ',
+    title: 'Типы объектов',
     key: 'objectTypes',
     className: 'col-relations',
     width: 240,
@@ -529,7 +529,7 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
     render: (row) => h(RelationsList, { relations: row.objectTypes }),
   },
   {
-    title: 'РџР°СЂР°РјРµС‚СЂС‹',
+    title: 'Параметры',
     key: 'parameters',
     className: 'col-relations',
     width: 240,
@@ -537,7 +537,7 @@ const columns = computed<DataTableColumns<LoadedComponentWithRelations>>(() => [
     render: (row) => renderRelationsCell(row.parameters, formatParameterRelation),
   },
   {
-    title: 'Р”РµС„РµРєС‚С‹',
+    title: 'Дефекты',
     key: 'defects',
     className: 'col-relations',
     width: 240,
@@ -823,7 +823,7 @@ const handleDefectFilterChange = (value: Array<string | number> | null) => {
   border-radius: 16px;
   padding: 12px;
   background: #FFFFFF;
-  box-shadow: 0 18px 40px rgba(43, 108, 176, 0.06);
+  box-shadow: 0 18px 40px rgba(13, 110, 253, 0.06);
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
@@ -935,6 +935,3 @@ const handleDefectFilterChange = (value: Array<string | number> | null) => {
   }
 }
 </style>
-
-
-

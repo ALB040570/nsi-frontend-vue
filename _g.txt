@@ -32,7 +32,7 @@ tr.is-overdue > td,
 }
 .n-input.n-input--focus .n-input__border,
 .n-input-number.n-input-number--focus .n-input-number__border {
-  border-color: #2b6cb0 !important;
+  border-color: #0D6EFD !important;
   box-shadow: 0 0 0 2px rgba(13,110,253,0.15) !important;
 }
 
@@ -48,4 +48,3 @@ tr.is-overdue > td,
 .n-data-table .n-data-table-td {
   padding: 8px 12px !important;
 }
-

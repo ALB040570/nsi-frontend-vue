@@ -28,14 +28,16 @@ import { registerPWA } from './pwa'
 
 const themeOverrides: GlobalThemeOverrides = {
   common: {
-    primaryColor: '#006d77',
-    primaryColorHover: '#338f94',
-    primaryColorPressed: '#00565d',
-    primaryColorSuppl: '#338f94',
-    infoColor: '#4ecdc4',
-    successColor: '#3b9d78',
-    warningColor: '#e2b100',
-    errorColor: '#d64550',
+    // Brand (cool blue)
+    primaryColor: '#2b6cb0',
+    primaryColorHover: '#2c5282',
+    primaryColorPressed: '#2A4365',
+    primaryColorSuppl: '#3182ce',
+    // Status
+    infoColor: '#63b3ed',
+    successColor: '#198754',
+    warningColor: '#FFC107',
+    errorColor: '#DC3545',
   },
 }
 

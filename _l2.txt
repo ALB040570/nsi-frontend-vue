@@ -920,7 +920,7 @@ onBeforeUnmount(() => {
 .drawer-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(43, 108, 176, 0.22);
+  background: rgba(13, 110, 253, 0.25);
   border: none;
   padding: 0;
   margin: 0;
@@ -932,7 +932,7 @@ onBeforeUnmount(() => {
   width: min(320px, 86vw);
   height: 100%;
   background: #ffffff;
-  box-shadow: -12px 0 32px rgba(43, 108, 176, 0.10);
+  box-shadow: -12px 0 32px rgba(13, 110, 253, 0.10);
   display: flex;
   flex-direction: column;
 }
@@ -1044,7 +1044,7 @@ onBeforeUnmount(() => {
     padding: 8px 12px calc(env(safe-area-inset-bottom) + 12px);
     background: #FFFFFF;
     border-top: 1px solid var(--s360-color-border-subtle);
-    box-shadow: 0 -4px 16px rgba(43, 108, 176, 0.10);
+    box-shadow: 0 -4px 16px rgba(13, 110, 253, 0.10);
     z-index: 1100;
   }
 
@@ -1067,7 +1067,7 @@ onBeforeUnmount(() => {
       background-color 0.2s ease;
   }
 
-  .bottom-nav-item.active { color: var(--s360-color-primary); background: rgba(43, 108, 176, 0.14); }
+  .bottom-nav-item.active { color: var(--s360-color-primary); background: rgba(13, 110, 253, 0.14); }
 
   .bottom-nav-item:focus-visible { outline: 2px solid var(--s360-color-primary); outline-offset: 2px; }
 
@@ -1080,4 +1080,3 @@ onBeforeUnmount(() => {
   .logo-mark { width: 56.4px; height: 40px; }
 }
 </style>
-

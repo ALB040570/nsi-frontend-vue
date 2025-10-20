@@ -403,7 +403,7 @@ const schemaNodes = [
 
 .quick-actions__button:hover {
   border-color: #b7cfcf;
-  box-shadow: 0 6px 18px rgba(43, 108, 176, 0.12);
+  box-shadow: 0 6px 18px rgba(13, 110, 253, 0.12);
   transform: translateY(-1px);
 }
 
@@ -490,7 +490,7 @@ const schemaNodes = [
 }
 
 .updates-item__badge--type {
-  background: rgba(43, 108, 176, 0.16);
+  background: rgba(13, 110, 253, 0.16);
 }
 
 .updates-item__badge--parameter {
@@ -632,5 +632,4 @@ const schemaNodes = [
   .updates-item { grid-template-columns: 1fr; }
 }
 </style>
-
 

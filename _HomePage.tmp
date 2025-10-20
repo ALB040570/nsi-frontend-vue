@@ -370,7 +370,7 @@ const schemaNodes = [
 .stat__value {
   font-size: 28px;
   font-weight: 700;
-  color: var(--s360-color-primary);
+  color: #006d77;
 }
 
 .stat__label {
@@ -403,13 +403,13 @@ const schemaNodes = [
 
 .quick-actions__button:hover {
   border-color: #b7cfcf;
-  box-shadow: 0 6px 18px rgba(43, 108, 176, 0.12);
+  box-shadow: 0 6px 18px rgba(0, 109, 119, 0.12);
   transform: translateY(-1px);
 }
 
 .quick-actions__icon {
   font-size: 28px;
-  color: var(--s360-color-primary);
+  color: #006d77;
 }
 
 .quick-actions__text {
@@ -490,7 +490,7 @@ const schemaNodes = [
 }
 
 .updates-item__badge--type {
-  background: rgba(43, 108, 176, 0.16);
+  background: rgba(0, 109, 119, 0.16);
 }
 
 .updates-item__badge--parameter {
@@ -536,7 +536,7 @@ const schemaNodes = [
 }
 
 .updates__link {
-  color: var(--s360-color-primary);
+  color: #006d77;
   font-weight: 600;
   text-decoration: none;
 }
@@ -569,7 +569,7 @@ const schemaNodes = [
 
 .schema-node__icon {
   font-size: 24px;
-  color: var(--s360-color-primary);
+  color: #006d77;
 }
 
 .schema-node__title {
@@ -621,16 +621,4 @@ const schemaNodes = [
     justify-self: flex-start;
   }
 }
-@media (max-width: 480px) {
-  .home-page { padding: 12px; padding-bottom: 88px; }
-  .home-page__grid { grid-template-columns: 1fr; gap: 12px; }
-  .hero__title { font-size: 20px; }
-  .hero__subtitle { font-size: 14px; }
-  .hero__stats { grid-template-columns: repeat(2, minmax(100px, 1fr)); gap: 12px; }
-  .quick-actions__button { gap: 12px; padding: 12px; }
-  .quick-actions__icon { font-size: 24px; }
-  .updates-item { grid-template-columns: 1fr; }
-}
 </style>
-
-

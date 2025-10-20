@@ -146,8 +146,8 @@ async function resolvePwaPlugin(): Promise<PluginOption | null> {
         short_name: 'NSI',
         start_url: '/dtj/nsi/',
         display: 'standalone',
-        background_color: '#006d77',
-        theme_color: '#006d77',
+        background_color: '#FFFFFF',
+        theme_color: '#2b6cb0',
         icons: [
           { src: '/icons/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/pwa-512x512.png', sizes: '512x512', type: 'image/png' },
@@ -179,7 +179,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins,
-    base: '/dtj/nsi/',
+    base: mode === 'development' ? '/' : '/dtj/nsi/',
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

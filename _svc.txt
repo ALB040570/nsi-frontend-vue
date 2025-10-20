@@ -20,12 +20,12 @@ body {
 
 /* Основная кнопка — морская волна */
 .btn-primary {
-  background-color: #2b6cb0;
+  background-color: #0D6EFD;
   color: #fff;
   border: none;
 }
 .btn-primary:hover {
-  background-color: #2c5282;
+  background-color: #0B5ED7;
 }
 
 /* Вторичная кнопка (светлая рамка) */
@@ -106,7 +106,7 @@ body {
 .h1-s360 {
   font-size: 24px;
   font-weight: bold;
-  color: #2b6cb0;
+  color: #0D6EFD;
   margin-bottom: 16px;
 }
 
@@ -151,22 +151,22 @@ body {
 
 /* Основная кнопка — морская волна */
 .btn-primary {
-  background-color: #2b6cb0;
+  background-color: #0D6EFD;
   color: #fff;
   border: none;
 }
 .btn-primary:hover {
-  background-color: #2c5282;
+  background-color: #0B5ED7;
 }
 
 /* Вторичная кнопка (светлая рамка) */
 .btn-outline {
   background: transparent;
-  color: #2b6cb0;
-  border: 1px solid #2b6cb0;
+  color: #0D6EFD;
+  border: 1px solid #0D6EFD;
 }
 .btn-outline:hover {
-  background: rgba(43, 108, 176, 0.08);
+  background: rgba(13, 110, 253, 0.08);
 }
 
 /* Кнопка-danger (удаление/критические действия) */
@@ -213,8 +213,8 @@ body {
 
 /* Заголовок таблицы */
 .table-s360 thead th {
-  background-color: #f8fafc;
-  color: #212529;
+  background-color: #0D6EFD;
+  color: #fff;
   text-align: left;
   padding: 8px 12px;
 }
@@ -237,7 +237,7 @@ body {
 .h1-s360 {
   font-size: 24px;
   font-weight: bold;
-  color: #2b6cb0;
+  color: #0D6EFD;
   margin-bottom: 16px;
 }
 
@@ -304,4 +304,3 @@ body {
   --s360-shadow-hover: 0 4px 12px rgba(20, 30, 50, 0.08);
   --s360-text-head: #334155;
 }
-
