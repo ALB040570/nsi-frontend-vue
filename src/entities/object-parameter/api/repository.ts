@@ -378,7 +378,7 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
     relTypeId !== null
       ? await rpcWithDebug<unknown, [number]>(
           'data/loadParamsComponent',
-          [relTypeId],
+          [REL_TYP_PARAMS_COMPONENT],
           'Снапшот: загрузка параметр-компонент связей',
         ).catch(() => null)
       : null
@@ -543,7 +543,30 @@ export async function loadParameterMeasures(): Promise<ParameterMeasureOption[]>
 
 export async function loadParameterSources(): Promise<ParameterSourceOption[]> {
   const response = await rpcWithDebug<RpcDirectoryItem[], ['Cls_Collections', 'Prop_Collections']>(
-    'data/loadCollections',
+    'data/loadCollections',// Лимиты и комментарии из loadParamsComponent по idro
+    /* const props = propsByIdro.get(rel.idro)
+    if (props) {
+      const limitMin = pickNumber(props, ['ParamsLimitMin', 'limitMin', 'minValue'])
+      if (limitMin !== null) item.minValue = limitMin
+
+      const limitMax = pickNumber(props, ['ParamsLimitMax', 'limitMax', 'maxValue'])
+      if (limitMax !== null) item.maxValue = limitMax
+
+      const limitNorm = pickNumber(props, ['ParamsLimitNorm', 'limitNorm', 'normValue'])
+      if (limitNorm !== null) item.normValue = limitNorm
+
+      const comment = pickString(props, ['cmt', 'comment', 'note'])
+      if (comment) item.note = comment
+
+      const limitMaxId = pickNumber(props, ['idParamsLimitMax'])
+      const limitMinId = pickNumber(props, ['idParamsLimitMin'])
+      const limitNormId = pickNumber(props, ['idParamsLimitNorm'])
+      if (limitMaxId !== null) item.details.limitMaxId = Number(limitMaxId)
+      if (limitMinId !== null) item.details.limitMinId = Number(limitMinId)
+      if (limitNormId !== null) item.details.limitNormId = Number(limitNormId)
+      const relationName = pickString(props, ['name'])
+      if (relationName) item.details.componentRelationName = relationName
+    */
     ['Cls_Collections', 'Prop_Collections'],
     'Справочники формы: источники',
   )
@@ -812,6 +835,40 @@ interface SaveParamComponentValuePayload {
   valueId: number | null | undefined
 }
 
+function resolveLimitIdKey(codProp: string): string | null {
+  if (codProp === 'Prop_ParamsLimitMax') return 'idParamsLimitMax'
+  if (codProp === 'Prop_ParamsLimitMin') return 'idParamsLimitMin'
+  if (codProp === 'Prop_ParamsLimitNorm') return 'idParamsLimitNorm'
+  return null
+}
+
+async function getIdValFromLoadParamsComponent(
+  relationId: number,
+  codProp: string,
+): Promise<number | null> {
+  try {
+    const response = await rpcWithDebug<unknown, [number]>(
+      'data/loadParamsComponent',
+      [REL_TYP_PARAMS_COMPONENT],
+      'Загрузка идентификаторов лимитов из loadParamsComponent',
+    )
+    const records = extractArray<Record<string, unknown>>(response)
+    const match = records.find((rec) => {
+      const obj = asRecord(rec)
+      const idro = pickNumber(obj, ['id', 'ord', 'idro', 'idrom'])
+      return idro !== null && Number(idro) === Number(relationId)
+    })
+    if (!match) return null
+    const key = resolveLimitIdKey(codProp)
+    if (!key) return null
+    const obj = asRecord(match)
+    const id = pickNumber(obj, [key])
+    return id !== null ? Number(id) : null
+  } catch {
+    return null
+  }
+}
+
 async function saveParamComponentValue(
   relationId: number,
   relationName: string,
@@ -819,7 +876,9 @@ async function saveParamComponentValue(
 ) {
   if (value === null || value === undefined) return
 
-  const hasExistingValue = valueId !== null && valueId !== undefined
+  const candidateId =
+    (await getIdValFromLoadParamsComponent(relationId, codProp)) ?? valueId ?? null
+  const hasExistingValue = candidateId !== null && candidateId !== undefined
   const relationOwn = Number(relationId)
   const ensuredRelationOwn = Number.isFinite(relationOwn) ? relationOwn : relationId
 
@@ -833,9 +892,10 @@ async function saveParamComponentValue(
   }
 
   if (hasExistingValue) {
-    const numericId = Number(valueId)
-    const ensuredId = Number.isFinite(numericId) ? numericId : valueId
+    const numericId = Number(candidateId)
+    const ensuredId = Number.isFinite(numericId) ? numericId : (candidateId as number)
     basePayload.idPropVal = ensuredId
+    ;(basePayload as Record<string, unknown>).idVal = ensuredId
 
     if (typeof codProp === 'string' && codProp.startsWith('Prop_')) {
       const specificIdKey = `id${codProp.slice('Prop_'.length)}`
@@ -944,7 +1004,11 @@ export async function updateParameter(
   const relationId = details.componentRelationId
   if (!relationId)
     throw new Error('Не удалось определить идентификатор связи параметра и компонента')
-
+  console.debug('limit IDs before save', {
+    max: details.limitMaxId,
+    min: details.limitMinId,
+    norm: details.limitNormId,
+  })
   const relationName = `${name} <=> ${payload.component.name}`
 
   await saveParamComponentValue(relationId, relationName, {

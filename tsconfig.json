@@ -3,7 +3,7 @@
      Назначение: общая конфигурация TypeScript и путевых алиасов для проекта.
      Использование: читается tsc, Vite и IDE для разрешения модулей. */
   "compilerOptions": {
-    "ignoreDeprecations": "5.0",
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
