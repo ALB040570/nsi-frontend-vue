@@ -54,7 +54,7 @@
         <div class="s360-aside-inner">
           <nav class="s360-nav">
             <NMenu
-              :options="menuOptions"
+              :options="menuOptionsWithResources"
               :value="menuValue"
               :collapsed="isSidebarCollapsed"
               :collapsed-width="COLLAPSED_WIDTH"
@@ -162,6 +162,7 @@ import {
   OptionsOutline,
   ConstructOutline,
   ClipboardOutline,
+  FolderOutline,
   BookOutline,
   EllipsisHorizontal,
 } from '@vicons/ionicons5'
@@ -217,6 +218,15 @@ const menuRouteByKey: Record<string, string> = {
   sources: '/nsi/sources',
   components: '/nsi/components',
 }
+
+// расширение маршрутов для ресурcов (единая таблица с типом через query)
+Object.assign(menuRouteByKey, {
+  resources: '/nsi/resources',
+  'resources:materials': '/nsi/resources?type=materials',
+  'resources:equipment': '/nsi/resources?type=equipment',
+  'resources:tools': '/nsi/resources?type=tools',
+  'resources:third-party': '/nsi/resources?type=third-party',
+})
 
 const MENU_ITEMS = [
   {
@@ -293,6 +303,27 @@ const menuOptions: MenuOption[] = MENU_ITEMS.map((item) => ({
   icon: renderIcon(item.icon),
 }))
 
+// Вставляем группу «Ресурсы» перед «Компоненты» (если найдена), иначе в конец
+const resourcesMenuOption: MenuOption = {
+  key: 'resources',
+  icon: renderIcon(FolderOutline),
+  label: withTooltip('Ресурсы', 'Справочники ресурсов'),
+  children: [
+    { key: 'resources:materials', label: withTooltip('Материалы', 'Материалы') },
+    { key: 'resources:equipment', label: withTooltip('Техника', 'Техника') },
+    { key: 'resources:tools', label: withTooltip('Инструменты', 'Инструменты') },
+    { key: 'resources:third-party', label: withTooltip('Услуги сторонних', 'Услуги сторонних') },
+  ],
+}
+
+const menuOptionsWithResources = computed<MenuOption[]>(() => {
+  const base: MenuOption[] = [...menuOptions]
+  const idx = base.findIndex((o) => String((o as MenuOption).key ?? '') === 'components')
+  if (idx >= 0) base.splice(idx, 0, resourcesMenuOption)
+  else base.push(resourcesMenuOption)
+  return base
+})
+
 const MIN_W = 200
 const MAX_W = 360
 const KEY = 's360.sidebar.width'
@@ -358,15 +389,22 @@ const handleMenuSelect = (key: string | number | null) => {
   const normalized = String(key)
   const target = menuRouteByKey[normalized]
   if (!target) return
-  if (target !== route.path) {
-    void router.push(target)
-  }
+  void router.push(target)
   mobileDrawerOpen.value = false
 }
 
 const syncMenuValue = () => {
-  const current = route.path
-  const match = Object.entries(menuRouteByKey).find(([, path]) => path === current)
+  const currentPath = route.path
+  if (currentPath === '/nsi/resources') {
+    const t = String(route.query?.type || '')
+    if (t && ['materials', 'equipment', 'tools', 'third-party'].includes(t)) {
+      menuValue.value = `resources:${t}`
+      return
+    }
+    menuValue.value = 'resources'
+    return
+  }
+  const match = Object.entries(menuRouteByKey).find(([, path]) => path === currentPath)
   menuValue.value = match ? match[0] : null
 }
 
@@ -439,7 +477,24 @@ const bottomNavItems = computed<BottomNavItem[]>(() => {
   ]
 })
 
-const mobileDrawerItems = computed<MenuItem[]>(() => MENU_ITEMS)
+const mobileDrawerItems = computed<MenuItem[]>(() => {
+  type ChildMenu = { key: string; menuLabel: string; tooltip: string }
+  const flat: MenuItem[] = []
+  for (const item of MENU_ITEMS) {
+    flat.push(item as MenuItem)
+    const children: ChildMenu[] = (item as unknown as { children?: ChildMenu[] }).children ?? []
+    for (const child of children) {
+      flat.push({
+        key: child.key,
+        icon: item.icon,
+        menuLabel: child.menuLabel,
+        mobileLabel: child.menuLabel,
+        tooltip: child.tooltip || child.menuLabel,
+      } as MenuItem)
+    }
+  }
+  return flat
+})
 
 const toggleIcon = computed(() => {
   if (isMobile.value) {

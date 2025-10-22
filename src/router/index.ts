@@ -12,6 +12,7 @@ const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
 const WorksPage = () => import('@pages/nsi/WorksPage.vue')
 const SourcesPage = () => import('@pages/nsi/SourcesPage.vue')
 const ComponentsPage = () => import('@pages/nsi/ComponentsPage.vue')
+const ResourcesPage = () => import('@pages/nsi/ResourcesPage.vue')
 const LoginPage = () => import('@pages/auth/LoginPage.vue')
 
 const router = createRouter({
@@ -55,6 +56,12 @@ const router = createRouter({
       path: '/nsi/sources',
       name: 'sources',
       component: SourcesPage,
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/nsi/resources',
+      name: 'resources',
+      component: ResourcesPage,
       // meta: { requiresAuth: true },
     },
     {
