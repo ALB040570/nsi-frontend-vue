@@ -188,6 +188,7 @@ import { useI18n } from 'vue-i18n'
 import type { PropType, VNodeChild } from 'vue'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
+import { useRoute } from 'vue-router'
 
 import {
   NButton,
@@ -319,7 +320,24 @@ const filterModel = reactive<FiltersModel>({
   departments: [],
 })
 
+const route = useRoute()
+
 const pagination = reactive({ page: 1, pageSize: 10 })
+
+// Initialize search filter from route query (?q=...) once pagination exists
+watch(
+  () => route.query.q,
+  (value) => {
+    const text = Array.isArray(value)
+      ? String(value[value.length - 1] ?? '')
+      : typeof value === 'string'
+        ? value
+        : ''
+    filterModel.search = text
+    pagination.page = 1
+  },
+  { immediate: true },
+)
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const sortOptions = [
   { label: 'А-Я', value: 'asc' },

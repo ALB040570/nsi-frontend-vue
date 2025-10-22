@@ -377,6 +377,20 @@ const sortOptions = [
 const { data: snapshot, isLoading, isFetching, error } = useObjectParametersQuery()
 const parameterMutations = useObjectParameterMutations()
 
+watch(
+  () => route.query.q,
+  (value) => {
+    const text = Array.isArray(value)
+      ? String(value[value.length - 1] ?? '')
+      : typeof value === 'string'
+        ? value
+        : ''
+    q.value = text
+    pagination.page = 1
+  },
+  { immediate: true },
+)
+
 const createModalOpen = ref(false)
 const directoriesLoading = ref(false)
 const directoriesLoaded = ref(false)

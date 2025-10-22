@@ -174,6 +174,7 @@ import {
   type VNodeChild,
 } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   NButton,
   NCard,
@@ -213,6 +214,21 @@ const parameterFilter = ref<string[]>([])
 const defectFilter = ref<string[]>([])
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 // read-only mode: no form or editing state
+
+const route = useRoute()
+watch(
+  () => route.query.q,
+  (value) => {
+    const text = Array.isArray(value)
+      ? String(value[value.length - 1] ?? '')
+      : typeof value === 'string'
+        ? value
+        : ''
+    search.value = text
+    pagination.page = 1
+  },
+  { immediate: true },
+)
 
 const { data, isLoading: componentsLoading } = useComponentsQuery()
 const { data: parameterSnapshot, isLoading: parametersLoading } = useObjectParametersQuery()

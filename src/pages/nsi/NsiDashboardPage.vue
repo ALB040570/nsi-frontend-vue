@@ -422,7 +422,10 @@ function handleActivitySelect(item: ActivityItem) {
 function handleSearchSelect(result: NsiSearchResult) {
   const route = targetRoutes[result.type]
   if (!route) return
-  void router.push({ name: route.name, query: { highlight: result.id } })
+  const q = typeof result.title === 'string' ? result.title : ''
+  const highlight = result.id
+  const query = q ? { q, highlight } : { highlight }
+  void router.push({ name: route.name, query })
 }
 
 function handleImport(action: 'import' | 'download') {

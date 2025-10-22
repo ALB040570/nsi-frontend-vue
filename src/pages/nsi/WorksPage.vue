@@ -308,6 +308,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { useRoute } from 'vue-router'
 
 import { rpc } from '@shared/api'
 import { extractRecords, normalizeText, toOptionalString } from '@shared/lib'
@@ -507,6 +508,21 @@ const periodTypeDirectory = new Map<string, PeriodTypeOptionDetails>()
 const rawPeriodTypeRecords = new Map<string, RawPeriodTypeRecord>()
 
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
+const route = useRoute()
+
+watch(
+  () => route.query.q,
+  (value) => {
+    const text = Array.isArray(value)
+      ? String(value[value.length - 1] ?? '')
+      : typeof value === 'string'
+        ? value
+        : ''
+    q.value = text
+    pagination.page = 1
+  },
+  { immediate: true },
+)
 const works = ref<WorkTableRow[]>([])
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const sortOptions = [

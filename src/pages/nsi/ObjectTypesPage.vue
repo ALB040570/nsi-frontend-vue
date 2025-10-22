@@ -520,6 +520,20 @@ const q = ref('')
 const shapeFilter = ref<'*' | GeometryKind>('*')
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 
+watch(
+  () => route.query.q,
+  (value) => {
+    const text = Array.isArray(value)
+      ? String(value[value.length - 1] ?? '')
+      : typeof value === 'string'
+        ? value
+        : ''
+    q.value = text
+    pagination.page = 1
+  },
+  { immediate: true },
+)
+
 let mediaQueryList: MediaQueryList | null = null
 const handleMediaQueryChange = (e: MediaQueryList | MediaQueryListEvent) => {
   isMobile.value = 'matches' in e ? e.matches : false
