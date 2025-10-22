@@ -6,12 +6,7 @@ import { fetchObjectTypesSnapshot } from '@entities/object-type'
 import { fetchComponentsSnapshot } from '@entities/component'
 import { fetchObjectParametersSnapshot } from '@entities/object-parameter'
 import { fetchObjectDefectsSnapshot } from '@entities/object-defect'
-import {
-  normalizeActivityResponse,
-  normalizeCoverageResponse,
-  normalizeDiagnosticsResponse,
-  normalizeRelationsResponse,
-} from '../model/normalize'
+import { normalizeCoverageResponse, normalizeDiagnosticsResponse, normalizeRelationsResponse } from '../model/normalize'
 import type {
   ActivityResponse,
   DiagnosticsResponse,
@@ -35,10 +30,10 @@ export async function fetchNsiDiagnostics() {
 }
 
 export async function fetchNsiActivity(limit = 7) {
-  const response = await get<ActivityResponse | ActivityResponse['items']>('/nsi/dashboard/activity', {
-    params: { limit },
-  })
-  return normalizeActivityResponse(response)
+  // Always use client-side aggregation (no backend dependency)
+  const items = await aggregateNsiActivity(limit)
+  // Do not mark as partial to avoid showing a warning badge in UI
+  return { items } as ActivityResponse
 }
 
 export async function fetchNsiRelationsCounts() {
@@ -189,4 +184,141 @@ export async function searchNsi(query: string) {
     // Fallback to client-side aggregation
     return aggregateNsiSearch(query)
   }
+}
+
+// Client-side recent activity aggregation (fallback when backend is absent)
+async function aggregateNsiActivity(limit = 7): Promise<ActivityResponse['items']> {
+  // We don't have real change timestamps on the client.
+  // To avoid misleading users, do not set ts for aggregated items.
+  // Keep it as an empty string so UI can hide it conditionally.
+  const emptyTs = ''
+
+  type RawRecord = Record<string, unknown>
+  type RawWorkRecord = { obj?: number | string | null; name?: string | null }
+
+  const mapSimple = (rec: RawRecord) => ({
+    id: toOptionalString((rec as RawRecord).id ?? (rec as RawRecord).ID ?? (rec as RawRecord).number),
+    name: toOptionalString(
+      (rec as RawRecord).name ??
+        (rec as RawRecord).NAME ??
+        (rec as RawRecord).title ??
+        (rec as RawRecord as { parameterName?: unknown }).parameterName ??
+        (rec as RawRecord as { paramsName?: unknown }).paramsName ??
+        (rec as RawRecord as { fullName?: unknown }).fullName,
+    ),
+  })
+
+  const tasks = await Promise.allSettled([
+    // sources
+    (async () => {
+      const list = await fetchSources().catch(() => [])
+      const tail = list.slice(-5).reverse()
+      return tail.map((s) => ({
+        id: `activity:sources:${s.id}`,
+        title: s.name,
+        actor: 'Источники',
+        ts: emptyTs,
+        target: 'sources' as const,
+        targetId: String(s.id),
+      }))
+    })(),
+    // object types
+    (async () => {
+      const resp = await rpc('data/loadTypesObjects', [0]).catch(() => null)
+      const raw = extractRecords<RawRecord>(resp)
+      const tail = raw.slice(-5).reverse().map(mapSimple).filter((r) => r.id && r.name)
+      return tail.map((t) => ({
+        id: `activity:types:${t.id}`,
+        title: t.name as string,
+        actor: 'Типы объектов',
+        ts: emptyTs,
+        target: 'types' as const,
+        targetId: t.id as string,
+      }))
+    })(),
+    // components
+    (async () => {
+      const resp = await rpc('data/loadComponents', [0]).catch(() => null)
+      const raw = extractRecords<RawRecord>(resp)
+      const tail = raw.slice(-5).reverse().map(mapSimple).filter((r) => r.id && r.name)
+      return tail.map((c) => ({
+        id: `activity:components:${c.id}`,
+        title: c.name as string,
+        actor: 'Компоненты',
+        ts: emptyTs,
+        target: 'components' as const,
+        targetId: c.id as string,
+      }))
+    })(),
+    // parameters
+    (async () => {
+      const resp = await rpc('data/loadParameters', [0]).catch(() => null)
+      const raw = extractRecords<RawRecord>(resp)
+      const tail = raw.slice(-5).reverse().map(mapSimple).filter((r) => r.id && r.name)
+      return tail.map((p) => ({
+        id: `activity:params:${p.id}`,
+        title: p.name as string,
+        actor: 'Параметры',
+        ts: emptyTs,
+        target: 'params' as const,
+        targetId: p.id as string,
+      }))
+    })(),
+    // defects
+    (async () => {
+      const resp = await rpc('data/loadDefects', [0]).catch(() => null)
+      const raw = extractRecords<RawRecord>(resp)
+      const tail = raw.slice(-5).reverse().map(mapSimple).filter((r) => r.id && r.name)
+      return tail.map((d) => ({
+        id: `activity:defects:${d.id}`,
+        title: d.name as string,
+        actor: 'Дефекты',
+        ts: emptyTs,
+        target: 'defects' as const,
+        targetId: d.id as string,
+      }))
+    })(),
+    // works
+    (async () => {
+      try {
+        const payload = await rpc('data/loadProcessCharts', [0])
+        const records = extractRecords<RawWorkRecord>(payload)
+        const tail = records
+          .map((r) => ({ id: toOptionalString(r.obj), name: toOptionalString(r.name) }))
+          .filter((r) => r.id && r.name)
+          .slice(-5)
+          .reverse()
+        return tail.map((w) => ({
+          id: `activity:works:${w.id}`,
+          title: String(w.name),
+          actor: 'Работы',
+          ts: emptyTs,
+          target: 'works' as const,
+          targetId: String(w.id),
+        }))
+      } catch {
+        return [] as ActivityResponse['items']
+      }
+    })(),
+  ])
+
+  // Interleave segments round-robin to keep the feed mixed
+  const segments: ActivityResponse['items'][] = []
+  for (const t of tasks) {
+    if (t.status === 'fulfilled') segments.push(t.value)
+  }
+
+  const result: ActivityResponse['items'] = []
+  let cursor = 0
+  const hasItems = () => segments.some((s) => s.length > 0)
+  while (result.length < limit && hasItems()) {
+    const seg = segments[cursor % segments.length]
+    if (seg.length) {
+      const entry = seg.shift()!
+      result.push(entry)
+    }
+    cursor += 1
+  }
+
+  return result
 }

@@ -47,6 +47,15 @@
         </div>
 
         <div class="nsi-dashboard-page__right">
+          <!-- Make recent changes visible immediately on desktop: place on top -->
+          <RecentActivity
+            :title="activityTitle"
+            :empty-text="activityEmpty"
+            :items="activityItems"
+            :partial="activityPartial"
+            @select="handleActivitySelect"
+          />
+
           <KpiTiles
             :coverage="coverage"
             :partial="coveragePartial"
@@ -63,14 +72,6 @@
             :loading="diagnosticsLoading"
             :severity-labels="severityLabels"
             @select="handleDiagnosticSelect"
-          />
-
-          <RecentActivity
-            :title="activityTitle"
-            :empty-text="activityEmpty"
-            :items="activityItems"
-            :partial="activityPartial"
-            @select="handleActivitySelect"
           />
 
           <NCard size="small" class="nsi-dashboard-page__templates">
@@ -128,7 +129,8 @@ const assistantEnabled = ref(false)
 
 const coverageQuery = useNsiCoverageQuery()
 const diagnosticsQuery = useNsiDiagnosticsQuery()
-const activityQuery = useNsiActivityQuery(7)
+// Fetch recent activity (increased limit for better overview)
+const activityQuery = useNsiActivityQuery(12)
 const countsQuery = useNsiCountsQuery()
 import { watchEffect } from 'vue'
 

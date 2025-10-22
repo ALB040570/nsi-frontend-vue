@@ -17,7 +17,7 @@
           <span class="nsi-activity__primary">{{ item.title }}</span>
           <span class="nsi-activity__meta">
             <strong>{{ item.actor }}</strong>
-            <span>{{ formatTime(item.ts) }}</span>
+            <span v-if="formatTime(item.ts)">{{ formatTime(item.ts) }}</span>
           </span>
         </button>
       </li>
@@ -57,9 +57,10 @@ const formatter = new Intl.DateTimeFormat('ru-RU', {
   minute: '2-digit',
 })
 
-function formatTime(value: string) {
+function formatTime(value?: string) {
+  if (!value) return ''
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (Number.isNaN(date.getTime())) return ''
   return formatter.format(date)
 }
 
