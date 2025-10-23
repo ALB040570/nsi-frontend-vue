@@ -183,18 +183,12 @@ import {
   NTag,
   type DataTableColumn,
   type SelectOption,
+  useMessage,
 } from 'naive-ui'
 import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'
-
-interface ResourceRow {
-  id: string
-  type: ResourceType
-  name: string
-  unit: string
-  description?: string
-}
 
 interface PaginationState { page: number; pageSize: number }
 
@@ -223,39 +217,261 @@ const typeLabels: Record<ResourceType, string> = {
 
 const typeOptions = Object.entries(typeLabels).map(([value, label]) => ({ label, value })) as SelectOption[]
 
-// локальное «хранилище» (до API)
-const LS_KEY = 'nsi.resources'
-const items = ref<ResourceRow[]>([])
+const message = useMessage()
+
+type ResourceSource = 'remote' | 'custom'
+
+interface ResourceRow {
+  id: string
+  type: ResourceType
+  name: string
+  unit: string
+  description?: string
+  source: ResourceSource
+}
+
+interface ResourceFormState {
+  id: string
+  type: ResourceType
+  name: string
+  unit: string
+  description: string
+}
+
+interface ResourcePayloadBase {
+  [key: string]: unknown
+  name?: string | null
+  Description?: string | null
+}
+
+interface MaterialResponse extends ResourcePayloadBase {
+  meaMeasure?: string | number | null
+  pvMeasure?: string | number | null
+}
+
+interface ServiceResponse extends ResourcePayloadBase {
+  meaMeasure?: string | number | null
+  pvMeasure?: string | number | null
+}
+
+type EquipmentResponse = ResourcePayloadBase
+
+type ToolResponse = ResourcePayloadBase
+
+interface MeasureResponse {
+  id?: string | number | null
+  pv?: string | number | null
+  name?: string | null
+}
+
+const CUSTOM_LS_KEY = 'nsi.resources.custom'
+
+const remoteItems = ref<ResourceRow[]>([])
+const customItems = ref<ResourceRow[]>([])
+const allItems = computed(() => [...customItems.value, ...remoteItems.value])
 
 function uid() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-function loadFromStorage() {
+function loadCustomFromStorage() {
+  if (typeof localStorage === 'undefined') return
   try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (raw) {
-      const parsed = JSON.parse(raw) as ResourceRow[]
-      if (Array.isArray(parsed)) {
-        items.value = parsed
-        return
-      }
-    }
-  } catch {}
-  // демо-данные по умолчанию
-  items.value = [
-    { id: uid(), type: 'materials', name: 'Щебень фр. 5–20', unit: 'т', description: 'Гранитный' },
-    { id: uid(), type: 'equipment', name: 'Автокран 25 т', unit: 'ч', description: 'С крановщиком' },
-    { id: uid(), type: 'tools', name: 'Перфоратор', unit: 'сут', description: 'Аренда' },
-    { id: uid(), type: 'third-party', name: 'Вывоз строительного мусора', unit: 'м³', description: '' },
-  ]
-  saveToStorage()
+    const raw = localStorage.getItem(CUSTOM_LS_KEY)
+    if (!raw) return
+    const parsed = JSON.parse(raw) as Array<Partial<ResourceRow>>
+    if (!Array.isArray(parsed)) return
+    customItems.value = parsed
+      .filter((item): item is Partial<ResourceRow> & { id: string } => {
+        return !!item && typeof item === 'object' && typeof item.id === 'string'
+      })
+      .map((item) => ({
+        id: item.id,
+        type: (item.type as ResourceType) ?? 'materials',
+        name: formatText(item.name) || 'Без названия',
+        unit: formatText(item.unit),
+        description: item.description ? formatText(item.description) : '',
+        source: 'custom',
+      }))
+  } catch (error) {
+    console.warn('Не удалось прочитать пользовательские ресурсы из localStorage', error)
+  }
 }
 
-function saveToStorage() {
+function saveCustomToStorage() {
+  if (typeof localStorage === 'undefined') return
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(items.value))
-  } catch {}
+    const payload = customItems.value.map((item) => {
+      const { source: _ignored, ...rest } = item
+      void _ignored
+      return rest
+    })
+    localStorage.setItem(CUSTOM_LS_KEY, JSON.stringify(payload))
+  } catch (error) {
+    console.warn('Не удалось сохранить пользовательские ресурсы', error)
+  }
+}
+
+type MeasureLookup = Map<string, string>
+
+function formatText(value: unknown): string {
+  if (typeof value === 'string') return value.trim()
+  if (value == null) return ''
+  return String(value).trim()
+}
+
+function resolveName(value: unknown): string {
+  const text = formatText(value)
+  return text || 'Без названия'
+}
+
+function resolveDescription(value: unknown): string {
+  return formatText(value)
+}
+
+function createMeasureKey(id?: unknown, pv?: unknown): string {
+  const idPart = formatText(id)
+  const pvPart = formatText(pv)
+  return `${idPart}__${pvPart}`
+}
+
+function buildMeasureLookup(records: MeasureResponse[]): MeasureLookup {
+  const map: MeasureLookup = new Map()
+  for (const record of records) {
+    const key = createMeasureKey(record.id, record.pv)
+    if (!key) continue
+    const name = formatText(record.name)
+    if (!name) continue
+    map.set(key, name)
+  }
+  return map
+}
+
+function resolveMeasureName(lookup: MeasureLookup, id?: unknown, pv?: unknown): string {
+  const key = createMeasureKey(id, pv)
+  if (!key) return ''
+  return lookup.get(key) ?? ''
+}
+
+const ID_CANDIDATES = [
+  'id',
+  'Id',
+  'ID',
+  'idMaterial',
+  'IdMaterial',
+  'ID_Material',
+  'idService',
+  'IdService',
+  'idEquipment',
+  'IdEquipment',
+  'idTool',
+  'IdTool',
+  'code',
+  'Code',
+  'guid',
+  'Guid',
+  'GUID',
+  'Ref_Key',
+  'refKey',
+]
+
+function resolveRowId(prefix: string, record: ResourcePayloadBase, fallbackIndex: number): string {
+  for (const key of ID_CANDIDATES) {
+    const value = record[key]
+    const text = formatText(value)
+    if (text) {
+      return `${prefix}-${text}`
+    }
+  }
+
+  return `${prefix}-${fallbackIndex}`
+}
+
+function createMaterialRows(materials: MaterialResponse[], measures: MeasureLookup): ResourceRow[] {
+  return materials.map((material, index) => {
+    const id = resolveRowId('material', material, index)
+    const unit = resolveMeasureName(measures, material.meaMeasure, material.pvMeasure) || '—'
+    return {
+      id,
+      type: 'materials',
+      name: resolveName(material.name),
+      unit,
+      description: resolveDescription(material.Description),
+      source: 'remote',
+    }
+  })
+}
+
+function createServiceRows(services: ServiceResponse[], measures: MeasureLookup): ResourceRow[] {
+  return services.map((service, index) => {
+    const id = resolveRowId('service', service, index)
+    const unit = resolveMeasureName(measures, service.meaMeasure, service.pvMeasure) || '—'
+    return {
+      id,
+      type: 'third-party',
+      name: resolveName(service.name),
+      unit,
+      description: resolveDescription(service.Description),
+      source: 'remote',
+    }
+  })
+}
+
+function createEquipmentRows(equipment: EquipmentResponse[]): ResourceRow[] {
+  return equipment.map((item, index) => {
+    const id = resolveRowId('equipment', item, index)
+    return {
+      id,
+      type: 'equipment',
+      name: resolveName(item.name),
+      unit: 'единица',
+      description: resolveDescription(item.Description),
+      source: 'remote',
+    }
+  })
+}
+
+function createToolRows(tools: ToolResponse[]): ResourceRow[] {
+  return tools.map((item, index) => {
+    const id = resolveRowId('tool', item, index)
+    return {
+      id,
+      type: 'tools',
+      name: resolveName(item.name),
+      unit: 'единица',
+      description: resolveDescription(item.Description),
+      source: 'remote',
+    }
+  })
+}
+
+async function fetchResources() {
+  tableLoading.value = true
+  try {
+    const [materials, services, equipment, tools, measures] = await Promise.all([
+      resourceRpc<MaterialResponse[]>('data/loadMaterial', [0]),
+      resourceRpc<ServiceResponse[]>('data/loadTpService', [0]),
+      resourceRpc<EquipmentResponse[]>('data/loadEquipment', [0]),
+      resourceRpc<ToolResponse[]>('data/loadTool', [0]),
+      nsiRpc<MeasureResponse[]>('data/loadMeasure', ['Prop_Measure']),
+    ])
+
+    const measureLookup = buildMeasureLookup(measures ?? [])
+
+    remoteItems.value = [
+      ...createMaterialRows(materials ?? [], measureLookup),
+      ...createServiceRows(services ?? [], measureLookup),
+      ...createEquipmentRows(equipment ?? []),
+      ...createToolRows(tools ?? []),
+    ]
+  } catch (error) {
+    console.error('Не удалось загрузить справочник ресурсов', error)
+    const text = error instanceof Error ? error.message : 'Не удалось загрузить ресурсы'
+    message.error(text)
+    remoteItems.value = []
+  } finally {
+    tableLoading.value = false
+  }
 }
 
 function setTypeFromQuery() {
@@ -268,8 +484,9 @@ function setTypeFromQuery() {
 }
 
 onMounted(() => {
-  loadFromStorage()
+  loadCustomFromStorage()
   setTypeFromQuery()
+  void fetchResources()
 })
 
 watch(
@@ -291,8 +508,8 @@ const normalizedSearch = computed(() => search.value.trim().toLocaleLowerCase('r
 
 const filtered = computed(() => {
   const byType = typeFilter.value
-    ? items.value.filter((r) => r.type === typeFilter.value)
-    : items.value
+    ? allItems.value.filter((r) => r.type === typeFilter.value)
+    : allItems.value
 
   if (!normalizedSearch.value) return byType
 
@@ -366,35 +583,66 @@ const columns = computed<DataTableColumn<ResourceRow>[]>(() => [
     key: 'actions',
     width: 120,
     render(row) {
-      return h('div', { class: 'table-actions' }, [
-        h(NButton,
-          { quaternary: true, circle: true, size: 'small', title: 'Редактировать', onClick: () => openEdit(row.id) },
-          { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-        ),
-        h(
-          NPopconfirm,
-          { onPositiveClick: () => remove(row.id), 'positive-text': 'Удалить', 'negative-text': 'Отмена' },
-          {
-            trigger: () =>
-              h(NButton,
-                { quaternary: true, circle: true, size: 'small', type: 'error', title: 'Удалить' },
-                { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-              ),
-            default: () => `Удалить запись «${row.name}»?`,
-          },
-        ),
-      ])
+      const isCustom = row.source === 'custom'
+
+      const editButton = h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          title: isCustom ? 'Редактировать' : 'Ресурс доступен только для чтения',
+          disabled: !isCustom,
+          onClick: () => (isCustom ? openEdit(row.id) : undefined),
+        },
+        { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+      )
+
+      const removeButton = isCustom
+        ? h(
+            NPopconfirm,
+            { onPositiveClick: () => remove(row.id), 'positive-text': 'Удалить', 'negative-text': 'Отмена' },
+            {
+              trigger: () =>
+                h(
+                  NButton,
+                  {
+                    quaternary: true,
+                    circle: true,
+                    size: 'small',
+                    type: 'error',
+                    title: 'Удалить',
+                  },
+                  { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+                ),
+              default: () => `Удалить запись «${row.name}»?`,
+            },
+          )
+        : h(
+            NButton,
+            {
+              quaternary: true,
+              circle: true,
+              size: 'small',
+              type: 'error',
+              title: 'Ресурс доступен только для чтения',
+              disabled: true,
+            },
+            { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+          )
+
+      return h('div', { class: 'table-actions' }, [editButton, removeButton])
     },
   },
 ])
 
-// CRUD (пока локально)
-const form = reactive<ResourceRow>({ id: '', type: 'materials', name: '', unit: '', description: '' })
-const errors = reactive<{ [K in keyof ResourceRow]?: string | null }>({})
+// CRUD для пользовательских записей (хранятся только на фронте)
+const form = reactive<ResourceFormState>({ id: '', type: 'materials', name: '', unit: '', description: '' })
+const errors = reactive<{ [K in keyof ResourceFormState]?: string | null }>({})
 
 const dialogTitle = computed(() => (editingId.value ? 'Редактировать ресурс' : 'Добавить ресурс'))
 
-function resetForm(partial?: Partial<ResourceRow>) {
+function resetForm(partial?: Partial<ResourceFormState>) {
   form.id = partial?.id ?? ''
   form.type = partial?.type ?? (typeFilter.value ?? 'materials')
   form.name = partial?.name ?? ''
@@ -414,39 +662,66 @@ function openCreate() {
 }
 
 function openEdit(id: string) {
-  const row = items.value.find((r) => r.id === id)
-  if (!row) return
+  const row = customItems.value.find((r) => r.id === id)
+  if (!row) {
+    message.warning('Редактировать можно только добавленные вручную записи')
+    return
+  }
+
   editingId.value = id
-  resetForm(row)
+  resetForm({
+    id: row.id,
+    type: row.type,
+    name: row.name,
+    unit: row.unit,
+    description: row.description ?? '',
+  })
   dialogOpen.value = true
 }
 
 function validate(): boolean {
   let ok = true
   errors.type = form.type ? null : 'Выберите вид'
-  errors.name = form.name.trim() ? null : 'Заполните название'
-  errors.unit = form.unit.trim() ? null : 'Заполните единицу измерения'
+  errors.name = formatText(form.name) ? null : 'Заполните название'
+  errors.unit = formatText(form.unit) ? null : 'Заполните единицу измерения'
   if (errors.type || errors.name || errors.unit) ok = false
   return ok
 }
 
 function save() {
   if (!validate()) return
+
+  const payload: ResourceRow = {
+    id: editingId.value ?? `custom-${uid()}`,
+    type: form.type,
+    name: formatText(form.name),
+    unit: formatText(form.unit),
+    description: resolveDescription(form.description),
+    source: 'custom',
+  }
+
   if (editingId.value) {
-    const idx = items.value.findIndex((r) => r.id === editingId.value)
+    const idx = customItems.value.findIndex((r) => r.id === editingId.value)
     if (idx !== -1) {
-      items.value[idx] = { ...items.value[idx], ...form, id: editingId.value }
+      customItems.value.splice(idx, 1, payload)
     }
   } else {
-    items.value.unshift({ ...form, id: uid() })
+    customItems.value = [payload, ...customItems.value]
   }
-  saveToStorage()
+
+  saveCustomToStorage()
   dialogOpen.value = false
+  editingId.value = null
 }
 
 function remove(id: string) {
-  items.value = items.value.filter((r) => r.id !== id)
-  saveToStorage()
+  const next = customItems.value.filter((r) => r.id !== id)
+  if (next.length === customItems.value.length) {
+    message.warning('Удалять можно только добавленные вручную записи')
+    return
+  }
+  customItems.value = next
+  saveCustomToStorage()
 }
 
 const isMobile = computed(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false))
