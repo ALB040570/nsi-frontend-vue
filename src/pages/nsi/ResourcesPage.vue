@@ -361,17 +361,38 @@ function buildMeasureLookup(records: MeasureResponse[]): MeasureLookup {
 }
 
 function unwrapArrayPayload<T>(payload: unknown): T[] {
-  if (Array.isArray(payload)) return payload
-  if (!payload || typeof payload !== 'object') return []
+  const visited = new Set<unknown>()
+  const queue: unknown[] = [payload]
+  let fallback: T[] | null = null
 
-  for (const key of ARRAY_WRAPPER_KEYS) {
-    if (key in payload) {
-      const nested = unwrapArrayPayload<T>((payload as Record<string, unknown>)[key])
-      if (nested.length) return nested
+  while (queue.length) {
+    const current = queue.shift()
+    if (current == null) continue
+    if (visited.has(current)) continue
+    visited.add(current)
+
+    if (Array.isArray(current)) {
+      if (current.length) return current as T[]
+      if (!fallback) fallback = current as T[]
+      continue
+    }
+
+    if (typeof current === 'object') {
+      const record = current as Record<string, unknown>
+
+      for (const key of ARRAY_WRAPPER_KEYS) {
+        if (key in record) {
+          queue.push(record[key])
+        }
+      }
+
+      for (const value of Object.values(record)) {
+        queue.push(value)
+      }
     }
   }
 
-  return []
+  return fallback ?? []
 }
 
 function resolveMeasureName(lookup: MeasureLookup, id?: unknown, pv?: unknown): string {
