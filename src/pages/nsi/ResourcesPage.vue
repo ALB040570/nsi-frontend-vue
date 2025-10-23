@@ -95,14 +95,9 @@
             <NButton quaternary circle size="small" title="Редактировать" @click="openEdit(item.id)">
               <template #icon><NIcon><PencilOutline /></NIcon></template>
             </NButton>
-            <NPopconfirm @positive-click="() => remove(item.id)" positive-text="Удалить" negative-text="Отмена">
-              <template #trigger>
-                <NButton quaternary circle size="small" type="error" title="Удалить">
-                  <template #icon><NIcon><TrashOutline /></NIcon></template>
-                </NButton>
-              </template>
-              Удалить запись «{{ item.name }}»?
-            </NPopconfirm>
+            <NButton quaternary circle size="small" type="error" title="Удаление недоступно" disabled>
+              <template #icon><NIcon><TrashOutline /></NIcon></template>
+            </NButton>
           </footer>
         </article>
       </div>
@@ -142,13 +137,32 @@
     <NModal v-model:show="dialogOpen" preset="card" :title="dialogTitle" style="width: min(560px, 96vw)">
       <NForm :model="form" label-width="160px">
         <NFormItem label="Вид ресурса" :feedback="errors.type ?? undefined" :validation-status="errors.type ? 'error' : undefined">
-          <NSelect v-model:value="form.type" :options="typeOptions" placeholder="Выберите вид ресурса" />
+          <NSelect
+            v-model:value="form.type"
+            :options="typeOptions"
+            placeholder="Выберите вид ресурса"
+            :disabled="isEditing"
+          />
         </NFormItem>
         <NFormItem label="Название" :feedback="errors.name ?? undefined" :validation-status="errors.name ? 'error' : undefined">
           <NInput v-model:value="form.name" placeholder="Например: Щебень фр. 5-20" />
         </NFormItem>
-        <NFormItem label="Единица измерения" :feedback="errors.unit ?? undefined" :validation-status="errors.unit ? 'error' : undefined">
-          <NInput v-model:value="form.unit" placeholder="Например: т, м², ч" />
+        <NFormItem
+          v-if="requiresMeasure"
+          label="Единица измерения"
+          :feedback="errors.measureKey ?? undefined"
+          :validation-status="errors.measureKey ? 'error' : undefined"
+        >
+          <NSelect
+            v-model:value="form.measureKey"
+            :options="measureOptions"
+            placeholder="Выберите единицу измерения"
+            filterable
+            :loading="measureLoading"
+          />
+        </NFormItem>
+        <NFormItem v-else label="Единица измерения">
+          <span class="form-hint">Не требуется для выбранного вида ресурса</span>
         </NFormItem>
         <NFormItem label="Описание">
           <NInput v-model:value="form.description" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="Краткое описание" />
@@ -157,7 +171,7 @@
       <template #footer>
         <div class="modal-footer">
           <NButton @click="dialogOpen = false">Отмена</NButton>
-          <NButton type="primary" class="btn-primary" @click="save">Сохранить</NButton>
+          <NButton type="primary" class="btn-primary" :loading="saveLoading" @click="save">Сохранить</NButton>
         </div>
       </template>
     </NModal>
@@ -178,7 +192,6 @@ import {
   NInput,
   NModal,
   NPagination,
-  NPopconfirm,
   NSelect,
   NTag,
   type DataTableColumn,
@@ -190,18 +203,22 @@ import { resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'
 
-interface PaginationState { page: number; pageSize: number }
+interface PaginationState {
+  page: number
+  pageSize: number
+}
 
 const router = useRouter()
 const route = useRoute()
 
 const infoOpen = ref(false)
 const dialogOpen = ref(false)
-const editingId = ref<string | null>(null)
+const editingRow = ref<ResourceRow | null>(null)
 const search = ref('')
 const typeFilter = ref<ResourceType | null>(null)
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const tableLoading = ref(false)
+const measureLoading = ref(false)
 const sortOrder = ref<'name-asc' | 'name-desc'>('name-asc')
 const sortOptions = [
   { label: 'По названию (А→Я)', value: 'name-asc' },
@@ -219,22 +236,20 @@ const typeOptions = Object.entries(typeLabels).map(([value, label]) => ({ label,
 
 const message = useMessage()
 
-type ResourceSource = 'remote' | 'custom'
-
 interface ResourceRow {
   id: string
   type: ResourceType
   name: string
   unit: string
   description?: string
-  source: ResourceSource
+  raw: ResourcePayloadBase
+  measureKey?: string | null
 }
 
 interface ResourceFormState {
-  id: string
   type: ResourceType
   name: string
-  unit: string
+  measureKey: string | null
   description: string
 }
 
@@ -264,6 +279,16 @@ interface MeasureResponse {
   name?: string | null
 }
 
+interface MeasureSelectOption extends SelectOption {
+  value: string
+  label: string
+  id: string | number | null
+  pv: string | number | null
+  name: string
+}
+
+type MeasureLookup = Map<string, string>
+
 const ARRAY_WRAPPER_KEYS = [
   'result',
   'Result',
@@ -277,55 +302,394 @@ const ARRAY_WRAPPER_KEYS = [
   'Rows',
 ]
 
-const CUSTOM_LS_KEY = 'nsi.resources.custom'
+const ID_CANDIDATES = [
+  'id',
+  'Id',
+  'ID',
+  'idMaterial',
+  'IdMaterial',
+  'ID_Material',
+  'idService',
+  'IdService',
+  'idEquipment',
+  'IdEquipment',
+  'idTool',
+  'IdTool',
+  'code',
+  'Code',
+  'guid',
+  'Guid',
+  'GUID',
+  'Ref_Key',
+  'refKey',
+]
 
 const remoteItems = ref<ResourceRow[]>([])
-const customItems = ref<ResourceRow[]>([])
-const allItems = computed(() => [...customItems.value, ...remoteItems.value])
+const measureOptions = ref<MeasureSelectOption[]>([])
+let measureOptionMap: Map<string, MeasureSelectOption> = new Map()
 
-function uid() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+const form = reactive<ResourceFormState>({ type: 'materials', name: '', measureKey: null, description: '' })
+const errors = reactive<{ [K in keyof ResourceFormState]?: string | null }>({})
+
+const dialogTitle = computed(() => (editingRow.value ? 'Редактировать ресурс' : 'Добавить ресурс'))
+const isEditing = computed(() => editingRow.value !== null)
+const requiresMeasure = computed(() => form.type === 'materials' || form.type === 'third-party')
+const saveLoading = ref(false)
+
+const normalizedSearch = computed(() => search.value.trim().toLocaleLowerCase('ru-RU'))
+
+const filtered = computed(() => {
+  const base = typeFilter.value ? remoteItems.value.filter((r) => r.type === typeFilter.value) : remoteItems.value
+
+  if (!normalizedSearch.value) return base
+
+  return base.filter((r) => {
+    const hay = `${r.name}\n${r.description || ''}`.toLocaleLowerCase('ru-RU')
+    return hay.includes(normalizedSearch.value)
+  })
+})
+
+const sortedRows = computed(() => {
+  const arr = [...filtered.value]
+  arr.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  return sortOrder.value === 'name-asc' ? arr : arr.reverse()
+})
+
+const total = computed(() => sortedRows.value.length)
+const paginatedRows = computed(() => {
+  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
+  return sortedRows.value.slice(start, start + pagination.pageSize)
+})
+const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
+const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value))
+const visibleCount = computed(() => rows.value.length)
+const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
+
+watch([search, typeFilter], () => {
+  pagination.page = 1
+})
+
+watch(
+  () => pagination.pageSize,
+  () => {
+    pagination.page = 1
+  },
+)
+
+watch(
+  () => [pagination.page, total.value],
+  () => {
+    if (pagination.page > maxPage.value) pagination.page = maxPage.value
+  },
+  { immediate: true },
+)
+
+watch(
+  () => form.type,
+  (next) => {
+    if (next === 'equipment' || next === 'tools') {
+      form.measureKey = null
+      errors.measureKey = null
+    }
+  },
+)
+
+function resetForm(partial?: Partial<ResourceFormState>) {
+  form.type = partial?.type ?? (typeFilter.value ?? 'materials')
+  form.name = partial?.name ?? ''
+  form.measureKey = partial?.measureKey ?? null
+  form.description = partial?.description ?? ''
+  errors.type = null
+  errors.name = null
+  errors.measureKey = null
+  errors.description = null
 }
 
-function loadCustomFromStorage() {
-  if (typeof localStorage === 'undefined') return
+function openCreate() {
+  editingRow.value = null
+  resetForm()
+  dialogOpen.value = true
+}
+
+function openEdit(id: string) {
+  const row = remoteItems.value.find((r) => r.id === id)
+  if (!row) {
+    message.error('Не удалось найти ресурс для редактирования')
+    return
+  }
+
+  editingRow.value = row
+  resetForm({
+    type: row.type,
+    name: row.name,
+    measureKey: row.measureKey ?? null,
+    description: row.description ?? '',
+  })
+  dialogOpen.value = true
+}
+
+function validate(): boolean {
+  let ok = true
+  errors.type = form.type ? null : 'Выберите вид'
+  const trimmedName = formatText(form.name)
+  errors.name = trimmedName ? null : 'Заполните название'
+  if (!trimmedName) ok = false
+  if (!form.type) ok = false
+  if (requiresMeasure.value) {
+    errors.measureKey = form.measureKey ? null : 'Выберите единицу измерения'
+    if (!form.measureKey) ok = false
+  } else {
+    errors.measureKey = null
+  }
+  return ok
+}
+
+const METHOD_BY_TYPE: Record<ResourceType, string> = {
+  materials: 'data/saveMaterial',
+  equipment: 'data/saveEquipment',
+  tools: 'data/saveTool',
+  'third-party': 'data/saveTpService',
+}
+
+async function save() {
+  if (!validate()) return
+
+  const normalizedName = formatText(form.name)
+  const normalizedDescription = resolveDescription(form.description)
+  form.name = normalizedName
+  form.description = normalizedDescription
+
+  const currentRow = editingRow.value
+  const method = METHOD_BY_TYPE[form.type]
+  const mode = currentRow ? 'upd' : 'ins'
+  const payload = buildPayload(
+    {
+      type: form.type,
+      name: normalizedName,
+      description: normalizedDescription,
+      measureKey: form.measureKey,
+    },
+    currentRow,
+  )
+
+  saveLoading.value = true
   try {
-    const raw = localStorage.getItem(CUSTOM_LS_KEY)
-    if (!raw) return
-    const parsed = JSON.parse(raw) as Array<Partial<ResourceRow>>
-    if (!Array.isArray(parsed)) return
-    customItems.value = parsed
-      .filter((item): item is Partial<ResourceRow> & { id: string } => {
-        return !!item && typeof item === 'object' && typeof item.id === 'string'
-      })
-      .map((item) => ({
-        id: item.id,
-        type: (item.type as ResourceType) ?? 'materials',
-        name: formatText(item.name) || 'Без названия',
-        unit: formatText(item.unit),
-        description: item.description ? formatText(item.description) : '',
-        source: 'custom',
-      }))
+    await resourceRpc(method, [mode, payload])
+    message.success(currentRow ? 'Ресурс обновлён' : 'Ресурс добавлен')
+    dialogOpen.value = false
+    editingRow.value = null
+    resetForm()
+    await fetchResources()
   } catch (error) {
-    console.warn('Не удалось прочитать пользовательские ресурсы из localStorage', error)
+    console.error('Не удалось сохранить ресурс', error)
+    const text = error instanceof Error ? error.message : 'Не удалось сохранить ресурс'
+    message.error(text)
+  } finally {
+    saveLoading.value = false
   }
 }
 
-function saveCustomToStorage() {
-  if (typeof localStorage === 'undefined') return
+interface BuildPayloadState {
+  type: ResourceType
+  name: string
+  description: string
+  measureKey: string | null
+}
+
+function buildPayload(state: BuildPayloadState, row: ResourceRow | null): Record<string, unknown> {
+  const base: Record<string, unknown> = row ? { ...row.raw } : {}
+
+  base.name = state.name
+  base.Description = state.description
+
+  if (state.type === 'materials' || state.type === 'third-party') {
+    const option = state.measureKey ? measureOptionMap.get(state.measureKey) : undefined
+    if (option) {
+      base.meaMeasure = normalizeMeasurePart(option.id)
+      base.pvMeasure = normalizeMeasurePart(option.pv)
+      if (state.type === 'materials') {
+        const measureName = option.name
+        base.fullName = measureName ? `${state.name}, ${measureName}` : state.name
+      }
+    } else if (!row) {
+      base.meaMeasure = null
+      base.pvMeasure = null
+    }
+  }
+
+  if (state.type === 'materials' && (!('fullName' in base) || !base.fullName)) {
+    base.fullName = state.name
+  }
+
+  return base
+}
+
+function normalizeMeasurePart(value: unknown): number | string | null {
+  if (value == null) return null
+  const numeric = Number(value)
+  if (!Number.isNaN(numeric) && Number.isFinite(numeric)) {
+    return numeric
+  }
+  if (typeof value === 'string') return value
+  return String(value)
+}
+
+const rowKey = (row: ResourceRow) => row.id
+
+const columns = computed<DataTableColumn<ResourceRow>[]>(() => [
+  {
+    title: 'Название',
+    key: 'name',
+    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
+    width: 400,
+    ellipsis: { tooltip: true },
+    render: (row) => h('span', { class: 'table-cell__primary' }, row.name),
+  },
+  {
+    title: 'Вид ресурса',
+    key: 'type',
+    width: 180,
+    render: (row) => h(NTag, { size: 'small', bordered: false, round: true, type: 'info' }, { default: () => typeLabels[row.type] }),
+  },
+  { title: 'Ед. изм.', key: 'unit', width: 120 },
+  { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
+  {
+    title: 'Действия',
+    key: 'actions',
+    width: 120,
+    render(row) {
+      const editButton = h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          title: 'Редактировать',
+          onClick: () => openEdit(row.id),
+        },
+        { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+      )
+
+      const removeButton = h(
+        NButton,
+        {
+          quaternary: true,
+          circle: true,
+          size: 'small',
+          type: 'error',
+          title: 'Удаление доступно в другой задаче',
+          disabled: true,
+        },
+        { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+      )
+
+      return h('div', { class: 'table-actions' }, [editButton, removeButton])
+    },
+  },
+])
+
+function showMore() {
+  if (pagination.page < maxPage.value) pagination.page += 1
+}
+
+async function fetchResources() {
+  tableLoading.value = true
+  measureLoading.value = true
   try {
-    const payload = customItems.value.map((item) => {
-      const { source: _ignored, ...rest } = item
-      void _ignored
-      return rest
-    })
-    localStorage.setItem(CUSTOM_LS_KEY, JSON.stringify(payload))
+    const [materialsRaw, servicesRaw, equipmentRaw, toolsRaw, measuresRaw] = await Promise.all([
+      resourceRpc<unknown>('data/loadMaterial', [0]),
+      resourceRpc<unknown>('data/loadTpService', [0]),
+      resourceRpc<unknown>('data/loadEquipment', [0]),
+      resourceRpc<unknown>('data/loadTool', [0]),
+      nsiRpc<unknown>('data/loadMeasure', ['Prop_Measure']),
+    ])
+
+    const measureRecords = unwrapArrayPayload<MeasureResponse>(measuresRaw)
+    const dictionaries = buildMeasureDictionaries(measureRecords)
+    measureOptions.value = dictionaries.options
+    measureOptionMap = dictionaries.map
+
+    remoteItems.value = [
+      ...createMaterialRows(unwrapArrayPayload<MaterialResponse>(materialsRaw), dictionaries.lookup),
+      ...createServiceRows(unwrapArrayPayload<ServiceResponse>(servicesRaw), dictionaries.lookup),
+      ...createEquipmentRows(unwrapArrayPayload<EquipmentResponse>(equipmentRaw)),
+      ...createToolRows(unwrapArrayPayload<ToolResponse>(toolsRaw)),
+    ]
   } catch (error) {
-    console.warn('Не удалось сохранить пользовательские ресурсы', error)
+    console.error('Не удалось загрузить справочник ресурсов', error)
+    const text = error instanceof Error ? error.message : 'Не удалось загрузить ресурсы'
+    message.error(text)
+    remoteItems.value = []
+  } finally {
+    tableLoading.value = false
+    measureLoading.value = false
   }
 }
 
-type MeasureLookup = Map<string, string>
+function setTypeFromQuery() {
+  const q = String(route.query.type || '')
+  if (q && ['materials', 'equipment', 'tools', 'third-party'].includes(q)) {
+    typeFilter.value = q as ResourceType
+  } else {
+    typeFilter.value = null
+  }
+}
+
+onMounted(() => {
+  setTypeFromQuery()
+  void fetchResources()
+})
+
+watch(
+  () => route.query.type,
+  () => setTypeFromQuery(),
+)
+
+function handleTypeFilterUpdate(next: ResourceType | null) {
+  const query = { ...route.query }
+  if (next) {
+    query.type = next
+  } else {
+    delete query.type
+  }
+  void router.replace({ path: route.path, query })
+}
+
+type MeasureDictionaries = {
+  lookup: MeasureLookup
+  options: MeasureSelectOption[]
+  map: Map<string, MeasureSelectOption>
+}
+
+function buildMeasureDictionaries(records: MeasureResponse[]): MeasureDictionaries {
+  const lookup: MeasureLookup = new Map()
+  const options: MeasureSelectOption[] = []
+  const map = new Map<string, MeasureSelectOption>()
+
+  for (const record of records) {
+    const key = createMeasureKey(record.id, record.pv)
+    if (!key) continue
+    const name = formatText(record.name)
+    if (!name) continue
+
+    lookup.set(key, name)
+
+    const option: MeasureSelectOption = {
+      label: name,
+      value: key,
+      id: record.id ?? null,
+      pv: record.pv ?? null,
+      name,
+    }
+
+    options.push(option)
+    map.set(key, option)
+  }
+
+  options.sort((a, b) => a.label.localeCompare(b.label, 'ru'))
+
+  return { lookup, options, map }
+}
 
 function formatText(value: unknown): string {
   if (typeof value === 'string') return value.trim()
@@ -345,19 +709,8 @@ function resolveDescription(value: unknown): string {
 function createMeasureKey(id?: unknown, pv?: unknown): string {
   const idPart = formatText(id)
   const pvPart = formatText(pv)
+  if (!idPart && !pvPart) return ''
   return `${idPart}__${pvPart}`
-}
-
-function buildMeasureLookup(records: MeasureResponse[]): MeasureLookup {
-  const map: MeasureLookup = new Map()
-  for (const record of records) {
-    const key = createMeasureKey(record.id, record.pv)
-    if (!key) continue
-    const name = formatText(record.name)
-    if (!name) continue
-    map.set(key, name)
-  }
-  return map
 }
 
 function unwrapArrayPayload<T>(payload: unknown): T[] {
@@ -401,28 +754,6 @@ function resolveMeasureName(lookup: MeasureLookup, id?: unknown, pv?: unknown): 
   return lookup.get(key) ?? ''
 }
 
-const ID_CANDIDATES = [
-  'id',
-  'Id',
-  'ID',
-  'idMaterial',
-  'IdMaterial',
-  'ID_Material',
-  'idService',
-  'IdService',
-  'idEquipment',
-  'IdEquipment',
-  'idTool',
-  'IdTool',
-  'code',
-  'Code',
-  'guid',
-  'Guid',
-  'GUID',
-  'Ref_Key',
-  'refKey',
-]
-
 function resolveRowId(prefix: string, record: ResourcePayloadBase, fallbackIndex: number): string {
   for (const key of ID_CANDIDATES) {
     const value = record[key]
@@ -439,13 +770,15 @@ function createMaterialRows(materials: MaterialResponse[], measures: MeasureLook
   return materials.map((material, index) => {
     const id = resolveRowId('material', material, index)
     const unit = resolveMeasureName(measures, material.meaMeasure, material.pvMeasure) || '—'
+    const measureKey = createMeasureKey(material.meaMeasure, material.pvMeasure) || null
     return {
       id,
       type: 'materials',
       name: resolveName(material.name),
       unit,
       description: resolveDescription(material.Description),
-      source: 'remote',
+      raw: material,
+      measureKey,
     }
   })
 }
@@ -454,13 +787,15 @@ function createServiceRows(services: ServiceResponse[], measures: MeasureLookup)
   return services.map((service, index) => {
     const id = resolveRowId('service', service, index)
     const unit = resolveMeasureName(measures, service.meaMeasure, service.pvMeasure) || '—'
+    const measureKey = createMeasureKey(service.meaMeasure, service.pvMeasure) || null
     return {
       id,
       type: 'third-party',
       name: resolveName(service.name),
       unit,
       description: resolveDescription(service.Description),
-      source: 'remote',
+      raw: service,
+      measureKey,
     }
   })
 }
@@ -474,7 +809,8 @@ function createEquipmentRows(equipment: EquipmentResponse[]): ResourceRow[] {
       name: resolveName(item.name),
       unit: 'единица',
       description: resolveDescription(item.Description),
-      source: 'remote',
+      raw: item,
+      measureKey: null,
     }
   })
 }
@@ -488,288 +824,10 @@ function createToolRows(tools: ToolResponse[]): ResourceRow[] {
       name: resolveName(item.name),
       unit: 'единица',
       description: resolveDescription(item.Description),
-      source: 'remote',
+      raw: item,
+      measureKey: null,
     }
   })
-}
-
-async function fetchResources() {
-  tableLoading.value = true
-  try {
-    const [materialsRaw, servicesRaw, equipmentRaw, toolsRaw, measuresRaw] = await Promise.all([
-      resourceRpc<unknown>('data/loadMaterial', [0]),
-      resourceRpc<unknown>('data/loadTpService', [0]),
-      resourceRpc<unknown>('data/loadEquipment', [0]),
-      resourceRpc<unknown>('data/loadTool', [0]),
-      nsiRpc<unknown>('data/loadMeasure', ['Prop_Measure']),
-    ])
-
-    const measureLookup = buildMeasureLookup(unwrapArrayPayload<MeasureResponse>(measuresRaw))
-
-    remoteItems.value = [
-      ...createMaterialRows(unwrapArrayPayload<MaterialResponse>(materialsRaw), measureLookup),
-      ...createServiceRows(unwrapArrayPayload<ServiceResponse>(servicesRaw), measureLookup),
-      ...createEquipmentRows(unwrapArrayPayload<EquipmentResponse>(equipmentRaw)),
-      ...createToolRows(unwrapArrayPayload<ToolResponse>(toolsRaw)),
-    ]
-  } catch (error) {
-    console.error('Не удалось загрузить справочник ресурсов', error)
-    const text = error instanceof Error ? error.message : 'Не удалось загрузить ресурсы'
-    message.error(text)
-    remoteItems.value = []
-  } finally {
-    tableLoading.value = false
-  }
-}
-
-function setTypeFromQuery() {
-  const q = String(route.query.type || '')
-  if (q && ['materials', 'equipment', 'tools', 'third-party'].includes(q)) {
-    typeFilter.value = q as ResourceType
-  } else {
-    typeFilter.value = null
-  }
-}
-
-onMounted(() => {
-  loadCustomFromStorage()
-  setTypeFromQuery()
-  void fetchResources()
-})
-
-watch(
-  () => route.query.type,
-  () => setTypeFromQuery(),
-)
-
-function handleTypeFilterUpdate(next: ResourceType | null) {
-  const query = { ...route.query }
-  if (next) {
-    query.type = next
-  } else {
-    delete query.type
-  }
-  void router.replace({ path: route.path, query })
-}
-
-const normalizedSearch = computed(() => search.value.trim().toLocaleLowerCase('ru-RU'))
-
-const filtered = computed(() => {
-  const byType = typeFilter.value
-    ? allItems.value.filter((r) => r.type === typeFilter.value)
-    : allItems.value
-
-  if (!normalizedSearch.value) return byType
-
-  return byType.filter((r) => {
-    const hay = `${r.name}\n${r.description || ''}`.toLocaleLowerCase('ru-RU')
-    return hay.includes(normalizedSearch.value)
-  })
-})
-
-const sortedRows = computed(() => {
-  const arr = [...filtered.value]
-  arr.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
-  return sortOrder.value === 'name-asc' ? arr : arr.reverse()
-})
-
-const total = computed(() => sortedRows.value.length)
-const paginatedRows = computed(() => {
-  const start = Math.max(0, (pagination.page - 1) * pagination.pageSize)
-  return sortedRows.value.slice(start, start + pagination.pageSize)
-})
-const mobileRows = computed(() => sortedRows.value.slice(0, pagination.page * pagination.pageSize))
-const rows = computed(() => (isMobile.value ? mobileRows.value : paginatedRows.value))
-const visibleCount = computed(() => rows.value.length)
-const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize) || 1))
-
-watch([search, typeFilter], () => {
-  pagination.page = 1
-})
-
-watch(
-  () => pagination.pageSize,
-  () => {
-    pagination.page = 1
-  },
-)
-
-watch(
-  () => [pagination.page, total.value],
-  () => {
-    if (pagination.page > maxPage.value) pagination.page = maxPage.value
-  },
-  { immediate: true },
-)
-
-function showMore() {
-  if (pagination.page < maxPage.value) pagination.page += 1
-}
-
-const rowKey = (row: ResourceRow) => row.id
-
-const columns = computed<DataTableColumn<ResourceRow>[]>(() => [
-  // порядок столбцов как на других страницах: сначала название
-  {
-    title: 'Название',
-    key: 'name',
-    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    width: 400,
-    ellipsis: { tooltip: true },
-    render: (row) => h('span', { class: 'table-cell__primary' }, row.name),
-  },
-  {
-    title: 'Вид ресурса',
-    key: 'type',
-    width: 180,
-    render: (row) => h(NTag, { size: 'small', bordered: false, round: true, type: 'info' }, { default: () => typeLabels[row.type] }),
-  },
-  { title: 'Ед. изм.', key: 'unit', width: 120 },
-  { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
-  {
-    title: 'Действия',
-    key: 'actions',
-    width: 120,
-    render(row) {
-      const isCustom = row.source === 'custom'
-
-      const editButton = h(
-        NButton,
-        {
-          quaternary: true,
-          circle: true,
-          size: 'small',
-          title: isCustom ? 'Редактировать' : 'Ресурс доступен только для чтения',
-          disabled: !isCustom,
-          onClick: () => (isCustom ? openEdit(row.id) : undefined),
-        },
-        { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-      )
-
-      const removeButton = isCustom
-        ? h(
-            NPopconfirm,
-            { onPositiveClick: () => remove(row.id), 'positive-text': 'Удалить', 'negative-text': 'Отмена' },
-            {
-              trigger: () =>
-                h(
-                  NButton,
-                  {
-                    quaternary: true,
-                    circle: true,
-                    size: 'small',
-                    type: 'error',
-                    title: 'Удалить',
-                  },
-                  { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-                ),
-              default: () => `Удалить запись «${row.name}»?`,
-            },
-          )
-        : h(
-            NButton,
-            {
-              quaternary: true,
-              circle: true,
-              size: 'small',
-              type: 'error',
-              title: 'Ресурс доступен только для чтения',
-              disabled: true,
-            },
-            { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-          )
-
-      return h('div', { class: 'table-actions' }, [editButton, removeButton])
-    },
-  },
-])
-
-// CRUD для пользовательских записей (хранятся только на фронте)
-const form = reactive<ResourceFormState>({ id: '', type: 'materials', name: '', unit: '', description: '' })
-const errors = reactive<{ [K in keyof ResourceFormState]?: string | null }>({})
-
-const dialogTitle = computed(() => (editingId.value ? 'Редактировать ресурс' : 'Добавить ресурс'))
-
-function resetForm(partial?: Partial<ResourceFormState>) {
-  form.id = partial?.id ?? ''
-  form.type = partial?.type ?? (typeFilter.value ?? 'materials')
-  form.name = partial?.name ?? ''
-  form.unit = partial?.unit ?? ''
-  form.description = partial?.description ?? ''
-  errors.id = null
-  errors.type = null
-  errors.name = null
-  errors.unit = null
-  errors.description = null
-}
-
-function openCreate() {
-  editingId.value = null
-  resetForm()
-  dialogOpen.value = true
-}
-
-function openEdit(id: string) {
-  const row = customItems.value.find((r) => r.id === id)
-  if (!row) {
-    message.warning('Редактировать можно только добавленные вручную записи')
-    return
-  }
-
-  editingId.value = id
-  resetForm({
-    id: row.id,
-    type: row.type,
-    name: row.name,
-    unit: row.unit,
-    description: row.description ?? '',
-  })
-  dialogOpen.value = true
-}
-
-function validate(): boolean {
-  let ok = true
-  errors.type = form.type ? null : 'Выберите вид'
-  errors.name = formatText(form.name) ? null : 'Заполните название'
-  errors.unit = formatText(form.unit) ? null : 'Заполните единицу измерения'
-  if (errors.type || errors.name || errors.unit) ok = false
-  return ok
-}
-
-function save() {
-  if (!validate()) return
-
-  const payload: ResourceRow = {
-    id: editingId.value ?? `custom-${uid()}`,
-    type: form.type,
-    name: formatText(form.name),
-    unit: formatText(form.unit),
-    description: resolveDescription(form.description),
-    source: 'custom',
-  }
-
-  if (editingId.value) {
-    const idx = customItems.value.findIndex((r) => r.id === editingId.value)
-    if (idx !== -1) {
-      customItems.value.splice(idx, 1, payload)
-    }
-  } else {
-    customItems.value = [payload, ...customItems.value]
-  }
-
-  saveCustomToStorage()
-  dialogOpen.value = false
-  editingId.value = null
-}
-
-function remove(id: string) {
-  const next = customItems.value.filter((r) => r.id !== id)
-  if (next.length === customItems.value.length) {
-    message.warning('Удалять можно только добавленные вручную записи')
-    return
-  }
-  customItems.value = next
-  saveCustomToStorage()
 }
 
 const isMobile = computed(() => (typeof window !== 'undefined' ? window.innerWidth <= 768 : false))
@@ -849,6 +907,7 @@ const isMobile = computed(() => (typeof window !== 'undefined' ? window.innerWid
 .card__actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .card__actions .table-actions { justify-content: flex-start; opacity: 1; }
 .show-more-bar { display: flex; justify-content: center; margin-top: 10px; }
+.form-hint { color: var(--n-text-color-3); font-size: 13px; }
 
 @media (max-width: 768px) {
   .toolbar { flex-direction: column; align-items: stretch; gap: 10px; }
