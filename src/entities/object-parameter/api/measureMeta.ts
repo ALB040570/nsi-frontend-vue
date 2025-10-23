@@ -154,7 +154,18 @@ export async function saveMeasurePropSelected(records: MetaPropRecord[]): Promis
  */
 export async function createMeasureAndSelect(name: string): Promise<ParameterMeasureOption> {
   const created = await insertMeasure(name)
-  const all = await loadMeasurePropValues()
+
+  let loadFailed = false
+  let all: MetaPropRecord[] = []
+  try {
+    all = await loadMeasurePropValues()
+  } catch (error) {
+    loadFailed = true
+    console.error(
+      '[measureMeta] Не удалось загрузить выбранные единицы измерения перед сохранением',
+      error,
+    )
+  }
 
   const selectedByKey = new Map<string, MetaPropRecord>()
   for (const item of all) {
@@ -197,7 +208,16 @@ export async function createMeasureAndSelect(name: string): Promise<ParameterMea
     selectedByKey.set(getRecordKey(fallbackRecord), ensureCheckedRecord(fallbackRecord))
   }
 
-  await saveMeasurePropSelected(Array.from(selectedByKey.values()))
+  if (!loadFailed) {
+    try {
+      await saveMeasurePropSelected(Array.from(selectedByKey.values()))
+    } catch (error) {
+      console.error(
+        '[measureMeta] Не удалось сохранить выбранные единицы измерения',
+        error,
+      )
+    }
+  }
 
   return toMeasureOptionFromMeta(createdRecord, created)
 }
