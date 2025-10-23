@@ -209,7 +209,7 @@ const sortOptions = [
 ]
 
 const typeLabels: Record<ResourceType, string> = {
-  materials: 'Материалы',
+  materials: 'Материал',
   equipment: 'Техника',
   tools: 'Инструменты',
   'third-party': 'Услуги сторонних',
