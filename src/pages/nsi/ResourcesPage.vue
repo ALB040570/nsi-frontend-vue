@@ -185,7 +185,7 @@ import {
   type SelectOption,
   useMessage,
 } from 'naive-ui'
-import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { InformationCircleOutline, CreateOutline, TrashOutline, PencilOutline } from '@vicons/ionicons5'
 import { resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'
@@ -209,7 +209,7 @@ const sortOptions = [
 ]
 
 const typeLabels: Record<ResourceType, string> = {
-  materials: 'Материалы',
+  materials: 'Материал',
   equipment: 'Техника',
   tools: 'Инструменты',
   'third-party': 'Услуги сторонних',
@@ -263,6 +263,19 @@ interface MeasureResponse {
   pv?: string | number | null
   name?: string | null
 }
+
+const ARRAY_WRAPPER_KEYS = [
+  'result',
+  'Result',
+  'data',
+  'Data',
+  'value',
+  'Value',
+  'items',
+  'Items',
+  'rows',
+  'Rows',
+]
 
 const CUSTOM_LS_KEY = 'nsi.resources.custom'
 
@@ -345,6 +358,20 @@ function buildMeasureLookup(records: MeasureResponse[]): MeasureLookup {
     map.set(key, name)
   }
   return map
+}
+
+function unwrapArrayPayload<T>(payload: unknown): T[] {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+
+  for (const key of ARRAY_WRAPPER_KEYS) {
+    if (key in payload) {
+      const nested = unwrapArrayPayload<T>((payload as Record<string, unknown>)[key])
+      if (nested.length) return nested
+    }
+  }
+
+  return []
 }
 
 function resolveMeasureName(lookup: MeasureLookup, id?: unknown, pv?: unknown): string {
@@ -448,21 +475,21 @@ function createToolRows(tools: ToolResponse[]): ResourceRow[] {
 async function fetchResources() {
   tableLoading.value = true
   try {
-    const [materials, services, equipment, tools, measures] = await Promise.all([
-      resourceRpc<MaterialResponse[]>('data/loadMaterial', [0]),
-      resourceRpc<ServiceResponse[]>('data/loadTpService', [0]),
-      resourceRpc<EquipmentResponse[]>('data/loadEquipment', [0]),
-      resourceRpc<ToolResponse[]>('data/loadTool', [0]),
-      nsiRpc<MeasureResponse[]>('data/loadMeasure', ['Prop_Measure']),
+    const [materialsRaw, servicesRaw, equipmentRaw, toolsRaw, measuresRaw] = await Promise.all([
+      resourceRpc<unknown>('data/loadMaterial', [0]),
+      resourceRpc<unknown>('data/loadTpService', [0]),
+      resourceRpc<unknown>('data/loadEquipment', [0]),
+      resourceRpc<unknown>('data/loadTool', [0]),
+      nsiRpc<unknown>('data/loadMeasure', ['Prop_Measure']),
     ])
 
-    const measureLookup = buildMeasureLookup(measures ?? [])
+    const measureLookup = buildMeasureLookup(unwrapArrayPayload<MeasureResponse>(measuresRaw))
 
     remoteItems.value = [
-      ...createMaterialRows(materials ?? [], measureLookup),
-      ...createServiceRows(services ?? [], measureLookup),
-      ...createEquipmentRows(equipment ?? []),
-      ...createToolRows(tools ?? []),
+      ...createMaterialRows(unwrapArrayPayload<MaterialResponse>(materialsRaw), measureLookup),
+      ...createServiceRows(unwrapArrayPayload<ServiceResponse>(servicesRaw), measureLookup),
+      ...createEquipmentRows(unwrapArrayPayload<EquipmentResponse>(equipmentRaw)),
+      ...createToolRows(unwrapArrayPayload<ToolResponse>(toolsRaw)),
     ]
   } catch (error) {
     console.error('Не удалось загрузить справочник ресурсов', error)
