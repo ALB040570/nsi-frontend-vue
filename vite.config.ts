@@ -129,6 +129,36 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     })
   }
 
+  // 3) Resource API
+  const resourceProxyBase = normalizeProxyBase(env.VITE_RESOURCE_DEV_PROXY_BASE || '/resource-api')
+  const rawResourceBase = env.VITE_RESOURCE_API_BASE?.trim()
+
+  if (rawResourceBase && ABSOLUTE_URL_PATTERN.test(rawResourceBase)) {
+    try {
+      const resourceURL = new URL(rawResourceBase)
+      const target = `${resourceURL.protocol}//${resourceURL.host}`
+      const rewriteBase = normalizeRewriteBase(resourceURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(resourceProxyBase)}`)
+
+      proxies[resourceProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[resourceProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(resourceProxyBase)}`)
+    proxies[resourceProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/resource'),
+    }
+  }
+
   return proxies
 }
 
