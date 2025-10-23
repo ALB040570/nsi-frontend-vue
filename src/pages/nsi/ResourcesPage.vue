@@ -507,18 +507,23 @@ function buildPayload(state: BuildPayloadState, row: ResourceRow | null): Record
     if (option) {
       base.meaMeasure = normalizeMeasurePart(option.id)
       base.pvMeasure = normalizeMeasurePart(option.pv)
-      if (state.type === 'materials') {
-        const measureName = option.name
-        base.fullName = measureName ? `${state.name}, ${measureName}` : state.name
-      }
+      const measureName = option.name
+      base.fullName = measureName ? `${state.name}, ${measureName}` : state.name
     } else if (!row) {
       base.meaMeasure = null
       base.pvMeasure = null
     }
   }
 
-  if (state.type === 'materials' && (!('fullName' in base) || !base.fullName)) {
+  if (
+    (state.type === 'materials' || state.type === 'third-party') &&
+    (!('fullName' in base) || !base.fullName)
+  ) {
     base.fullName = state.name
+  }
+
+  if (state.type === 'equipment' && !row) {
+    base.Number = '0001'
   }
 
   return base
