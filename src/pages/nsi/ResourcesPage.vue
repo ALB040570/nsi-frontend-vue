@@ -328,6 +328,8 @@ const remoteItems = ref<ResourceRow[]>([])
 const measureOptions = ref<MeasureSelectOption[]>([])
 let measureOptionMap: Map<string, MeasureSelectOption> = new Map()
 
+const EQUIPMENT_NUMBER_KEYS = ['Number', 'number'] as const
+
 const form = reactive<ResourceFormState>({ type: 'materials', name: '', measureKey: null, description: '' })
 const errors = reactive<{ [K in keyof ResourceFormState]?: string | null }>({})
 
@@ -523,10 +525,62 @@ function buildPayload(state: BuildPayloadState, row: ResourceRow | null): Record
   }
 
   if (state.type === 'equipment' && !row) {
-    base.Number = '0001'
+    base.Number = computeNextEquipmentNumber()
   }
 
   return base
+}
+
+function computeNextEquipmentNumber(): string {
+  const fallback = '0001'
+  let maxNumeric = 0
+  let hasNumeric = false
+  let padLength = fallback.length
+
+  for (const row of remoteItems.value) {
+    if (row.type !== 'equipment') continue
+    const rawNumber = extractEquipmentNumber(row.raw)
+    if (!rawNumber) continue
+
+    const { numeric, pad } = parseEquipmentNumber(rawNumber)
+    padLength = Math.max(padLength, pad)
+
+    if (numeric == null) continue
+    hasNumeric = true
+    if (numeric > maxNumeric) maxNumeric = numeric
+  }
+
+  const nextNumeric = hasNumeric ? maxNumeric + 1 : 1
+  return String(nextNumeric).padStart(Math.max(1, padLength), '0')
+}
+
+function extractEquipmentNumber(record: ResourcePayloadBase): string | null {
+  for (const key of EQUIPMENT_NUMBER_KEYS) {
+    const value = record[key]
+    if (value == null) continue
+    const text = formatText(value)
+    if (text) return text
+  }
+  return null
+}
+
+function parseEquipmentNumber(value: string): { numeric: number | null; pad: number } {
+  const trimmed = value.trim()
+  if (!trimmed) return { numeric: null, pad: 0 }
+
+  if (/^\d+$/.test(trimmed)) {
+    const numeric = Number.parseInt(trimmed, 10)
+    return { numeric: Number.isNaN(numeric) ? null : numeric, pad: trimmed.length }
+  }
+
+  const match = trimmed.match(/(\d+)(?!.*\d)/)
+  if (match) {
+    const numeric = Number.parseInt(match[1], 10)
+    return { numeric: Number.isNaN(numeric) ? null : numeric, pad: match[1].length }
+  }
+
+  const numeric = Number(trimmed)
+  return { numeric: Number.isNaN(numeric) ? null : numeric, pad: trimmed.length }
 }
 
 function normalizeMeasurePart(value: unknown): number | string | null {
