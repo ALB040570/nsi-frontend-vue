@@ -186,7 +186,7 @@ import {
   useMessage,
 } from 'naive-ui'
 import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
-import { resourceRpc } from '@shared/api/resourceClient'
+import { resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'
 
@@ -453,7 +453,7 @@ async function fetchResources() {
       resourceRpc<ServiceResponse[]>('data/loadTpService', [0]),
       resourceRpc<EquipmentResponse[]>('data/loadEquipment', [0]),
       resourceRpc<ToolResponse[]>('data/loadTool', [0]),
-      resourceRpc<MeasureResponse[]>('data/loadMeasure', ['Prop_Measure']),
+      nsiRpc<MeasureResponse[]>('data/loadMeasure', ['Prop_Measure']),
     ])
 
     const measureLookup = buildMeasureLookup(measures ?? [])
