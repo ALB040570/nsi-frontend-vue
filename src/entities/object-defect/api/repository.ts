@@ -122,7 +122,7 @@ function buildComponentOptions(
       ) ?? undefined
     if (!id) continue
 
-    const pvId = toOptionalString(record.pvDefectsComponent)
+    const pvId = toOptionalString(record.pvDefectsComponent ?? record.pv ?? record.PV)
     const name =
       normalizeOptionName(
         record.nameDefectsComponent ?? record.name ?? record.NAME,
@@ -175,7 +175,9 @@ function mapLoadedDefect(
   if (!id) return null
 
   const componentIdRaw = toOptionalString(record.objDefectsComponent)
-  const componentPvRaw = toOptionalString(record.pvDefectsComponent)
+  const componentPvRaw = toOptionalString(
+    record.pvDefectsComponent ?? record.pv ?? record.PV,
+  )
   const categoryFvRaw = toOptionalString(record.fvDefectsCategory)
   const categoryPvRaw = toOptionalString(record.pvDefectsCategory)
 
