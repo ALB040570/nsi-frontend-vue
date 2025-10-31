@@ -19,6 +19,8 @@ export interface RawDefectRecord {
   nameDefectsCategory?: string | null
   objDefectsComponent?: string | number | null
   pvDefectsComponent?: string | number | null
+  pv?: string | number | null
+  PV?: string | number | null
   nameDefectsComponent?: string | null
   idDefectsComponent?: string | number | null
   cls?: string | number | null
@@ -39,6 +41,8 @@ export interface RawDefectCategoryRecord {
 export interface RawDefectComponentRecord {
   objDefectsComponent?: string | number | null
   pvDefectsComponent?: string | number | null
+  pv?: string | number | null
+  PV?: string | number | null
   nameDefectsComponent?: string | null
   id?: string | number | null
   ID?: string | number | null
@@ -61,6 +65,8 @@ export interface SaveDefectRecord {
   pvDefectsCategory?: string | number | null
   objDefectsComponent?: string | number | null
   pvDefectsComponent?: string | number | null
+  pv?: string | number | null
+  PV?: string | number | null
   nameDefectsComponent?: string | null
   nameDefectsCategory?: string | null
 }
