@@ -175,17 +175,19 @@
           :feedback="workFormErrors.objectTypeId ?? undefined"
           :validation-status="workFormErrors.objectTypeId ? 'error' : undefined"
         >
-          <NSpin :show="objectTypeSelectLoading">
-            <NSelect
-              v-model:value="selectedObjectTypeId"
-              :options="relationSelectOptions"
-              :placeholder="t('nsi.objectTypes.works.form.objectType.placeholder', {}, { default: 'Выберите тип объекта' })"
-              :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
-              filterable
-              clearable
-              @focus="() => loadWorkObjectTypesForForm(isEditMode ? editingRow?.id ?? null : null)"
-            />
-          </NSpin>
+          <NSelect
+            v-model:value="selectedObjectTypeIds"
+            multiple
+            :options="relationSelectOptions"
+            :placeholder="t('nsi.objectTypes.works.form.objectType.placeholder', {}, { default: 'Выберите тип объекта' })"
+            :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
+            filterable
+            clearable
+            :loading="objectTypeSelectLoading"
+            :max-tag-count="3"
+            style="width: 100%"
+            @focus="() => loadWorkObjectTypesForForm(isEditMode ? editingRow?.id ?? null : null)"
+          />
           <p v-if="!objectTypeSelectLoading && !relationSelectOptions.length" class="text-small">
             {{ t('nsi.objectTypes.works.form.objectType.empty', {}, { default: 'Для работы пока нет доступных типов объектов.' }) }}
           </p>
@@ -301,8 +303,8 @@ import {
   NModal,
   NPagination,
   NSelect,
-  NSpin,
   NTag,
+  NPopover,
   NTooltip,
   useDialog,
   useMessage,
@@ -402,6 +404,7 @@ interface WorkTableRow {
   workTypeId: string | null
   workTypeName: string | null
   objectTypeName: string | null
+  objectTypeNames: string[]
   sourceId: string | null
   sourceName: string | null
   sourceNumber: string | null
@@ -571,7 +574,7 @@ const confirmDialog = (options: ConfirmDialogOptions): Promise<boolean> => {
 
 const directories = {
   workTypes: new Map<string, string>(),
-  objectTypes: new Map<string, string>(),
+  objectTypes: new Map<string, string[]>(),
   sources: new Map<string, string>(),
   periodTypes: new Map<string, string>(),
 }
@@ -713,11 +716,11 @@ const workFormErrors = reactive<WorkFormErrors>({
 
 const objectTypeSelectOptions = ref<WorkObjectTypeOption[]>([])
 const objectTypeOptionsOwnerKey = ref<string | null>(null)
-const selectedObjectTypeId = ref<string | null>(null)
-const selectedObjectTypeCls = ref<string | null>(null)
-const currentRelationId = ref<string | null>(null)
-const initialRelationId = ref<string | null>(null)
-const initialRelationValue = ref<string | null>(null)
+// Multi-select values
+const selectedObjectTypeIds = ref<string[]>([])
+// Snapshot at dialog open
+const initialSelectedObjectTypeIds = ref<string[]>([])
+const initialRelationIdByValue = ref<Map<string, string>>(new Map())
 const editingRow = ref<WorkTableRow | null>(null)
 
 const isEditMode = computed(() => dialogMode.value === 'edit')
@@ -760,7 +763,7 @@ const filteredRows = computed(() => {
     }
     if (
       objectTypeFilter.value.length &&
-      !objectTypeFilter.value.includes(item.objectTypeName)
+      !objectTypeFilter.value.some((name) => item.objectTypeNames?.includes(name))
     ) {
       return false
     }
@@ -827,12 +830,9 @@ watch(
 )
 
 watch(
-  () => selectedObjectTypeId.value,
-  (value) => {
-    const option = objectTypeSelectOptions.value.find((item) => item.value === value)
-    selectedObjectTypeCls.value = option?.cls ?? null
-    currentRelationId.value = option?.relationId ?? null
-    if (value && workFormErrors.objectTypeId) {
+  () => selectedObjectTypeIds.value,
+  (values) => {
+    if (values.length && workFormErrors.objectTypeId) {
       workFormErrors.objectTypeId = null
     }
   },
@@ -886,6 +886,37 @@ const renderSource = (row: WorkTableRow): VNodeChild => {
 
 const renderPeriodicity = (row: WorkTableRow): VNodeChild => row.periodicityText || '—'
 
+const MAX_OBJECT_TYPE_CHIPS = 4
+
+const renderObjectTypes = (row: WorkTableRow): VNodeChild => {
+  const names = row.objectTypeNames ?? []
+  if (!names.length) return '—'
+
+  const chips = names.slice(0, MAX_OBJECT_TYPE_CHIPS)
+  const rest = names.slice(MAX_OBJECT_TYPE_CHIPS)
+
+  const chipNodes = chips.map((name, idx) =>
+    h(
+      NTag,
+      { size: 'small', round: true, bordered: true, class: 'chip', key: `${row.id}-ot-${idx}` },
+      { default: () => name },
+    ),
+  )
+
+  if (!rest.length) return h('div', { class: 'cell-clamp' }, [h('div', { class: 'chips-row' }, chipNodes)])
+
+  const more = h(
+    NPopover,
+    { trigger: 'hover' },
+    {
+      trigger: () => h(NTag, { size: 'small', round: true, class: 'chip chip--more' }, { default: () => `+${rest.length}` }),
+      default: () => h('div', { class: 'popover-list' }, rest.map((name, i) => h('div', { class: 'popover-item', key: `${row.id}-ot-rest-${i}` }, name))),
+    },
+  )
+
+  return h('div', { class: 'cell-clamp' }, [h('div', { class: 'chips-row' }, [...chipNodes, more])])
+}
+
 const renderActions = (row: WorkTableRow): VNodeChild =>
   h('div', { class: 'table-actions' }, [
     h(
@@ -933,7 +964,7 @@ const columns: DataTableColumns<WorkTableRow> = [
   {
     title: 'Тип объекта',
     key: 'objectTypeName',
-    render: (row) => row.objectTypeName ?? '—',
+    render: renderObjectTypes,
   },
   {
     title: 'Источник и номер',
@@ -970,7 +1001,7 @@ const cardFields = computed<CardField[]>(() => [
   {
     key: 'objectTypeName',
     label: 'Тип объекта',
-    render: (row) => row.objectTypeName ?? '—',
+    render: renderObjectTypes,
   },
   {
     key: 'sourceName',
@@ -1057,11 +1088,9 @@ function resetDialogState() {
   clearFormErrors()
   objectTypeSelectOptions.value = []
   objectTypeOptionsOwnerKey.value = null
-  selectedObjectTypeId.value = null
-  selectedObjectTypeCls.value = null
-  currentRelationId.value = null
-  initialRelationId.value = null
-  initialRelationValue.value = null
+  selectedObjectTypeIds.value = []
+  initialSelectedObjectTypeIds.value = []
+  initialRelationIdByValue.value = new Map()
   editingRow.value = null
 }
 
@@ -1094,7 +1123,7 @@ function validateWorkForm(): boolean {
     valid = false
   }
 
-  if (!selectedObjectTypeId.value) {
+  if (!selectedObjectTypeIds.value.length) {
     workFormErrors.objectTypeId = 'Выберите тип объекта'
     valid = false
   }
@@ -1152,11 +1181,9 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
   if (objectTypeSelectLoading.value) return
 
   objectTypeSelectLoading.value = true
-  initialRelationId.value = null
-  initialRelationValue.value = null
-  currentRelationId.value = null
-  selectedObjectTypeId.value = null
-  selectedObjectTypeCls.value = null
+  initialRelationIdByValue.value = new Map()
+  selectedObjectTypeIds.value = []
+  initialSelectedObjectTypeIds.value = []
 
   try {
     const numericId = workId != null ? Number(workId) : NaN
@@ -1165,7 +1192,7 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
     const records = extractRecords<RawWorkObjectTypeRecord>(response)
 
     const options: WorkObjectTypeOption[] = []
-    let defaultOption: WorkObjectTypeOption | null = null
+    const defaults: string[] = []
 
     for (const record of records) {
       const value =
@@ -1179,8 +1206,10 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
       const option: WorkObjectTypeOption = { value, cls, label, relationId }
       options.push(option)
 
-      if (!defaultOption && isTruthyFlag(record.checked ?? record.selected ?? record.actual ?? record.fact ?? record.exists)) {
-        defaultOption = option
+      const isSelected = isTruthyFlag(record.checked ?? record.selected ?? record.actual ?? record.fact ?? record.exists)
+      if (isSelected) {
+        defaults.push(option.value)
+        if (relationId) initialRelationIdByValue.value.set(option.value, relationId)
       }
     }
 
@@ -1188,26 +1217,21 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
     objectTypeSelectOptions.value = options
     objectTypeOptionsOwnerKey.value = ownerKey
 
-    if (defaultOption) {
-      selectedObjectTypeId.value = defaultOption.value
-      selectedObjectTypeCls.value = defaultOption.cls
-      currentRelationId.value = defaultOption.relationId ?? null
-      initialRelationId.value = defaultOption.relationId ?? null
-      initialRelationValue.value = defaultOption.value
+    if (defaults.length) {
+      selectedObjectTypeIds.value = [...defaults]
+      initialSelectedObjectTypeIds.value = [...defaults]
     } else if (options.length === 1) {
       const only = options[0]
-      selectedObjectTypeId.value = only.value
-      selectedObjectTypeCls.value = only.cls
+      selectedObjectTypeIds.value = [only.value]
+      initialSelectedObjectTypeIds.value = [only.value]
     }
   } catch (error) {
     console.error(error)
     objectTypeSelectOptions.value = []
     objectTypeOptionsOwnerKey.value = null
-    selectedObjectTypeId.value = null
-    selectedObjectTypeCls.value = null
-    currentRelationId.value = null
-    initialRelationId.value = null
-    initialRelationValue.value = null
+    selectedObjectTypeIds.value = []
+    initialSelectedObjectTypeIds.value = []
+    initialRelationIdByValue.value = new Map()
     message.error('Не удалось загрузить типы объектов для работы')
   } finally {
     objectTypeSelectLoading.value = false
@@ -1303,8 +1327,7 @@ async function createWork() {
   const sourceDetails = getSourceDetails(workForm.sourceId)
   const periodTypeDetails = getPeriodTypeDetails(workForm.periodTypeId)
   if (!workTypeId || !sourceDetails || !periodTypeDetails) return
-  const objectTypeId = selectedObjectTypeId.value
-  if (!objectTypeId) return
+  if (!selectedObjectTypeIds.value.length) return
 
   const name = workForm.name.trim()
   const numberSource = workForm.sourceNumber.trim()
@@ -1339,7 +1362,7 @@ async function createWork() {
     const clsId = toOptionalString(created.cls ?? workTypeId)
     if (!objId || !clsId) throw new Error('Не удалось определить идентификаторы работы')
 
-    await saveSelectedObjectType({ workId: objId, workCls: clsId, workName: name })
+    await saveSelectedObjectTypes({ workId: objId, workCls: clsId, workName: name, createAll: true })
     await loadWorks()
     message.success('Работа создана')
     dialogOpen.value = false
@@ -1400,11 +1423,20 @@ async function updateWork() {
   savingWork.value = true
   try {
     await rpc('data/saveProcessCharts', ['upd', payload])
-    const relationChanged =
-      objectTypeSelectOptions.value.length > 0 && selectedObjectTypeId.value !== initialRelationValue.value
+    // Detect changes between initial and current selections
+    const initialSet = new Set(initialSelectedObjectTypeIds.value)
+    const currentSet = new Set(selectedObjectTypeIds.value)
+    let changed = false
+    if (initialSet.size !== currentSet.size) {
+      changed = true
+    } else {
+      for (const v of currentSet) {
+        if (!initialSet.has(v)) { changed = true; break }
+      }
+    }
 
-    if (relationChanged) {
-      await saveSelectedObjectType({ workId: row.id, workCls: workTypeId, workName: name })
+    if (changed) {
+      await saveSelectedObjectTypes({ workId: row.id, workCls: workTypeId, workName: name })
     }
 
     await loadWorks()
@@ -1417,26 +1449,25 @@ async function updateWork() {
   }
 }
 
-async function saveSelectedObjectType(options: { workId: string; workCls: string | null; workName: string }) {
-  const { workId, workCls, workName } = options
+async function saveSelectedObjectTypes(options: { workId: string; workCls: string | null; workName: string; createAll?: boolean }) {
+  const { workId, workCls, workName, createAll = false } = options
   if (!workId || !workCls) {
     throw new Error('Не удалось определить работу для привязки типа объекта')
   }
 
-  const selectedId = selectedObjectTypeId.value
-  if (!selectedId) {
-    throw new Error('Выберите тип объекта')
-  }
+  const current = new Set(selectedObjectTypeIds.value)
+  const initial = createAll ? new Set<string>() : new Set(initialSelectedObjectTypeIds.value)
 
-  const option = objectTypeSelectOptions.value.find((item) => item.value === selectedId)
-  if (!option) {
-    throw new Error('Выбранный тип объекта недоступен')
-  }
+  const toCreate: string[] = []
+  const toDelete: string[] = []
 
-  const relationName = `${workName} <=> ${option.label}`
+  for (const v of current) if (!initial.has(v)) toCreate.push(v)
+  for (const v of initial) if (!current.has(v)) toDelete.push(v)
 
-  if (initialRelationId.value && initialRelationValue.value && initialRelationValue.value !== option.value) {
-    const relationIdNumber = toFiniteNumber(initialRelationId.value)
+  // Remove unselected relations
+  for (const value of toDelete) {
+    const relationId = initialRelationIdByValue.value.get(value)
+    const relationIdNumber = toFiniteNumber(relationId)
     if (relationIdNumber != null) {
       try {
         await rpc('data/deleteOwnerWithProperties', [relationIdNumber, 0])
@@ -1446,25 +1477,29 @@ async function saveSelectedObjectType(options: { workId: string; workCls: string
     }
   }
 
+  if (toCreate.length === 0) return
+
   const uch1 = toFiniteNumber(workId) ?? workId
   const cls1 = toFiniteNumber(workCls) ?? workCls
-  const uch2 = toFiniteNumber(option.value) ?? option.value
-  const cls2 = toFiniteNumber(option.cls) ?? option.cls
 
-  await rpc('data/saveRelObj', [
-    {
-      uch1,
-      cls1,
-      uch2,
-      cls2,
-      codRelTyp: 'RT_Works',
-      name: relationName,
-    },
-  ])
+  for (const value of toCreate) {
+    const option = objectTypeSelectOptions.value.find((i) => i.value === value)
+    if (!option) continue
+    const uch2 = toFiniteNumber(option.value) ?? option.value
+    const cls2 = toFiniteNumber(option.cls) ?? option.cls
+    const relationName = `${workName} <=> ${option.label}`
 
-  currentRelationId.value = option.relationId ?? null
-  initialRelationId.value = option.relationId ?? null
-  initialRelationValue.value = option.value
+    await rpc('data/saveRelObj', [
+      {
+        uch1,
+        cls1,
+        uch2,
+        cls2,
+        codRelTyp: 'RT_Works',
+        name: relationName,
+      },
+    ])
+  }
 }
 
 function formatPeriodicityText(value: number | null, periodTypeName: string | null): string {
@@ -1553,7 +1588,9 @@ async function loadWorks() {
       const workId = toOptionalString(record.idrom1)
       const name = toOptionalString(record.namerom2)
       if (workId && name) {
-        directories.objectTypes.set(workId, name)
+        const arr = directories.objectTypes.get(workId) ?? []
+        arr.push(name)
+        directories.objectTypes.set(workId, arr)
         uniqueObjectTypes.set(name, name)
       }
     }
@@ -1571,7 +1608,8 @@ async function loadWorks() {
       const name = toOptionalString(record.name) ?? id
       const fullName = toOptionalString(record.fullName)
       const workTypeId = toOptionalString(record.cls)
-      const objectTypeName = directories.objectTypes.get(id) ?? null
+      const objectTypeNames = directories.objectTypes.get(id) ?? []
+      const objectTypeName = objectTypeNames.length ? objectTypeNames.join(', ') : null
 
       const sourceObjId = toOptionalString(record.objCollections)
       const sourcePvId = toOptionalString(record.pvCollections)
@@ -1618,6 +1656,7 @@ async function loadWorks() {
         workTypeId,
         workTypeName: (workTypeId && directories.workTypes.get(workTypeId)) || null,
         objectTypeName,
+        objectTypeNames,
         sourceId,
         sourceName,
         sourceNumber,
@@ -1870,6 +1909,56 @@ onBeforeUnmount(() => {
   font-size: 13px;
   line-height: 1.4;
   white-space: normal;
+}
+
+/* Chips for object types (like Components page) */
+.chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.chip {
+  background: var(--s360-surface);
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.chip :deep(.n-tag__content) {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.chip--more { cursor: pointer; }
+
+.popover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 360px;
+}
+
+.popover-item {
+  white-space: normal;
+  word-break: break-word;
+}
+
+.cell-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .modal-footer {
