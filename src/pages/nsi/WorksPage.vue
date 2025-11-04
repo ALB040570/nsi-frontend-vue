@@ -180,7 +180,7 @@
             multiple
             :options="relationSelectOptions"
             :placeholder="t('nsi.objectTypes.works.form.objectType.placeholder', {}, { default: 'Выберите тип объекта' })"
-            :disabled="objectTypeSelectLoading || !relationSelectOptions.length"
+            :disabled="objectTypeSelectLoading"
             filterable
             clearable
             :loading="objectTypeSelectLoading"
@@ -317,6 +317,7 @@ import { extractRecords, normalizeText, toOptionalString } from '@shared/lib'
 import { loadParameterSources } from '@entities/object-parameter'
 import type { ParameterSourceOption } from '@entities/object-parameter'
 import { CreatableSelect } from '@features/creatable-select'
+import { fetchObjectTypesSnapshot } from '@entities/object-type'
 
 
 const { t } = useI18n()
@@ -342,6 +343,7 @@ interface RawObjectTypeRelationRecord {
   idrom1?: number | string
   idrom2?: number | string
   namerom2?: string
+  NAMEROM2?: string
 }
 
 interface RawWorkRecord {
@@ -509,6 +511,22 @@ const sourceDirectory = new Map<string, SourceOptionDetails>()
 const sourceDirectoryByPv = new Map<string, SourceOptionDetails>()
 const periodTypeDirectory = new Map<string, PeriodTypeOptionDetails>()
 const rawPeriodTypeRecords = new Map<string, RawPeriodTypeRecord>()
+const objectTypeNameCache = new Map<string, string>()
+let objectTypeNameCacheLoaded = false
+
+async function ensureObjectTypeNameCache(): Promise<void> {
+  if (objectTypeNameCacheLoaded) return
+  try {
+    const snap = await fetchObjectTypesSnapshot()
+    for (const item of snap.items) {
+      objectTypeNameCache.set(item.id, item.name)
+    }
+  } catch {
+    // ignore network/cache errors, fallback will use raw ids
+  } finally {
+    objectTypeNameCacheLoaded = true
+  }
+}
 
 const pagination = reactive<PaginationState>({ page: 1, pageSize: 10 })
 const route = useRoute()
@@ -1188,8 +1206,24 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
   try {
     const numericId = workId != null ? Number(workId) : NaN
     const ownerParam = workId == null ? 0 : Number.isFinite(numericId) ? numericId : workId
-    const response = await rpc('data/loadUch2', ['RT_Works', ownerParam, 'Typ_ObjectTyp'])
+    const [response, relPayload] = await Promise.all([
+      rpc('data/loadUch2', ['RT_Works', ownerParam, 'Typ_ObjectTyp']),
+      rpc('data/loadComponentsObject2', ['RT_Works', 'Typ_Work', 'Typ_ObjectTyp']),
+    ])
     const records = extractRecords<RawWorkObjectTypeRecord>(response)
+    const relRecords = extractRecords<RawObjectTypeRelationRecord>(relPayload)
+
+    // Словарь id типа объекта -> человекочитаемое имя из namerom2
+    const relNameByTypeId = new Map<string, string>()
+    for (const rel of relRecords) {
+      const tId = toOptionalString(rel.idrom2)
+      const tName = toOptionalString(rel.namerom2 ?? rel.NAMEROM2)
+      if (tId && tName) relNameByTypeId.set(tId, tName)
+    }
+
+    // Подгрузим кэш наименований типов объектов для случаев,
+    // когда в ответе отсутствует поле name/NAME
+    await ensureObjectTypeNameCache().catch(() => {})
 
     const options: WorkObjectTypeOption[] = []
     const defaults: string[] = []
@@ -1198,9 +1232,13 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
       const value =
         toOptionalString(record.uch2 ?? record.obj ?? record.ID ?? record.id ?? record.OBJ ?? record.IDR) ?? null
       const cls = toOptionalString(record.cls2 ?? record.cls ?? record.CLS)
-      const label = toOptionalString(record.name ?? record.NAME)
+      let label = relNameByTypeId.get(value) ?? toOptionalString(record.name ?? record.NAME)
       if (!value || !cls || !label) continue
-
+      // Если всё ещё осталось число — пробуем кэш типов
+      if (!label || /^\d+$/.test(label)) {
+        const cached = objectTypeNameCache.get(value)
+        if (cached) label = cached
+      }
       const relationId =
         toOptionalString(record.idro ?? record.IDRO ?? record.idr ?? record.IDR ?? record.id) ?? null
       const option: WorkObjectTypeOption = { value, cls, label, relationId }
@@ -1216,6 +1254,23 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
     options.sort((a, b) => a.label.localeCompare(b.label, 'ru'))
     objectTypeSelectOptions.value = options
     objectTypeOptionsOwnerKey.value = ownerKey
+
+    // Fallback по выбранности: если сервер не проставил флаги,
+    // используем связи из relRecords
+    if (!defaults.length && workId != null) {
+      const ownerStr = toOptionalString(workId)
+      for (const rel of relRecords) {
+        const id1 = toOptionalString(rel.idrom1)
+        if (id1 !== ownerStr) continue
+        const related = toOptionalString(rel.idrom2)
+        if (!related) continue
+        if (!defaults.includes(related)) defaults.push(related)
+        if (!options.some((o) => o.value === related)) {
+          const name = relNameByTypeId.get(related) ?? related
+          options.push({ value: related, cls: 'Typ_ObjectTyp', label: name })
+        }
+      }
+    }
 
     if (defaults.length) {
       selectedObjectTypeIds.value = [...defaults]
