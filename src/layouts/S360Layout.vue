@@ -162,6 +162,7 @@ import {
   OptionsOutline,
   ConstructOutline,
   ClipboardOutline,
+  CheckmarkDoneOutline,
   FolderOutline,
   BookOutline,
   EllipsisHorizontal,
@@ -215,6 +216,7 @@ const menuRouteByKey: Record<string, string> = {
   'object-defects': '/nsi/object-defects',
   'object-parameters': '/nsi/object-parameters',
   works: '/nsi/works',
+  tasks: '/nsi/tasks',
   sources: '/nsi/sources',
   components: '/nsi/components',
 }
@@ -271,6 +273,13 @@ const MENU_ITEMS = [
     menuLabel: 'Работы',
     mobileLabel: 'Работы',
     tooltip: 'Справочник технологических работ',
+  },
+  {
+    key: 'tasks',
+    icon: CheckmarkDoneOutline,
+    menuLabel: 'Задачи',
+    mobileLabel: 'Задачи',
+    tooltip: 'Справочник задач',
   },
   {
     key: 'sources',
@@ -472,6 +481,7 @@ const MOBILE_PRIMARY_KEYS = [
   'dashboard',
   'nsi-dashboard',
   'works',
+  'tasks',
   'object-parameters',
   'components',
 ] as const

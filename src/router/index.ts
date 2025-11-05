@@ -10,6 +10,7 @@ const ObjectTypesPage = () => import('@pages/nsi/ObjectTypesPage.vue')
 const ObjectDefectsPage = () => import('@pages/nsi/ObjectDefectsPage.vue')
 const ObjectParametersPage = () => import('@pages/nsi/ObjectParametersPage.vue')
 const WorksPage = () => import('@pages/nsi/WorksPage.vue')
+const TasksPage = () => import('@pages/nsi/TasksPage.vue')
 const SourcesPage = () => import('@pages/nsi/SourcesPage.vue')
 const ComponentsPage = () => import('@pages/nsi/ComponentsPage.vue')
 const ResourcesPage = () => import('@pages/nsi/ResourcesPage.vue')
@@ -50,6 +51,12 @@ const router = createRouter({
       path: '/nsi/works',
       name: 'works',
       component: WorksPage,
+      // meta: { requiresAuth: true },
+    },
+    {
+      path: '/nsi/tasks',
+      name: 'tasks',
+      component: TasksPage,
       // meta: { requiresAuth: true },
     },
     {
