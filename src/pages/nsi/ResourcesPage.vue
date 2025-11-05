@@ -93,9 +93,16 @@
 
           <footer class="card__actions">
             <NButton quaternary circle size="small" title="Редактировать" @click="openEdit(item.id)">
-              <template #icon><NIcon><PencilOutline /></NIcon></template>
+              <template #icon><NIcon><CreateOutline /></NIcon></template>
             </NButton>
-            <NButton quaternary circle size="small" type="error" title="Удаление недоступно" disabled>
+            <NButton
+              quaternary
+              circle
+              size="small"
+              type="error"
+              title="Удаление доступно в другой задаче"
+              disabled
+            >
               <template #icon><NIcon><TrashOutline /></NIcon></template>
             </NButton>
           </footer>
@@ -198,7 +205,7 @@ import {
   type SelectOption,
   useMessage,
 } from 'naive-ui'
-import { InformationCircleOutline, CreateOutline, TrashOutline, PencilOutline } from '@vicons/ionicons5'
+import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
 import { resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'

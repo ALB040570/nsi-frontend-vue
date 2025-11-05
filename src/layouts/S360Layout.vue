@@ -228,6 +228,14 @@ Object.assign(menuRouteByKey, {
   'resources:third-party': '/nsi/resources?type=third-party',
 })
 
+interface MenuItem {
+  key: string
+  icon: VueComponent
+  menuLabel: string
+  mobileLabel: string
+  tooltip: string
+}
+
 const MENU_ITEMS = [
   {
     key: 'dashboard',
@@ -278,15 +286,7 @@ const MENU_ITEMS = [
     mobileLabel: 'Компоненты',
     tooltip: 'Справочник компонентов обслуживаемых объектов',
   },
-] satisfies Array<{
-  key: string
-  icon: VueComponent
-  menuLabel: string
-  mobileLabel: string
-  tooltip: string
-}>
-
-type MenuItem = (typeof MENU_ITEMS)[number]
+] satisfies MenuItem[]
 
 interface BottomNavItem {
   key: string
@@ -303,18 +303,44 @@ const menuOptions: MenuOption[] = MENU_ITEMS.map((item) => ({
   icon: renderIcon(item.icon),
 }))
 
+const RESOURCES_CHILDREN = [
+  { key: 'resources:materials', menuLabel: 'Материалы', tooltip: 'Материалы' },
+  { key: 'resources:equipment', menuLabel: 'Техника', tooltip: 'Техника' },
+  { key: 'resources:tools', menuLabel: 'Инструменты', tooltip: 'Инструменты' },
+  {
+    key: 'resources:third-party',
+    menuLabel: 'Услуги сторонних',
+    tooltip: 'Услуги сторонних',
+  },
+] satisfies Array<{ key: string; menuLabel: string; tooltip: string }>
+
 // Вставляем группу «Ресурсы» перед «Компоненты» (если найдена), иначе в конец
 const resourcesMenuOption: MenuOption = {
   key: 'resources',
   icon: renderIcon(FolderOutline),
   label: withTooltip('Ресурсы', 'Справочники ресурсов'),
-  children: [
-    { key: 'resources:materials', label: withTooltip('Материалы', 'Материалы') },
-    { key: 'resources:equipment', label: withTooltip('Техника', 'Техника') },
-    { key: 'resources:tools', label: withTooltip('Инструменты', 'Инструменты') },
-    { key: 'resources:third-party', label: withTooltip('Услуги сторонних', 'Услуги сторонних') },
-  ],
+  children: RESOURCES_CHILDREN.map((child) => ({
+    key: child.key,
+    label: withTooltip(child.menuLabel, child.tooltip),
+  })),
 }
+
+const RESOURCES_MOBILE_ITEMS: MenuItem[] = [
+  {
+    key: 'resources',
+    icon: FolderOutline,
+    menuLabel: 'Ресурсы',
+    mobileLabel: 'Ресурсы',
+    tooltip: 'Справочники ресурсов',
+  },
+  ...RESOURCES_CHILDREN.map((child) => ({
+    key: child.key,
+    icon: FolderOutline,
+    menuLabel: child.menuLabel,
+    mobileLabel: child.menuLabel,
+    tooltip: child.tooltip,
+  })),
+]
 
 const menuOptionsWithResources = computed<MenuOption[]>(() => {
   const base: MenuOption[] = [...menuOptions]
@@ -480,8 +506,16 @@ const bottomNavItems = computed<BottomNavItem[]>(() => {
 const mobileDrawerItems = computed<MenuItem[]>(() => {
   type ChildMenu = { key: string; menuLabel: string; tooltip: string }
   const flat: MenuItem[] = []
+  let resourcesInserted = false
+
   for (const item of MENU_ITEMS) {
-    flat.push(item as MenuItem)
+    if (!resourcesInserted && item.key === 'components') {
+      flat.push(...RESOURCES_MOBILE_ITEMS)
+      resourcesInserted = true
+    }
+
+    flat.push(item)
+
     const children: ChildMenu[] = (item as unknown as { children?: ChildMenu[] }).children ?? []
     for (const child of children) {
       flat.push({
@@ -490,9 +524,14 @@ const mobileDrawerItems = computed<MenuItem[]>(() => {
         menuLabel: child.menuLabel,
         mobileLabel: child.menuLabel,
         tooltip: child.tooltip || child.menuLabel,
-      } as MenuItem)
+      })
     }
   }
+
+  if (!resourcesInserted) {
+    flat.push(...RESOURCES_MOBILE_ITEMS)
+  }
+
   return flat
 })
 
@@ -1135,4 +1174,3 @@ onBeforeUnmount(() => {
   .logo-mark { width: 56.4px; height: 40px; }
 }
 </style>
-
