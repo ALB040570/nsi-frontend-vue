@@ -315,6 +315,7 @@ import {
 import { CreatableSelect } from '@features/creatable-select'
 
 const NO_MEASURE_KEY = '__none__'
+const MEASURE_PROP_ID = 1180
 
 const { t } = useI18n()
 const { isMobile } = useIsMobile('(max-width: 768px)')
@@ -375,6 +376,7 @@ const deletingKey = ref<string | null>(null)
 
 const measureOptions = ref<ParameterMeasureOption[]>([])
 const measureOptionsLoading = ref(false)
+let measureRefreshToken = 0
 
 function normalizeMeasureOption(option: ParameterMeasureOption): ParameterMeasureOption {
   const id = Number(option.id)
@@ -424,6 +426,11 @@ function ensureMeasureForTask(task: Task) {
         name: task.measureName ?? `Единица ${task.measureObjId}`,
       },
     ])
+    void refreshMeasureDirectory({
+      id: task.measureObjId,
+      pv: task.measurePvId ?? task.measureObjId,
+      name: task.measureName ?? `Единица ${task.measureObjId}`,
+    })
   }
 }
 
@@ -827,17 +834,41 @@ function updateMeasureValue(value: string[] | string | null) {
 }
 
 async function createMeasureOption(name: string) {
-  const created = await createMeasureAndSelect(name)
+  const created = await createMeasureAndSelect(name, { propId: MEASURE_PROP_ID })
   const normalized = normalizeMeasureOption(created)
   mergeMeasureOptions([normalized])
   const value = String(normalized.id)
   formModel.measureId = value
+  void (async () => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await refreshMeasureDirectory(normalized)
+  })()
   return { label: normalized.name, value }
 }
 
 function handleMeasureCreated(option: { label: string; value: string }) {
   if (!measureFilter.value.includes(option.value)) return
   measureFilter.value = [...measureFilter.value]
+}
+
+async function refreshMeasureDirectory(fallback: ParameterMeasureOption) {
+  const refreshToken = ++measureRefreshToken
+  try {
+    const refreshed = await loadParameterMeasures()
+    if (refreshToken !== measureRefreshToken) return
+    mergeMeasureOptions(refreshed)
+    const resolvedOption =
+      refreshed.find((option) => Number(option.id) === Number(fallback.id)) ??
+      refreshed.find((option) => Number(option.pv) === Number(fallback.pv)) ??
+      fallback
+    if (formModel.measureId === String(fallback.id)) {
+      formModel.measureId = String(resolvedOption.id)
+    }
+  } catch (error) {
+    if (refreshToken !== measureRefreshToken) return
+    console.error('[tasks] Не удалось обновить единицы измерения', error)
+    mergeMeasureOptions([fallback])
+  }
 }
 
 function buildTaskMutation(): TaskMutationInput | null {

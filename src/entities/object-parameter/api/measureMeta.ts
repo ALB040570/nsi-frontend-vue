@@ -139,26 +139,37 @@ export async function insertMeasure(name: string): Promise<MetaInsertMeasureReco
   return record
 }
 
-export async function loadMeasurePropValues(): Promise<MetaPropRecord[]> {
-  const result = await metaRpc<MetaPropLoadResult, [number]>('prop/loadPropValForUpd', [MEASURE_REF_PROP_ID])
+export async function loadMeasurePropValues(propId = MEASURE_REF_PROP_ID): Promise<MetaPropRecord[]> {
+  const result = await metaRpc<MetaPropLoadResult, [number]>('prop/loadPropValForUpd', [propId])
   return Array.isArray(result.records) ? result.records : []
 }
 
-export async function saveMeasurePropSelected(records: MetaPropRecord[]): Promise<void> {
-  await metaRpc<unknown, [number, MetaPropRecord[]]>('prop/savePropRefVal', [MEASURE_REF_PROP_ID, records])
+export async function saveMeasurePropSelected(
+  records: MetaPropRecord[],
+  propId = MEASURE_REF_PROP_ID,
+): Promise<void> {
+  await metaRpc<unknown, [number, MetaPropRecord[]]>('prop/savePropRefVal', [propId, records])
 }
 
 /**
  * Создаёт единицу измерения и отмечает её выбранной в справочном свойстве (prop 1180).
  * Возвращает опцию для UI и фич.
  */
-export async function createMeasureAndSelect(name: string): Promise<ParameterMeasureOption> {
+export interface CreateMeasureOptions {
+  propId?: number
+}
+
+export async function createMeasureAndSelect(
+  name: string,
+  options?: CreateMeasureOptions,
+): Promise<ParameterMeasureOption> {
+  const propId = options?.propId ?? MEASURE_REF_PROP_ID
   const created = await insertMeasure(name)
 
   let loadFailed = false
   let all: MetaPropRecord[] = []
   try {
-    all = await loadMeasurePropValues()
+    all = await loadMeasurePropValues(propId)
   } catch (error) {
     loadFailed = true
     console.error(
@@ -208,9 +219,10 @@ export async function createMeasureAndSelect(name: string): Promise<ParameterMea
     selectedByKey.set(getRecordKey(fallbackRecord), ensureCheckedRecord(fallbackRecord))
   }
 
-  if (!loadFailed) {
+  const toSave = Array.from(selectedByKey.values())
+  if (!loadFailed || toSave.length > 0) {
     try {
-      await saveMeasurePropSelected(Array.from(selectedByKey.values()))
+      await saveMeasurePropSelected(toSave, propId)
     } catch (error) {
       console.error(
         '[measureMeta] Не удалось сохранить выбранные единицы измерения',
