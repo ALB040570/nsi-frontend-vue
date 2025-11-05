@@ -349,9 +349,9 @@ function mapParameter(
 
 export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersSnapshot> {
   const [measureResponse, collectionResponse, parametersResponse] = await Promise.all([
-    rpcWithDebug<RpcDirectoryItem[], ['Prop_ParamsMeasure']>(
+    rpcWithDebug<RpcDirectoryItem[], ['Prop_Measure']>(
       'data/loadMeasure',
-      ['Prop_ParamsMeasure'],
+      ['Prop_Measure'],
       'Снапшот: загрузка единиц измерения',
     ),
     rpcWithDebug<RpcDirectoryItem[], ['Cls_Collections', 'Prop_Collections']>(
@@ -525,9 +525,9 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
 }
 
 export async function loadParameterMeasures(): Promise<ParameterMeasureOption[]> {
-  const response = await rpcWithDebug<RpcDirectoryItem[], ['Prop_ParamsMeasure']>(
+  const response = await rpcWithDebug<RpcDirectoryItem[], ['Prop_Measure']>(
     'data/loadMeasure',
-    ['Prop_ParamsMeasure'],
+    ['Prop_Measure'],
     'Справочники формы: единицы измерения',
   )
   const items = extractArray<RpcDirectoryItem>(response)

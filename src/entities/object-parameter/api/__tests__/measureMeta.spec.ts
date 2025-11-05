@@ -57,7 +57,7 @@ describe('createMeasureAndSelect', () => {
     const option = await createMeasureAndSelect('Новая единица')
 
     expect(metaRpcMock).toHaveBeenNthCalledWith(3, 'prop/savePropRefVal', [
-      1105,
+      1180,
       [
         expect.objectContaining({ id: 201, checked: true }),
         expect.objectContaining({ id: 111, checked: true }),
@@ -90,7 +90,7 @@ describe('createMeasureAndSelect', () => {
 
     expect(option).toEqual({ id: 123, pv: 123, name: 'Новая единица' })
     expect(metaRpcMock).toHaveBeenNthCalledWith(3, 'prop/savePropRefVal', [
-      1105,
+      1180,
       [expect.objectContaining({ id: 123, checked: true })],
     ])
     expect(consoleErrorSpy).toHaveBeenCalledWith(

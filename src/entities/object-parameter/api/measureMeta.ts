@@ -117,7 +117,7 @@ interface MetaPropLoadResult {
   records: MetaPropRecord[]
 }
 
-const MEASURE_REF_PROP_ID = 1105
+const MEASURE_REF_PROP_ID = 1180
 
 export async function insertMeasure(name: string): Promise<MetaInsertMeasureRecord> {
   const payload = {
@@ -149,7 +149,7 @@ export async function saveMeasurePropSelected(records: MetaPropRecord[]): Promis
 }
 
 /**
- * Создаёт единицу измерения и отмечает её выбранной в справочном свойстве (prop 1105).
+ * Создаёт единицу измерения и отмечает её выбранной в справочном свойстве (prop 1180).
  * Возвращает опцию для UI и фич.
  */
 export async function createMeasureAndSelect(name: string): Promise<ParameterMeasureOption> {
