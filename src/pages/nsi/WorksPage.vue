@@ -344,6 +344,12 @@ interface RawObjectTypeRelationRecord {
   idrom2?: number | string
   namerom2?: string
   NAMEROM2?: string
+  idro?: number | string
+  IDRO?: number | string
+  id?: number | string
+  ID?: number | string
+  idr?: number | string
+  IDR?: number | string
 }
 
 interface RawWorkRecord {
@@ -1255,19 +1261,28 @@ async function loadWorkObjectTypesForForm(workId: string | null, options: { forc
     objectTypeSelectOptions.value = options
     objectTypeOptionsOwnerKey.value = ownerKey
 
-    // Fallback по выбранности: если сервер не проставил флаги,
-    // используем связи из relRecords
-    if (!defaults.length && workId != null) {
+    // Дополнительно сверяемся с relRecords: берём связи и relationId даже если сервер проставил флаги
+    if (workId != null) {
       const ownerStr = toOptionalString(workId)
       for (const rel of relRecords) {
         const id1 = toOptionalString(rel.idrom1)
         if (id1 !== ownerStr) continue
         const related = toOptionalString(rel.idrom2)
         if (!related) continue
+        const relationId =
+          toOptionalString(rel.idro ?? rel.IDRO ?? rel.id ?? rel.ID ?? rel.idr ?? rel.IDR) ?? null
         if (!defaults.includes(related)) defaults.push(related)
-        if (!options.some((o) => o.value === related)) {
+        if (relationId) {
+          initialRelationIdByValue.value.set(related, relationId)
+        }
+        const existingOption = options.find((o) => o.value === related)
+        if (existingOption) {
+          if (!existingOption.relationId && relationId) {
+            existingOption.relationId = relationId
+          }
+        } else {
           const name = relNameByTypeId.get(related) ?? related
-          options.push({ value: related, cls: 'Typ_ObjectTyp', label: name })
+          options.push({ value: related, cls: 'Typ_ObjectTyp', label: name, relationId })
         }
       }
     }
@@ -1522,13 +1537,13 @@ async function saveSelectedObjectTypes(options: { workId: string; workCls: strin
   // Remove unselected relations
   for (const value of toDelete) {
     const relationId = initialRelationIdByValue.value.get(value)
+    if (!relationId) continue
     const relationIdNumber = toFiniteNumber(relationId)
-    if (relationIdNumber != null) {
-      try {
-        await rpc('data/deleteOwnerWithProperties', [relationIdNumber, 0])
-      } catch (error) {
-        console.error(error)
-      }
+    const deleteId = relationIdNumber ?? relationId
+    try {
+      await rpc('data/deleteOwnerWithProperties', [deleteId, 0])
+    } catch (error) {
+      console.error(error)
     }
   }
 
