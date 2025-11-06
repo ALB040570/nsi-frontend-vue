@@ -231,7 +231,11 @@ const compareByNameRu = (a: { name: string }, b: { name: string }) =>
 function mapParameter(
   item: RpcParameterItem,
   index: number,
-  directories: { units: DirectoryLookup; sources: DirectoryLookup },
+  directories: {
+    units: DirectoryLookup
+    sources: DirectoryLookup
+    measureNamesById: Record<string, string>
+  },
 ): LoadedObjectParameter {
   const record = asRecord(item)
   const id = pickString(record, ['id', 'parameterId', 'parameter_id']) ?? `parameter-${index}`
@@ -250,9 +254,17 @@ function mapParameter(
     pickString(record, ['valueType', 'value_type', 'type']) ??
     pickString(record, ['dataType', 'data_type']) ??
     'string'
-  const unitId =
-    pickString(record, ['unitId', 'unit_id', 'measureId', 'measure_id', 'pvParamsMeasure']) ??
+  const pvParamsMeasure = pickNumber(record, ['pvParamsMeasure'])
+  const unitIdFallback =
+    pickString(record, ['unitId', 'unit_id', 'measureId', 'measure_id']) ??
     pickString(record, ['unit', 'measure'])
+  const unitDirectoryKey =
+    pvParamsMeasure !== null
+      ? String(pvParamsMeasure)
+      : unitIdFallback != null
+        ? unitIdFallback
+        : null
+  const unitId = pvParamsMeasure !== null ? String(pvParamsMeasure) : unitIdFallback
   const sourceId =
     pickString(record, [
       'objCollections',
@@ -279,11 +291,16 @@ function mapParameter(
   const pvCollections = pickNumber(record, ['pvCollections'])
   const idParamsMeasure = pickNumber(record, ['idParamsMeasure'])
   const meaParamsMeasure = pickNumber(record, ['meaParamsMeasure'])
-  const pvParamsMeasure = pickNumber(record, ['pvParamsMeasure'])
   const idParamsDescription = pickNumber(record, ['idParamsDescription'])
 
+  const measureNameFromId =
+    meaParamsMeasure !== null
+      ? directories.measureNamesById[String(meaParamsMeasure)] ?? null
+      : null
+
   const unitName =
-    (unitId ? directories.units[unitId]?.name : null) ??
+    measureNameFromId ??
+    (unitDirectoryKey ? directories.units[unitDirectoryKey]?.name : null) ??
     pickString(record, [
       'unitName',
       'unit_name',
@@ -402,8 +419,9 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
   const relationItems = extractArray<Record<string, unknown>>(relationsResponse)
   const allComponentItems = extractArray<Record<string, unknown>>(componentsResponse)
 
-  const unitOptions = unitItems.map((item, index) =>
-    toDirectoryOption(
+  const measureNamesById: Record<string, string> = {}
+  const unitOptions = unitItems.map((item, index) => {
+    const option = toDirectoryOption(
       item,
       `unit-${index}`,
       ['pv', 'id', 'measureId', 'measure_id', 'unitId', 'unit_id'],
@@ -417,8 +435,14 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
         'title',
         'ParamsMeasureName',
       ],
-    ),
-  )
+    )
+    const record = asRecord(item)
+    const measureId = pickNumber(record, ['id', 'measureId', 'measure_id'])
+    if (measureId !== null) {
+      measureNamesById[String(measureId)] = option.name
+    }
+    return option
+  })
 
   const sourceOptions = sourceItems.map((item, index) =>
     toDirectoryOption(
@@ -433,7 +457,11 @@ export async function fetchObjectParametersSnapshot(): Promise<ObjectParametersS
   const sourceDirectory = createDirectoryLookup(sourceOptions)
 
   const items = parameterItems.map((item, index) =>
-    mapParameter(item, index, { units: unitDirectory, sources: sourceDirectory }),
+    mapParameter(item, index, {
+      units: unitDirectory,
+      sources: sourceDirectory,
+      measureNamesById,
+    }),
   )
 
   // Построение lookup-таблиц для сопоставления:
