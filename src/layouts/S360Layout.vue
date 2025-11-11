@@ -171,6 +171,7 @@ import {
 import logoMark from '@/assets/logo.png'
 import { useAuth } from '@features/auth'
 import { useUiSidebar } from '@features/ui'
+import { Report } from '@vicons/tabler'
 
 interface LanguageOption {
   label: string
@@ -219,6 +220,7 @@ const menuRouteByKey: Record<string, string> = {
   tasks: '/nsi/tasks',
   sources: '/nsi/sources',
   components: '/nsi/components',
+  reports: '/nsi/reports',
 }
 
 // расширение маршрутов для ресурcов (единая таблица с типом через query)
@@ -252,6 +254,13 @@ const MENU_ITEMS = [
     menuLabel: 'Типы',
     mobileLabel: 'Типы',
     tooltip: 'Справочник типов обслуживаемых объектов',
+  },
+  {
+    key: 'components',
+    icon: ConstructOutline,
+    menuLabel: 'Компоненты',
+    mobileLabel: 'Компоненты',
+    tooltip: 'Справочник компонентов обслуживаемых объектов',
   },
   {
     key: 'object-defects',
@@ -289,11 +298,11 @@ const MENU_ITEMS = [
     tooltip: 'Справочник нормативных документов',
   },
   {
-    key: 'components',
-    icon: ConstructOutline,
-    menuLabel: 'Компоненты',
-    mobileLabel: 'Компоненты',
-    tooltip: 'Справочник компонентов обслуживаемых объектов',
+    key: 'reports',
+    icon: Report,
+    menuLabel: 'Отчёты',
+    mobileLabel: 'Отчёты',
+    tooltip: 'Справочник отчётов',
   },
 ] satisfies MenuItem[]
 
@@ -742,7 +751,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 0 24px;
   min-height: 64px;
-  background: #FFFFFF;
+  background: #ffffff;
   border-bottom: 1px solid var(--s360-color-border-subtle);
   box-sizing: border-box;
   gap: 16px;
@@ -814,7 +823,9 @@ onBeforeUnmount(() => {
   font-size: 18px;
 }
 
-.s360-logo:hover { color: var(--s360-color-primary); }
+.s360-logo:hover {
+  color: var(--s360-color-primary);
+}
 
 .logo-mark {
   width: 70.51px;
@@ -842,7 +853,10 @@ onBeforeUnmount(() => {
     color 0.2s ease;
 }
 
-.s360-lang-switcher:hover { background: var(--s360-color-primary-soft); color: var(--s360-color-primary); }
+.s360-lang-switcher:hover {
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-color-primary);
+}
 
 .lang-arrow {
   font-size: 14px;
@@ -883,12 +897,12 @@ onBeforeUnmount(() => {
   min-height: 100%;
   box-sizing: border-box;
   background: #f8fafc;
-  border-right: 1px solid #DEE2E6;
+  border-right: 1px solid #dee2e6;
   transition: width 0.2s ease;
 }
 
 .s360-aside.is-collapsed {
-  border-right: 1px solid #DEE2E6;
+  border-right: 1px solid #dee2e6;
 }
 
 .s360-aside.is-collapsed .s360-aside-inner {
@@ -1036,7 +1050,7 @@ onBeforeUnmount(() => {
   width: min(320px, 86vw);
   height: 100%;
   background: #ffffff;
-  box-shadow: -12px 0 32px rgba(43, 108, 176, 0.10);
+  box-shadow: -12px 0 32px rgba(43, 108, 176, 0.1);
   display: flex;
   flex-direction: column;
 }
@@ -1092,7 +1106,11 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-.drawer-link.active { background: var(--s360-color-primary-soft); color: var(--s360-color-primary); font-weight: 600; }
+.drawer-link.active {
+  background: var(--s360-color-primary-soft);
+  color: var(--s360-color-primary);
+  font-weight: 600;
+}
 
 .drawer-link :deep(.n-icon) {
   font-size: 20px;
@@ -1146,9 +1164,9 @@ onBeforeUnmount(() => {
     justify-content: space-around;
     gap: 8px;
     padding: 8px 12px calc(env(safe-area-inset-bottom) + 12px);
-    background: #FFFFFF;
+    background: #ffffff;
     border-top: 1px solid var(--s360-color-border-subtle);
-    box-shadow: 0 -4px 16px rgba(43, 108, 176, 0.10);
+    box-shadow: 0 -4px 16px rgba(43, 108, 176, 0.1);
     z-index: 1100;
   }
 
@@ -1171,9 +1189,15 @@ onBeforeUnmount(() => {
       background-color 0.2s ease;
   }
 
-  .bottom-nav-item.active { color: var(--s360-color-primary); background: rgba(43, 108, 176, 0.14); }
+  .bottom-nav-item.active {
+    color: var(--s360-color-primary);
+    background: rgba(43, 108, 176, 0.14);
+  }
 
-  .bottom-nav-item:focus-visible { outline: 2px solid var(--s360-color-primary); outline-offset: 2px; }
+  .bottom-nav-item:focus-visible {
+    outline: 2px solid var(--s360-color-primary);
+    outline-offset: 2px;
+  }
 
   .bottom-nav-label {
     font-size: 11px;
@@ -1181,6 +1205,9 @@ onBeforeUnmount(() => {
   }
 }
 @media (max-width: 480px) {
-  .logo-mark { width: 56.4px; height: 40px; }
+  .logo-mark {
+    width: 56.4px;
+    height: 40px;
+  }
 }
 </style>

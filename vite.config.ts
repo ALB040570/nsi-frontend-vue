@@ -159,6 +159,66 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     }
   }
 
+  // 4) Report API
+  const reportProxyBase = normalizeProxyBase(env.VITE_REPORT_DEV_PROXY_BASE || '/report-api')
+  const rawReportBase = env.VITE_REPORT_API_BASE?.trim()
+
+  if (rawReportBase && ABSOLUTE_URL_PATTERN.test(rawReportBase)) {
+    try {
+      const reportURL = new URL(rawReportBase)
+      const target = `${reportURL.protocol}//${reportURL.host}`
+      const rewriteBase = normalizeRewriteBase(reportURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(reportProxyBase)}`)
+
+      proxies[reportProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[reportProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(reportProxyBase)}`)
+    proxies[reportProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/report'),
+    }
+  }
+
+  // 5) Report load endpoint
+  const reportLoadProxyBase = normalizeProxyBase(env.VITE_REPORT_LOAD_DEV_PROXY_BASE || '/load-report')
+  const rawReportLoadBase = env.VITE_REPORT_LOAD_BASE?.trim()
+
+  if (rawReportLoadBase && ABSOLUTE_URL_PATTERN.test(rawReportLoadBase)) {
+    try {
+      const reportLoadURL = new URL(rawReportLoadBase)
+      const target = `${reportLoadURL.protocol}//${reportLoadURL.host}`
+      const rewriteBase = normalizeRewriteBase(reportLoadURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(reportLoadProxyBase)}`)
+
+      proxies[reportLoadProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[reportLoadProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(reportLoadProxyBase)}`)
+    proxies[reportLoadProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/loadReport'),
+    }
+  }
+
   return proxies
 }
 
