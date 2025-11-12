@@ -51,28 +51,10 @@
             "
           />
 
-          <NSelect
-            v-model:value="componentFilter"
-            :options="componentOptions"
-            multiple
-            filterable
-            clearable
-            size="small"
-            class="toolbar__select"
-            :placeholder="t('nsi.reports.filter.component', {}, { default: 'Компонент' })"
-          />
         </div>
 
-        <NSelect
-          v-model:value="sortOrder"
-          :options="sortOptions"
-          size="small"
-          class="toolbar__select"
-          :aria-label="t('nsi.reports.sortAria', {}, { default: 'Порядок сортировки' })"
-        />
-
-        <NButton type="primary" ghost size="small" @click="showTemplateHint">
-          {{ t('nsi.reports.createTemplate', {}, { default: 'Создать шаблон' }) }}
+        <NButton type="primary" size="small" @click="openCreateDialog">
+          {{ t('nsi.reports.createReport', {}, { default: 'Добавить отчёт' }) }}
         </NButton>
       </div>
     </NCard>
@@ -119,34 +101,19 @@
               <span class="index-chip">№ {{ item.index }}</span>
             </header>
 
-            <p v-if="item.description" class="card__description cell-multiline">
-              {{ item.description }}
-            </p>
-
             <dl class="card__grid">
               <dt>{{ t('nsi.reports.table.orgUnit', {}, { default: 'Орг. единица' }) }}</dt>
               <dd>{{ item.orgUnit }}</dd>
-              <dt>{{ t('nsi.reports.table.component', {}, { default: 'Компонент' }) }}</dt>
-              <dd>{{ item.component }}</dd>
+              <dt>{{ t('nsi.reports.form.periodType', {}, { default: 'Период отчёта' }) }}</dt>
+              <dd>
+                <span class="period-chip">
+                  {{
+                    getPeriodTypeLabel(item.periodTypeId) ||
+                    t('nsi.reports.form.periodTypeEmpty', {}, { default: 'Не указан' })
+                  }}
+                </span>
+              </dd>
             </dl>
-
-            <div v-if="item.objectTypes?.length" class="card__tags">
-              <span class="card__tags-label">
-                {{ t('nsi.reports.objectTypes', {}, { default: 'Типы объектов' }) }}
-              </span>
-              <div class="card__tag-list">
-                <NTag
-                  v-for="objectType in item.objectTypes"
-                  :key="`${item.id}-${objectType}`"
-                  round
-                  size="small"
-                  type="info"
-                  class="card__tag"
-                >
-                  {{ objectType }}
-                </NTag>
-              </div>
-            </div>
 
             <footer class="card__actions">
               <ActionsRenderer :row="item" />
@@ -161,7 +128,7 @@
         />
       </template>
 
-      <div class="pagination-bar" v-if="!isMobile && total > pagination.pageSize">
+      <div class="pagination-bar" v-if="total">
         <NPagination
           v-model:page="pagination.page"
           v-model:page-size="pagination.pageSize"
@@ -201,54 +168,87 @@
 
       <NForm
         ref="generatorFormRef"
-        :model="generatorModel"
+        :model="generatorForm"
         :rules="generatorRules"
         size="small"
         label-placement="top"
         class="generator-form"
       >
         <NFormItem
-          v-for="param in generator.report?.parameters ?? []"
-          :key="param.key"
-          :label="param.label"
-          :path="param.key"
+          :label="t('nsi.reports.form.date', {}, { default: 'Дата отчёта' })"
+          path="date"
         >
-          <NInput
-            v-if="param.type === 'text'"
-            v-model:value="(generatorModel[param.key] as string | null)"
-            :placeholder="param.placeholder"
-            clearable
-          />
-          <NInputNumber
-            v-else-if="param.type === 'number'"
-            v-model:value="(generatorModel[param.key] as number | null)"
-            :placeholder="param.placeholder"
-            :min="0"
-            :step="1"
-            style="width: 100%"
-          />
           <NDatePicker
-            v-else-if="param.type === 'date'"
-            v-model:value="(generatorModel[param.key] as DatePickerValue | null)"
+            v-model:value="generatorForm.date"
             type="date"
             format="dd.MM.yyyy"
             value-format="yyyy-MM-dd"
-            :placeholder="param.placeholder"
+            :placeholder="t('nsi.reports.form.datePlaceholder', {}, { default: 'Выберите дату' })"
+            clearable
             style="width: 100%"
           />
+        </NFormItem>
+
+        <NFormItem
+          :label="t('nsi.reports.form.client', {}, { default: 'Организация заказчика' })"
+          path="objClient"
+        >
           <NSelect
-            v-else-if="param.type === 'select'"
-            v-model:value="generatorModel[param.key]"
-            :options="param.options ?? []"
+            v-model:value="generatorForm.objClient"
+            :options="clientOptions"
+            :loading="clientsLoading"
             filterable
             clearable
-            :placeholder="param.placeholder"
+            :placeholder="
+              t('nsi.reports.form.clientPlaceholder', {}, { default: 'Выберите организацию' })
+            "
+            @update:value="handleClientSelect"
+            style="width: 100%"
           />
-          <span v-else class="field-placeholder">—</span>
+        </NFormItem>
 
-          <template v-if="param.hint" #feedback>
-            <span class="field-hint">{{ param.hint }}</span>
-          </template>
+        <NFormItem
+          :label="
+            t(
+              'nsi.reports.form.director',
+              {},
+              { default: 'Ответственный со стороны подрядчика' },
+            )
+          "
+          path="directorId"
+        >
+          <NSelect
+            v-model:value="generatorForm.directorId"
+            :options="filteredPersonnelOptions"
+            :loading="personnelLoading"
+            filterable
+            clearable
+            :placeholder="
+              t('nsi.reports.form.directorPlaceholder', {}, { default: 'Выберите ответственного' })
+            "
+            @update:value="handleDirectorSelect"
+            style="width: 100%"
+          />
+        </NFormItem>
+
+        <NFormItem
+          :label="
+            t('nsi.reports.form.executor', {}, { default: 'Исполнитель со стороны подрядчика' })
+          "
+          path="executorId"
+        >
+          <NSelect
+            v-model:value="generatorForm.executorId"
+            :options="personnelOptions"
+            :loading="personnelLoading"
+            filterable
+            clearable
+            :placeholder="
+              t('nsi.reports.form.executorPlaceholder', {}, { default: 'Выберите исполнителя' })
+            "
+            @update:value="handleExecutorSelect"
+            style="width: 100%"
+          />
         </NFormItem>
       </NForm>
 
@@ -280,7 +280,8 @@
       <div class="preview-bar">
         <div class="preview-meta">
           <div class="preview-meta__title">
-            {{ preview.report?.component }}
+            {{ t('nsi.reports.form.periodType', {}, { default: 'Период' }) }}:
+            {{ previewPeriodLabel }}
           </div>
           <div class="preview-meta__subtitle">
             {{
@@ -349,7 +350,11 @@
     <NModal
       v-model:show="editDialog.open"
       preset="card"
-      :title="t('nsi.reports.edit.title', {}, { default: 'Редактирование отчёта' })"
+      :title="
+        editDialog.mode === 'create'
+          ? t('nsi.reports.create.title', {}, { default: 'Новый отчёт' })
+          : t('nsi.reports.edit.title', {}, { default: 'Редактирование отчёта' })
+      "
       style="width: min(520px, 96vw)"
     >
       <NForm
@@ -360,6 +365,9 @@
         label-placement="top"
         class="edit-form"
       >
+        <NFormItem :label="t('nsi.reports.table.index', {}, { default: 'Индекс' })" path="index">
+          <NInput v-model:value="editDialog.form.index" />
+        </NFormItem>
         <NFormItem
           :label="t('nsi.reports.table.name', {}, { default: 'Наименование' })"
           path="name"
@@ -368,24 +376,33 @@
         </NFormItem>
         <NFormItem
           :label="t('nsi.reports.table.orgUnit', {}, { default: 'Организационная единица' })"
-          path="orgUnit"
+          path="orgUnitId"
         >
-          <NInput v-model:value="editDialog.form.orgUnit" />
+          <NSelect
+            v-model:value="editDialog.form.orgUnitId"
+            :options="orgStructureOptions"
+            :loading="orgStructureLoading"
+            filterable
+            clearable
+            :placeholder="
+              t('nsi.reports.form.orgUnitPlaceholder', {}, { default: 'Выберите орг. единицу' })
+            "
+            @update:value="handleEditOrgUnitSelect"
+          />
         </NFormItem>
         <NFormItem
-          :label="t('nsi.reports.table.component', {}, { default: 'Компонент' })"
-          path="component"
+          :label="t('nsi.reports.form.periodType', {}, { default: 'Период отчёта' })"
+          path="periodTypeId"
         >
-          <NInput v-model:value="editDialog.form.component" />
-        </NFormItem>
-        <NFormItem
-          :label="t('nsi.reports.table.description', {}, { default: 'Описание' })"
-          path="description"
-        >
-          <NInput
-            v-model:value="editDialog.form.description"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 4 }"
+          <NSelect
+            v-model:value="editDialog.form.periodTypeId"
+            :options="periodTypeOptions"
+            :loading="periodTypesLoading"
+            filterable
+            clearable
+            :placeholder="
+              t('nsi.reports.form.periodTypePlaceholder', {}, { default: 'Выберите период' })
+            "
           />
         </NFormItem>
       </NForm>
@@ -395,7 +412,11 @@
           {{ t('common.cancel', {}, { default: 'Отмена' }) }}
         </NButton>
         <NButton type="primary" :loading="editDialog.submitting" @click="handleEditSave">
-          {{ t('common.save', {}, { default: 'Сохранить' }) }}
+          {{
+            editDialog.mode === 'create'
+              ? t('common.create', {}, { default: 'Создать' })
+              : t('common.save', {}, { default: 'Сохранить' })
+          }}
         </NButton>
       </div>
     </NModal>
@@ -426,13 +447,11 @@ import {
   NFormItem,
   NIcon,
   NInput,
-  NInputNumber,
   NModal,
   NPagination,
   NSelect,
   NSpin,
   NTooltip,
-  NTag,
   type DataTableColumns,
   type FormInst,
   type FormRules,
@@ -452,47 +471,29 @@ import {
 
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 import { normalizeText } from '@shared/lib'
-import { fetchReportFile, reportRpc, type FetchReportFileParams } from '@shared/api'
 import {
-  generateReportFile,
-  type ReportFileDescriptor,
-  type ReportFormat,
-  type ReportHttpMethod,
-} from '@entities/report'
+  fetchReportFile,
+  reportRpc,
+  objectsRpc,
+  personnalRpc,
+  orgStructureRpc,
+  type FetchReportFileParams,
+} from '@shared/api'
+import { type ReportFileDescriptor, type ReportFormat } from '@entities/report'
+
 type DatePickerValue = DatePickerProps['value']
 
-type SortOrder = 'index-asc' | 'index-desc' | 'name-asc' | 'name-desc' | 'org-asc' | 'org-desc'
-
-interface ReportParameterOption {
-  label: string
-  value: string
-}
-
-interface ReportParameter {
-  key: string
-  label: string
-  type: 'text' | 'number' | 'date' | 'select'
-  placeholder?: string
-  required?: boolean
-  options?: ReportParameterOption[]
-  hint?: string
-  defaultValue?: string | number | null
-}
+type SortOrder = 'index-asc' | 'index-desc' | 'name-asc' | 'name-desc'
 
 interface ReportTemplate {
   id: string
-  code: string
   index: string
   name: string
   orgUnit: string
-  component: string
+  orgUnitId: number | null
+  periodTypeId: number | null
   description: string
-  apiPath: string
-  method: ReportHttpMethod
-  availableFormats: ReportFormat[]
-  objectTypes?: string[]
-  parameters: ReportParameter[]
-  rpc?: ReportRpcConfig
+  rpc: ReportRpcConfig
 }
 
 type ReportRow = ReportTemplate & { rowKey: string }
@@ -504,10 +505,7 @@ interface ReportRpcConfig {
   defaultFormat?: ReportFormat
   previewFormat?: ReportFormat
   mapPayload?: (payload: Record<string, unknown>, report: ReportTemplate) => Record<string, unknown>
-  buildGenerateParams?: (
-    payload: Record<string, unknown>,
-    report: ReportTemplate,
-  ) => unknown
+  buildGenerateParams?: (payload: Record<string, unknown>, report: ReportTemplate) => unknown
   buildLoadParams?: (options: {
     payload: Record<string, unknown>
     report: ReportTemplate
@@ -516,117 +514,93 @@ interface ReportRpcConfig {
   }) => FetchReportFileParams
 }
 
+const BASE_REPORT_RPC: ReportRpcConfig = {
+  tml: 'ПО-4',
+  generateMethod: 'report/generateReport',
+  defaultFormat: 'pdf',
+  previewFormat: 'pdf',
+  mapPayload: (payload, report) => ({
+    ...payload,
+    tml: (payload.tml as string | null) ?? report.index ?? 'ПО-4',
+  }),
+  buildGenerateParams: (payload) => [payload],
+  buildLoadParams: ({ jobId, payload, format }) => ({
+    tml: (payload.tml as string) ?? 'ПО-4',
+    id: jobId,
+    ...(format === 'pdf' ? { ext: 'pdf' } : {}),
+  }),
+}
+
+interface RpcRecordsEnvelope<T> {
+  records?: T[] | null
+}
+
+interface PeriodTypeRecord {
+  id: number
+  text: string
+}
+
+interface ClientRecord {
+  id: number
+  fullName?: string | null
+  name?: string | null
+  pv?: number | null
+}
+
+interface PersonnelRecord {
+  id: number
+  fullName: string
+  namePosition?: string | null
+  nameLocation?: string | null
+  UserPhone?: string | null
+  objLocation?: number | null
+}
+
+interface OrgUnitRecord {
+  id: number
+  name: string
+  parent?: number | null
+}
+
+interface GeneratorFormModel {
+  date: DatePickerValue | null
+  objClient: number | null
+  objLocation: number | null
+  fullNameClient: string | null
+  directorId: number | null
+  fullNameDirector: string | null
+  nameDirectorPosition: string | null
+  nameDirectorLocation: string | null
+  executorId: number | null
+  fulNameUser: string | null
+  nameUserPosition: string | null
+  UserPhone: string | null
+  tml: string | null
+}
+
+interface StoredReport {
+  id: string
+  index: string
+  name: string
+  orgUnit: string
+  orgUnitId: number | null
+  periodTypeId: number | null
+  description?: string
+}
+
+const REPORTS_STORAGE_KEY = 'nsi.reports.list'
+
 const INITIAL_REPORTS: ReportTemplate[] = [
   {
     id: 'report-1',
-    code: 'po_4',
     index: 'ПО-4',
-    name: 'Отчёт ПО-4: сведения по рельсам',
+    name: 'Отчёт о рельсах, снятых с путей вследствие изломов, дефектов и повреждений',
     orgUnit: 'Дистанция пути',
-    component: 'Рельс',
+    orgUnitId: 1073,
+    periodTypeId: 11,
     description:
       'Генерация шаблона ПО-4 по списанию рельсов. Пока используем фиксированные параметры из ТЗ.',
-    apiPath: 'report/generateReport',
-    method: 'POST',
-    availableFormats: ['pdf'],
-    objectTypes: ['ЖД пути на перегоне', 'ЖД пути на станции'],
-    parameters: [
-      {
-        key: 'tml',
-        label: 'Шаблон отчёта',
-        type: 'text',
-        required: true,
-        defaultValue: 'ПО-4',
-        placeholder: 'Например, ПО-4',
-      },
-      {
-        key: 'date',
-        label: 'Дата отчёта',
-        type: 'date',
-        placeholder: 'YYYY-MM-DD',
-        required: true,
-        defaultValue: '2025-11-04',
-      },
-      {
-        key: 'periodType',
-        label: 'Тип периода',
-        type: 'number',
-        required: true,
-        defaultValue: 11,
-      },
-      {
-        key: 'objClient',
-        label: 'ID клиента',
-        type: 'number',
-        required: true,
-        defaultValue: 1014,
-      },
-      {
-        key: 'objLocation',
-        label: 'ID локации',
-        type: 'number',
-        required: true,
-        defaultValue: 1073,
-      },
-      {
-        key: 'fulNameUser',
-        label: 'ФИО исполнителя',
-        type: 'text',
-        required: true,
-        defaultValue: 'Kanat C.',
-      },
-      {
-        key: 'nameUserPosition',
-        label: 'Должность исполнителя',
-        type: 'text',
-        required: true,
-        defaultValue: 'Тех.отдел',
-      },
-      {
-        key: 'UserPhone',
-        label: 'Телефон',
-        type: 'text',
-        required: true,
-        defaultValue: '8-777-666 5544',
-      },
-      {
-        key: 'fullNameDirector',
-        label: 'ФИО руководителя',
-        type: 'text',
-        required: true,
-        defaultValue: 'Мыркинбаев Н.Д.',
-      },
-      {
-        key: 'nameDirectorPosition',
-        label: 'Должность руководителя',
-        type: 'text',
-        required: true,
-        defaultValue: 'Зам.начальника',
-      },
-      {
-        key: 'nameDirectorLocation',
-        label: 'Организация',
-        type: 'text',
-        required: true,
-        defaultValue: 'Досжан Темир Жолы',
-      },
-    ],
-    rpc: {
-      tml: 'ПО-4',
-      generateMethod: 'report/generateReport',
-      defaultFormat: 'pdf',
-      previewFormat: 'pdf',
-      mapPayload: (payload) => ({
-        ...payload,
-        tml: payload.tml ?? 'ПО-4',
-      }),
-      buildGenerateParams: (payload) => [payload],
-      buildLoadParams: ({ jobId, payload, format }) => ({
-        tml: (payload.tml as string) ?? 'ПО-4',
-        id: jobId,
-        ...(format === 'pdf' ? { ext: 'pdf' } : {}),
-      }),
-    },
+    rpc: BASE_REPORT_RPC,
   },
   /* {
     id: 'report-10',
@@ -910,7 +884,99 @@ const INITIAL_REPORTS: ReportTemplate[] = [
   }, */
 ]
 
-const reports = ref<ReportTemplate[]>(INITIAL_REPORTS)
+function cloneInitialReport(report: ReportTemplate): ReportTemplate {
+  return {
+    ...report,
+    rpc: BASE_REPORT_RPC,
+  }
+}
+
+function normalizeStoredReport(entry: unknown): ReportTemplate | null {
+  if (!entry || typeof entry !== 'object') return null
+  const { id, index, name, orgUnit } = entry as Record<string, unknown>
+  if (
+    typeof id !== 'string' ||
+    !id.trim() ||
+    typeof index !== 'string' ||
+    !index.trim() ||
+    typeof name !== 'string' ||
+    !name.trim() ||
+    typeof orgUnit !== 'string' ||
+    !orgUnit.trim()
+  ) {
+    return null
+  }
+
+  const orgUnitId =
+    typeof (entry as { orgUnitId?: unknown }).orgUnitId === 'number' &&
+    Number.isFinite((entry as { orgUnitId?: number }).orgUnitId as number)
+      ? ((entry as { orgUnitId: number }).orgUnitId as number)
+      : null
+  const periodTypeId =
+    typeof (entry as { periodTypeId?: unknown }).periodTypeId === 'number' &&
+    Number.isFinite((entry as { periodTypeId?: number }).periodTypeId as number)
+      ? ((entry as { periodTypeId: number }).periodTypeId as number)
+      : null
+  const description =
+    typeof (entry as { description?: unknown }).description === 'string'
+      ? ((entry as { description: string }).description as string)
+      : ''
+
+  return {
+    id: id.trim(),
+    index: index.trim(),
+    name: name.trim(),
+    orgUnit: orgUnit.trim(),
+    orgUnitId,
+    periodTypeId,
+    description,
+    rpc: BASE_REPORT_RPC,
+  }
+}
+
+function loadReportsFromStorage(): ReportTemplate[] {
+  const fallback = INITIAL_REPORTS.map(cloneInitialReport)
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+  try {
+    const raw = window.localStorage.getItem(REPORTS_STORAGE_KEY)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return fallback
+    const normalized = parsed
+      .map((item) => normalizeStoredReport(item))
+      .filter((item): item is ReportTemplate => Boolean(item))
+    return normalized.length ? normalized : fallback
+  } catch (error) {
+    console.error('[ReportsPage] loadReportsFromStorage failed:', error)
+    return fallback
+  }
+}
+
+function toStoredReport(report: ReportTemplate): StoredReport {
+  return {
+    id: report.id,
+    index: report.index,
+    name: report.name,
+    orgUnit: report.orgUnit,
+    orgUnitId: report.orgUnitId ?? null,
+    periodTypeId: report.periodTypeId ?? null,
+    description: report.description ?? '',
+  }
+}
+
+function saveReportsToStorage(list: ReportTemplate[] = reports.value) {
+  if (typeof window === 'undefined') return
+  try {
+    const payload = list.map((report) => toStoredReport(report))
+    window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(payload))
+  } catch (error) {
+    console.error('[ReportsPage] saveReportsToStorage failed:', error)
+  }
+}
+
+const reports = ref<ReportTemplate[]>(INITIAL_REPORTS.map(cloneInitialReport))
 
 const { t } = useI18n()
 const { isMobile } = useIsMobile('(max-width: 768px)')
@@ -919,7 +985,6 @@ const dialog = useDialog()
 
 const searchQuery = ref('')
 const orgUnitFilter = ref<string[]>([])
-const componentFilter = ref<string[]>([])
 const sortOrder = ref<SortOrder>('index-asc')
 
 const pagination = reactive({
@@ -930,71 +995,68 @@ const pagination = reactive({
 const tableLoading = ref(false)
 const deletingId = ref<string | null>(null)
 
-const sortOptions: SelectOption[] = [
-  { label: 'По индексу ↑', value: 'index-asc' },
-  { label: 'По индексу ↓', value: 'index-desc' },
-  { label: 'По наименованию ↑', value: 'name-asc' },
-  { label: 'По наименованию ↓', value: 'name-desc' },
-  { label: 'По орг. единице ↑', value: 'org-asc' },
-  { label: 'По орг. единице ↓', value: 'org-desc' },
-]
-
 const orgUnitOptions = computed<SelectOption[]>(() => {
   const values = Array.from(new Set(reports.value.map((item) => item.orgUnit))).filter(Boolean)
   return values.map((value) => ({ label: value, value }))
 })
 
-const componentOptions = computed<SelectOption[]>(() => {
-  const values = Array.from(new Set(reports.value.map((item) => item.component))).filter(Boolean)
-  return values.map((value) => ({ label: value, value }))
+const periodTypes = ref<PeriodTypeRecord[]>([])
+const periodTypesLoading = ref(false)
+let periodTypesPromise: Promise<void> | null = null
+
+const periodTypeOptions = computed<SelectOption[]>(() =>
+  periodTypes.value.map((item) => ({
+    label: item.text,
+    value: item.id,
+  })),
+)
+
+const periodTypeLabelMap = computed(() => {
+  const map = new Map<number, string>()
+  periodTypes.value.forEach((item) => {
+    if (typeof item.id === 'number') {
+      map.set(item.id, item.text)
+    }
+  })
+  return map
 })
+
+function getPeriodTypeLabel(id: number | null | undefined) {
+  if (id == null) return ''
+  return periodTypeLabelMap.value.get(id) ?? ''
+}
 
 const filteredReports = computed(() => {
   const search = normalizeText(searchQuery.value)
   const orgSet = new Set(orgUnitFilter.value)
-  const componentSet = new Set(componentFilter.value)
 
-  return reports.value.filter((report) => {
+  const rows = reports.value.filter((report) => {
+    const periodLabel = normalizeText(getPeriodTypeLabel(report.periodTypeId))
     const matchesSearch =
       !search ||
+      normalizeText(report.index).includes(search) ||
       normalizeText(report.name).includes(search) ||
-      normalizeText(report.description).includes(search) ||
-      normalizeText(report.component).includes(search)
+      normalizeText(report.orgUnit).includes(search) ||
+      periodLabel.includes(search)
     const matchesOrg = !orgSet.size || orgSet.has(report.orgUnit)
-    const matchesComponent = !componentSet.size || componentSet.has(report.component)
-    return matchesSearch && matchesOrg && matchesComponent
+    return matchesSearch && matchesOrg
   })
-})
 
-const sortedReports = computed(() => {
-  const rows = [...filteredReports.value]
   const order = sortOrder.value
-  const compareByString = (getValue: (row: ReportTemplate) => string) => {
-    return rows.sort((a, b) => {
-      const left = getValue(a).localeCompare(getValue(b), 'ru')
-      return order.endsWith('desc') ? -left : left
-    })
-  }
-
-  switch (order) {
-    case 'index-desc':
-      rows.sort((a, b) => compareIndexValues(b.index, a.index))
-      break
-    case 'name-asc':
-    case 'name-desc':
-      compareByString((row) => row.name)
-      break
-    case 'org-asc':
-    case 'org-desc':
-      compareByString((row) => row.orgUnit)
-      break
-    default:
-      rows.sort((a, b) => compareIndexValues(a.index, b.index))
-      break
+  if (order === 'name-asc') {
+    rows.sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+  } else if (order === 'name-desc') {
+    rows.sort((a, b) => b.name.localeCompare(a.name, 'ru'))
+  } else if (order === 'index-desc') {
+    rows.sort((a, b) => compareIndexValues(b.index, a.index))
+  } else {
+    rows.sort((a, b) => compareIndexValues(a.index, b.index))
   }
 
   return rows
 })
+
+const sortedReports = computed(() => filteredReports.value)
 
 const processedRows = computed<ReportRow[]>(() =>
   sortedReports.value.map((report) => ({ ...report, rowKey: report.id })),
@@ -1016,7 +1078,7 @@ const visibleCount = computed(() =>
 
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize)))
 
-watch([searchQuery, orgUnitFilter, componentFilter], () => {
+watch([searchQuery, orgUnitFilter], () => {
   pagination.page = 1
 })
 
@@ -1025,6 +1087,14 @@ watch([total, () => pagination.pageSize], () => {
     pagination.page = maxPage.value
   }
 })
+
+watch(
+  reports,
+  () => {
+    saveReportsToStorage()
+  },
+  { deep: true },
+)
 
 const rowKey = (row: ReportRow) => row.id
 
@@ -1112,39 +1182,24 @@ function renderIndexCell(row: ReportRow) {
 }
 
 function renderNameCell(row: ReportRow) {
-  const objectTypes = row.objectTypes ?? []
   return h('div', { class: 'name-cell' }, [
     h('div', { class: 'name-cell__title' }, row.name),
-    row.description
-      ? h('div', { class: 'name-cell__description cell-multiline' }, row.description)
-      : null,
-    objectTypes.length
-      ? h('div', { class: 'name-cell__tags' }, [
-          h(
-            'span',
-            { class: 'name-cell__tags-label' },
-            t('nsi.reports.objectTypes', {}, { default: 'Типы объектов' }),
-          ),
-          h(
-            'div',
-            { class: 'name-cell__tags-list' },
-            objectTypes.map((objectType) =>
-              h(
-                NTag,
-                { size: 'small', round: true, type: 'info', key: `${row.id}-${objectType}` },
-                { default: () => objectType },
-              ),
-            ),
-          ),
-        ])
-      : null,
+    renderPeriodChip(row.periodTypeId),
+  ])
+}
+
+function renderPeriodChip(periodTypeId: number | null | undefined) {
+  const label =
+    getPeriodTypeLabel(periodTypeId) ||
+    t('nsi.reports.form.periodTypeEmpty', {}, { default: 'Не указан' })
+  return h('div', { class: 'name-cell__chips' }, [
+    h('span', { class: 'period-chip' }, label),
   ])
 }
 
 function renderOrgCell(row: ReportRow) {
   return h('div', { class: 'org-cell' }, [
     h('div', { class: 'org-cell__primary' }, row.orgUnit),
-    h('div', { class: 'org-cell__secondary' }, row.component),
   ])
 }
 
@@ -1179,12 +1234,14 @@ const columns = computed<DataTableColumns<ReportRow>>(() => [
     key: 'index',
     width: 110,
     align: 'center',
+    sorter: (a, b) => compareIndexValues(a.index, b.index),
     render: (row) => renderIndexCell(row),
   },
   {
     title: t('nsi.reports.table.name', {}, { default: 'Наименование отчёта' }),
     key: 'name',
     minWidth: 320,
+    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
     render: (row) => renderNameCell(row),
   },
   {
@@ -1204,47 +1261,114 @@ const columns = computed<DataTableColumns<ReportRow>>(() => [
 ])
 
 const generatorFormRef = ref<FormInst | null>(null)
-const generatorModel = reactive<Record<string, string | number | null>>({})
+const generatorForm = reactive<GeneratorFormModel>({
+  date: null,
+  objClient: null,
+  objLocation: null,
+  fullNameClient: null,
+  directorId: null,
+  fullNameDirector: null,
+  nameDirectorPosition: null,
+  nameDirectorLocation: null,
+  executorId: null,
+  fulNameUser: null,
+  nameUserPosition: null,
+  UserPhone: null,
+  tml: null,
+})
 const generator = reactive({
   open: false,
   submitting: false,
   report: null as ReportTemplate | null,
 })
 
-const generatorRules = computed<FormRules>(() => {
-  const report = generator.report
-  if (!report) return {}
-  return report.parameters.reduce<FormRules>((rules, param) => {
-    if (param.required) {
-      const trigger =
-        param.type === 'select' || param.type === 'number' || param.type === 'date'
-          ? ['blur', 'change']
-          : ['input', 'blur']
-      const message = t(
-        'nsi.reports.validation.required',
-        { field: param.label },
-        { default: `Поле «${param.label}» обязательно` },
-      )
+const clients = ref<ClientRecord[]>([])
+const clientsLoading = ref(false)
+let clientsPromise: Promise<void> | null = null
+const personnel = ref<PersonnelRecord[]>([])
+const personnelLoading = ref(false)
+let personnelPromise: Promise<void> | null = null
+const orgUnits = ref<OrgUnitRecord[]>([])
+const orgStructureLoading = ref(false)
+let orgStructurePromise: Promise<void> | null = null
 
-      rules[param.key] = {
-        trigger,
-        validator: (_, value) => {
-          const isEmptyString = typeof value === 'string' && value.trim() === ''
-          const isEmpty =
-            value === null ||
-            value === undefined ||
-            isEmptyString ||
-            (typeof value === 'number' && Number.isNaN(value))
-          if (isEmpty) {
-            return new Error(message)
-          }
-          return true
-        },
-      }
-    }
-    return rules
-  }, {})
+const clientOptions = computed<SelectOption[]>(() =>
+  clients.value.map((item) => ({
+    label: item.fullName ?? item.name ?? `ID ${item.id}`,
+    value: item.id,
+  })),
+)
+
+const personnelOptions = computed<SelectOption[]>(() =>
+  personnel.value.map((item) => ({
+    label: item.namePosition ? `${item.fullName} (${item.namePosition})` : item.fullName,
+    value: item.id,
+  })),
+)
+
+const filteredPersonnelOptions = computed<SelectOption[]>(() => {
+  const targetOrgId = generator.report?.orgUnitId ?? null
+  const collection =
+    targetOrgId != null
+      ? personnel.value.filter((item) => item.objLocation === targetOrgId)
+      : personnel.value
+  return collection.map((item) => ({
+    label: item.namePosition ? `${item.fullName} (${item.namePosition})` : item.fullName,
+    value: item.id,
+  }))
 })
+
+const orgStructureOptions = computed<SelectOption[]>(() =>
+  orgUnits.value.map((unit) => ({
+    label: unit.name,
+    value: unit.id,
+  })),
+)
+
+const generatorRules: FormRules = {
+  date: {
+    required: true,
+    trigger: ['blur', 'change'],
+    validator: (_, value) => {
+      if (!hasDateValue(value as DatePickerValue | null)) {
+        return new Error(
+          t('nsi.reports.validation.date', {}, { default: 'Укажите дату отчёта' }),
+        )
+      }
+      return true
+    },
+  },
+  objClient: {
+    type: 'number',
+    required: true,
+    trigger: ['blur', 'change'],
+    message: t(
+      'nsi.reports.validation.objClient',
+      {},
+      { default: 'Выберите организацию заказчика' },
+    ),
+  },
+  directorId: {
+    type: 'number',
+    required: true,
+    trigger: ['blur', 'change'],
+    message: t(
+      'nsi.reports.validation.director',
+      {},
+      { default: 'Выберите ответственного со стороны подрядчика' },
+    ),
+  },
+  executorId: {
+    type: 'number',
+    required: true,
+    trigger: ['blur', 'change'],
+    message: t(
+      'nsi.reports.validation.executor',
+      {},
+      { default: 'Выберите исполнителя со стороны подрядчика' },
+    ),
+  },
+}
 
 const previewFrameRef = ref<HTMLIFrameElement | null>(null)
 
@@ -1270,6 +1394,11 @@ const preview = reactive<{
   payload: {},
   jobId: null,
   remoteUrl: null,
+})
+
+const previewPeriodLabel = computed(() => {
+  const label = getPeriodTypeLabel(preview.report?.periodTypeId ?? null)
+  return label || t('nsi.reports.form.periodTypeEmpty', {}, { default: 'Не указан' })
 })
 
 const excelExportLoading = ref(false)
@@ -1302,86 +1431,318 @@ const editFormRef = ref<FormInst | null>(null)
 const editDialog = reactive({
   open: false,
   submitting: false,
+  mode: 'edit' as 'edit' | 'create',
   reportId: null as string | null,
   form: {
+    index: '',
     name: '',
     orgUnit: '',
-    component: '',
-    description: '',
+    orgUnitId: null as number | null,
+    periodTypeId: null as number | null,
   },
 })
 
 const editFormRules: FormRules = {
+  index: {
+    required: true,
+    trigger: ['blur', 'input'],
+    message: t('nsi.reports.validation.index', {}, { default: 'Укажите индекс отчёта' }),
+  },
   name: {
     required: true,
     trigger: ['blur', 'input'],
     message: t('nsi.reports.validation.name', {}, { default: 'Укажите наименование отчёта' }),
   },
-  orgUnit: {
+  orgUnitId: {
+    type: 'number',
     required: true,
-    trigger: ['blur', 'input'],
+    trigger: ['blur', 'change'],
     message: t(
       'nsi.reports.validation.orgUnit',
       {},
-      { default: 'Укажите организационную единицу' },
+      { default: 'Выберите организационную единицу' },
     ),
   },
-  component: {
+  periodTypeId: {
+    type: 'number',
     required: true,
-    trigger: ['blur', 'input'],
-    message: t('nsi.reports.validation.component', {}, { default: 'Укажите компонент' }),
+    trigger: ['blur', 'change'],
+    message: t(
+      'nsi.reports.validation.periodType',
+      {},
+      { default: 'Укажите период отчёта' },
+    ),
   },
 }
 
-function showTemplateHint() {
-  dialog.info({
-    title: t('nsi.reports.createTemplate', {}, { default: 'Создание шаблона' }),
-    content: t(
-      'nsi.reports.createTemplateHint',
-      {},
-      { default: 'Редактор шаблонов сейчас в разработке и появится в следующем релизе.' },
-    ),
-    positiveText: t('common.ok', {}, { default: 'Понятно' }),
-  })
+function openCreateDialog() {
+  editDialog.mode = 'create'
+  editDialog.reportId = null
+  editDialog.form.index = ''
+  editDialog.form.name = ''
+  editDialog.form.orgUnit = ''
+  editDialog.form.orgUnitId = null
+  editDialog.form.periodTypeId = null
+  editDialog.open = true
+  editFormRef.value?.restoreValidation()
+  void Promise.all([loadOrgUnits(), loadPeriodTypes()])
 }
 
 function openGenerator(report: ReportTemplate) {
   generator.report = report
+  resetGeneratorForm(report)
   generator.open = true
-  resetGeneratorModel(report)
   generatorFormRef.value?.restoreValidation()
+  void ensureReferenceDataLoaded()
 }
 
-function resetGeneratorModel(report: ReportTemplate) {
-  Object.keys(generatorModel).forEach((key) => delete generatorModel[key])
-  report.parameters.forEach((param) => {
-    generatorModel[param.key] = param.defaultValue ?? null
-  })
+async function ensureReferenceDataLoaded() {
+  await Promise.all([
+    loadPeriodTypes(),
+    loadClients(),
+    loadPersonnel(),
+  ])
+}
+
+function resetGeneratorForm(report: ReportTemplate) {
+  generatorForm.date = Date.now()
+  generatorForm.objClient = null
+  generatorForm.fullNameClient = null
+  generatorForm.objLocation = report.orgUnitId ?? null
+  generatorForm.directorId = null
+  generatorForm.fullNameDirector = null
+  generatorForm.nameDirectorPosition = null
+  generatorForm.nameDirectorLocation = null
+  generatorForm.executorId = null
+  generatorForm.fulNameUser = null
+  generatorForm.nameUserPosition = null
+  generatorForm.UserPhone = null
+  generatorForm.tml = report.index ?? report.rpc?.tml ?? null
+}
+
+function handleClientSelect(value: number | null) {
+  generatorForm.objClient = value
+  if (value == null) {
+    generatorForm.fullNameClient = null
+    return
+  }
+  const client = clients.value.find((item) => item.id === value)
+  generatorForm.fullNameClient = client?.fullName ?? client?.name ?? null
+}
+
+function handleDirectorSelect(value: number | null) {
+  generatorForm.directorId = value
+  if (value == null) {
+    generatorForm.fullNameDirector = null
+    generatorForm.nameDirectorPosition = null
+    generatorForm.nameDirectorLocation = null
+    generatorForm.objLocation = generator.report?.orgUnitId ?? null
+    return
+  }
+  const person = personnel.value.find((item) => item.id === value)
+  generatorForm.fullNameDirector = person?.fullName ?? null
+  generatorForm.nameDirectorPosition = person?.namePosition ?? null
+  generatorForm.nameDirectorLocation = person?.nameLocation ?? null
+}
+
+function handleExecutorSelect(value: number | null) {
+  generatorForm.executorId = value
+  if (value == null) {
+    generatorForm.fulNameUser = null
+    generatorForm.nameUserPosition = null
+    generatorForm.UserPhone = null
+    return
+  }
+  const person = personnel.value.find((item) => item.id === value)
+  generatorForm.fulNameUser = person?.fullName ?? null
+  generatorForm.nameUserPosition = person?.nameLocation ?? null
+  generatorForm.UserPhone = person?.UserPhone ?? null
+}
+
+function handleEditOrgUnitSelect(value: number | null) {
+  editDialog.form.orgUnitId = value
+  if (value == null) {
+    editDialog.form.orgUnit = ''
+    return
+  }
+  const unit = orgUnits.value.find((item) => item.id === value)
+  editDialog.form.orgUnit = unit?.name ?? ''
+}
+
+async function loadPeriodTypes() {
+  if (periodTypes.value.length || periodTypesPromise) {
+    return periodTypesPromise
+  }
+  periodTypesPromise = (async () => {
+    periodTypesLoading.value = true
+    try {
+      const response = await objectsRpc<RpcRecordsEnvelope<PeriodTypeRecord>>(
+        'data/loadPeriodType',
+        [],
+      )
+      periodTypes.value = dedupeById(response?.records ?? [])
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error('[ReportsPage] loadPeriodTypes failed:', reason)
+      message.error(
+        t('nsi.reports.errors.periodTypeLoad', {}, { default: 'Не удалось загрузить типы периодов' }),
+      )
+    } finally {
+      periodTypesLoading.value = false
+      periodTypesPromise = null
+    }
+  })()
+  return periodTypesPromise
+}
+
+async function loadClients() {
+  if (clients.value.length || clientsPromise) {
+    return clientsPromise
+  }
+  clientsPromise = (async () => {
+    clientsLoading.value = true
+    try {
+      const response = await objectsRpc<RpcRecordsEnvelope<ClientRecord>>(
+        'data/loadObjList',
+        ['Cls_Client', 'Prop_Client', 'clientdata'],
+      )
+      clients.value = dedupeById(response?.records ?? [])
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error('[ReportsPage] loadClients failed:', reason)
+      message.error(
+        t(
+          'nsi.reports.errors.clientsLoad',
+          {},
+          { default: 'Не удалось загрузить организации заказчиков' },
+        ),
+      )
+    } finally {
+      clientsLoading.value = false
+      clientsPromise = null
+    }
+  })()
+  return clientsPromise
+}
+
+async function loadPersonnel() {
+  if (personnel.value.length || personnelPromise) {
+    return personnelPromise
+  }
+  personnelPromise = (async () => {
+    personnelLoading.value = true
+    try {
+      const response = await personnalRpc<RpcRecordsEnvelope<PersonnelRecord>>(
+        'data/loadPersonnal',
+        [0],
+      )
+      personnel.value = dedupeById(response?.records ?? [])
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error('[ReportsPage] loadPersonnel failed:', reason)
+      message.error(
+        t(
+          'nsi.reports.errors.personnelLoad',
+          {},
+          { default: 'Не удалось загрузить список сотрудников' },
+        ),
+      )
+    } finally {
+      personnelLoading.value = false
+      personnelPromise = null
+    }
+  })()
+  return personnelPromise
+}
+
+async function loadOrgUnits() {
+  if (orgUnits.value.length || orgStructurePromise) {
+    return orgStructurePromise
+  }
+  orgStructurePromise = (async () => {
+    orgStructureLoading.value = true
+    try {
+      const response = await orgStructureRpc<RpcRecordsEnvelope<OrgUnitRecord>>(
+        'data/loadObjForSelect',
+        ['Cls_LocationSection'],
+      )
+      orgUnits.value = dedupeById(response?.records ?? [])
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error('[ReportsPage] loadOrgUnits failed:', reason)
+      message.error(
+        t(
+          'nsi.reports.errors.orgUnitsLoad',
+          {},
+          { default: 'Не удалось загрузить организационные единицы' },
+        ),
+      )
+    } finally {
+      orgStructureLoading.value = false
+      orgStructurePromise = null
+    }
+  })()
+  return orgStructurePromise
 }
 
 function buildPayload(report: ReportTemplate) {
-  const payload: Record<string, unknown> = {}
-  report.parameters.forEach((param) => {
-    payload[param.key] = generatorModel[param.key] ?? null
-  })
-  return payload
+  return {
+    tml: generatorForm.tml ?? report.index ?? report.rpc?.tml ?? null,
+    date: normalizeDateValue(generatorForm.date),
+    periodType: report.periodTypeId,
+    objClient: generatorForm.objClient,
+    objLocation: generatorForm.objLocation,
+    fullNameClient: generatorForm.fullNameClient,
+    fullNameDirector: generatorForm.fullNameDirector,
+    nameDirectorPosition: generatorForm.nameDirectorPosition,
+    nameDirectorLocation: generatorForm.nameDirectorLocation,
+    fulNameUser: generatorForm.fulNameUser,
+    nameUserPosition: generatorForm.nameUserPosition,
+    UserPhone: generatorForm.UserPhone,
+  }
 }
 
-async function generateReportViaLegacy(
-  report: ReportTemplate,
-  payload: Record<string, unknown>,
-  format: ReportFormat = 'pdf',
-): Promise<ReportFileResult> {
-  const file = await generateReportFile({
-    endpoint: report.apiPath,
-    method: report.method,
-    payload,
-    format,
-    fallbackFileName: resolveReportFileName(report, format),
+function normalizeDateValue(value: DatePickerValue | null): string | null {
+  if (value == null) return null
+  if (typeof value === 'number') {
+    return formatDateInputValue(new Date(value))
+  }
+  if (typeof value === 'string') {
+    return value
+  }
+  return null
+}
+
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function hasDateValue(value: DatePickerValue | null): boolean {
+  if (value == null) return false
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+  }
+  if (typeof value === 'string') {
+    const stringValue = value as unknown as string
+    return stringValue.trim().length > 0
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => hasDateValue(item))
+  }
+  return false
+}
+
+function dedupeById<T extends { id: number }>(records: T[] = []): T[] {
+  const unique = new Map<number, T>()
+  records.forEach((record) => {
+    if (typeof record.id === 'number') {
+      unique.set(record.id, record)
+    }
   })
-  const normalizedBlob =
-    format === 'pdf' ? new Blob([file.blob], { type: 'application/pdf' }) : file.blob
-  return { ...file, blob: normalizedBlob, remoteUrl: null }
+  return Array.from(unique.values())
 }
 
 async function generateReportViaRpc(
@@ -1394,20 +1755,23 @@ async function generateReportViaRpc(
   }
 
   const mappedPayload = report.rpc.mapPayload ? report.rpc.mapPayload(payload, report) : payload
-  const params =
-    report.rpc.buildGenerateParams?.(mappedPayload, report) ?? [mappedPayload]
+  const params = report.rpc.buildGenerateParams?.(mappedPayload, report) ?? [mappedPayload]
   const result = await reportRpc(report.rpc.generateMethod, params)
   const jobId = extractJobId(result)
   if (!jobId) {
     throw new Error('Report API не вернул идентификатор сформированного отчёта')
   }
 
-  const loadParams =
-    report.rpc.buildLoadParams?.({ payload: mappedPayload, report, jobId, format }) ?? {
-      tml: report.rpc.tml,
-      id: jobId,
-      ...(format === 'pdf' ? { ext: 'pdf' } : {}),
-    }
+  const loadParams = report.rpc.buildLoadParams?.({
+    payload: mappedPayload,
+    report,
+    jobId,
+    format,
+  }) ?? {
+    tml: report.rpc.tml,
+    id: jobId,
+    ...(format === 'pdf' ? { ext: 'pdf' } : {}),
+  }
 
   const loadResult = await fetchReportFile(loadParams)
   const detectedFormat = format ?? detectReportFormat(loadResult)
@@ -1463,9 +1827,7 @@ async function handleGenerate() {
   const payload = buildPayload(report)
 
   try {
-    const file = report.rpc
-      ? await generateReportViaRpc(report, payload, 'pdf')
-      : await generateReportViaLegacy(report, payload)
+    const file = await generateReportViaRpc(report, payload, 'pdf')
     await openPreview(report, file, payload)
     message.success(t('nsi.reports.generate.success', {}, { default: 'Отчёт успешно сформирован' }))
     generator.open = false
@@ -1512,9 +1874,7 @@ async function refreshPreview() {
   if (!preview.report) return
   preview.loading = true
   try {
-    const file = preview.report.rpc
-      ? await generateReportViaRpc(preview.report, preview.payload, 'pdf')
-      : await generateReportViaLegacy(preview.report, preview.payload)
+    const file = await generateReportViaRpc(preview.report, preview.payload, 'pdf')
     preview.jobId = file.jobId ?? preview.jobId
     preview.remoteUrl = file.remoteUrl ?? preview.remoteUrl
     await applyPreviewFile(file)
@@ -1530,9 +1890,7 @@ async function downloadExcel() {
   if (!preview.report) return
   excelExportLoading.value = true
   try {
-    const file = preview.report.rpc
-      ? await generateReportViaRpc(preview.report, preview.payload, 'xlsx')
-      : await generateReportViaLegacy(preview.report, preview.payload, 'xlsx')
+    const file = await generateReportViaRpc(preview.report, preview.payload, 'xlsx')
     const fileName = resolveReportFileName(preview.report, 'xlsx', file.fileName)
     await saveBlobToDisk(file.blob, fileName)
   } catch (error) {
@@ -1570,6 +1928,8 @@ watch(
 )
 
 onMounted(() => {
+  reports.value = loadReportsFromStorage()
+  void loadPeriodTypes()
   if (typeof window === 'undefined') return
   syncModalBounds()
   window.addEventListener('resize', syncModalBounds)
@@ -1584,13 +1944,16 @@ onBeforeUnmount(() => {
 })
 
 function openEdit(report: ReportTemplate) {
+  editDialog.mode = 'edit'
   editDialog.reportId = report.id
+  editDialog.form.index = report.index
   editDialog.form.name = report.name
   editDialog.form.orgUnit = report.orgUnit
-  editDialog.form.component = report.component
-  editDialog.form.description = report.description
+  editDialog.form.orgUnitId = report.orgUnitId ?? null
+  editDialog.form.periodTypeId = report.periodTypeId ?? null
   editDialog.open = true
   editFormRef.value?.restoreValidation()
+  void Promise.all([loadOrgUnits(), loadPeriodTypes()])
 }
 
 async function handleEditSave() {
@@ -1600,23 +1963,57 @@ async function handleEditSave() {
     return
   }
 
-  if (!editDialog.reportId) return
   editDialog.submitting = true
   try {
-    const target = reports.value.find((item) => item.id === editDialog.reportId)
-    if (!target) return
-    target.name = editDialog.form.name.trim()
-    target.orgUnit = editDialog.form.orgUnit.trim()
-    target.component = editDialog.form.component.trim()
-    target.description = editDialog.form.description.trim()
+  const payload = {
+    index: editDialog.form.index.trim(),
+    name: editDialog.form.name.trim(),
+    orgUnit: editDialog.form.orgUnit.trim(),
+    orgUnitId: editDialog.form.orgUnitId ?? null,
+    periodTypeId: editDialog.form.periodTypeId ?? null,
+  }
+
+  if (editDialog.mode === 'create') {
+    const newReport: ReportTemplate = {
+      id: createReportId(),
+        index: payload.index,
+        name: payload.name,
+      orgUnit: payload.orgUnit,
+      orgUnitId: payload.orgUnitId,
+      periodTypeId: payload.periodTypeId,
+      description: '',
+      rpc: BASE_REPORT_RPC,
+    }
+      reports.value = [...reports.value, newReport]
+      message.success(
+        t('nsi.reports.create.success', {}, { default: 'Отчёт добавлен в справочник' }),
+      )
+    } else {
+      if (!editDialog.reportId) return
+      const target = reports.value.find((item) => item.id === editDialog.reportId)
+      if (!target) return
+      target.index = payload.index
+      target.name = payload.name
+      target.orgUnit = payload.orgUnit
+      target.orgUnitId = payload.orgUnitId
+      target.periodTypeId = payload.periodTypeId
+      message.success(t('common.saved', {}, { default: 'Изменения сохранены' }))
+    }
+
     editDialog.open = false
-    message.success(t('common.saved', {}, { default: 'Изменения сохранены' }))
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
     message.error(reason)
   } finally {
     editDialog.submitting = false
   }
+}
+
+function createReportId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `report-${Date.now()}`
 }
 
 function confirmDelete(report: ReportTemplate) {
@@ -1738,8 +2135,16 @@ function handleModalResize(event: MouseEvent) {
   if (!resizeState.active) return
   const maxWidth = typeof window === 'undefined' ? modalSize.width : window.innerWidth - 32
   const maxHeight = typeof window === 'undefined' ? modalSize.height : window.innerHeight - 120
-  modalSize.width = clamp(resizeState.startWidth + (event.clientX - resizeState.startX), MODAL_MIN_WIDTH, maxWidth)
-  modalSize.height = clamp(resizeState.startHeight + (event.clientY - resizeState.startY), MODAL_MIN_HEIGHT, maxHeight)
+  modalSize.width = clamp(
+    resizeState.startWidth + (event.clientX - resizeState.startX),
+    MODAL_MIN_WIDTH,
+    maxWidth,
+  )
+  modalSize.height = clamp(
+    resizeState.startHeight + (event.clientY - resizeState.startY),
+    MODAL_MIN_HEIGHT,
+    maxHeight,
+  )
 }
 
 function stopModalResize() {
@@ -1890,36 +2295,24 @@ const ActionsRenderer = defineComponent({
   margin-bottom: 6px;
 }
 
-.name-cell__description {
-  font-size: 13px;
-  color: var(--s360-color-text-subtle, rgba(0, 0, 0, 0.7));
+.name-cell__chips {
+  margin-top: 6px;
 }
 
-.name-cell__tags {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.name-cell__tags-label {
+.period-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--s360-chip-bg, rgba(0, 0, 0, 0.06));
   font-size: 12px;
-  color: var(--s360-color-text-subtle, rgba(0, 0, 0, 0.6));
+  font-weight: 500;
+  color: var(--s360-color-text, rgba(0, 0, 0, 0.8));
 }
 
-.name-cell__tags-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 
 .org-cell__primary {
   font-weight: 500;
-}
-
-.org-cell__secondary {
-  font-size: 12px;
-  color: var(--s360-color-text-subtle, rgba(0, 0, 0, 0.6));
 }
 
 .table-actions {
@@ -1989,27 +2382,6 @@ const ActionsRenderer = defineComponent({
 .card__grid dd {
   margin: 0;
   font-weight: 500;
-}
-
-.card__tags {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.card__tags-label {
-  font-size: 12px;
-  color: var(--s360-color-text-subtle, rgba(0, 0, 0, 0.6));
-}
-
-.card__tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.card__tag {
-  margin: 0;
 }
 
 .card__actions {

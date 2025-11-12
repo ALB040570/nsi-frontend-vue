@@ -159,7 +159,101 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     }
   }
 
-  // 4) Report API
+  // 4) Objects API
+  const objectsProxyBase = normalizeProxyBase(env.VITE_OBJECTS_DEV_PROXY_BASE || '/objects-api')
+  const rawObjectsBase = env.VITE_OBJECTS_API_BASE?.trim()
+
+  if (rawObjectsBase && ABSOLUTE_URL_PATTERN.test(rawObjectsBase)) {
+    try {
+      const objectsURL = new URL(rawObjectsBase)
+      const target = `${objectsURL.protocol}//${objectsURL.host}`
+      const rewriteBase = normalizeRewriteBase(objectsURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(objectsProxyBase)}`)
+
+      proxies[objectsProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[objectsProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(objectsProxyBase)}`)
+    proxies[objectsProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/objects'),
+    }
+  }
+
+  // 5) Personnal API
+  const personnalProxyBase = normalizeProxyBase(
+    env.VITE_PERSONNAL_DEV_PROXY_BASE || '/personnal-api',
+  )
+  const rawPersonnalBase = env.VITE_PERSONNAL_API_BASE?.trim()
+
+  if (rawPersonnalBase && ABSOLUTE_URL_PATTERN.test(rawPersonnalBase)) {
+    try {
+      const personnalURL = new URL(rawPersonnalBase)
+      const target = `${personnalURL.protocol}//${personnalURL.host}`
+      const rewriteBase = normalizeRewriteBase(personnalURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(personnalProxyBase)}`)
+
+      proxies[personnalProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[personnalProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(personnalProxyBase)}`)
+    proxies[personnalProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/personnal'),
+    }
+  }
+
+  // 6) OrgStructure API
+  const orgStructureProxyBase = normalizeProxyBase(
+    env.VITE_ORGSTRUCTURE_DEV_PROXY_BASE || '/orgstructure-api',
+  )
+  const rawOrgStructureBase = env.VITE_ORGSTRUCTURE_API_BASE?.trim()
+
+  if (rawOrgStructureBase && ABSOLUTE_URL_PATTERN.test(rawOrgStructureBase)) {
+    try {
+      const orgStructureURL = new URL(rawOrgStructureBase)
+      const target = `${orgStructureURL.protocol}//${orgStructureURL.host}`
+      const rewriteBase = normalizeRewriteBase(orgStructureURL.pathname)
+      const pattern = new RegExp(`^${escapeForRegex(orgStructureProxyBase)}`)
+
+      proxies[orgStructureProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[orgStructureProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(orgStructureProxyBase)}`)
+    proxies[orgStructureProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/orgstructure'),
+    }
+  }
+
+  // 7) Report API
   const reportProxyBase = normalizeProxyBase(env.VITE_REPORT_DEV_PROXY_BASE || '/report-api')
   const rawReportBase = env.VITE_REPORT_API_BASE?.trim()
 
@@ -189,7 +283,7 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     }
   }
 
-  // 5) Report load endpoint
+  // 8) Report load endpoint
   const reportLoadProxyBase = normalizeProxyBase(env.VITE_REPORT_LOAD_DEV_PROXY_BASE || '/load-report')
   const rawReportLoadBase = env.VITE_REPORT_LOAD_BASE?.trim()
 
@@ -216,6 +310,36 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
       target: 'http://45.8.116.32',
       changeOrigin: true,
       rewrite: (path) => path.replace(pattern, '/loadReport'),
+    }
+  }
+
+  // 9) KM-chart widget API (/dtj-api → http://45.8.116.32/dtj/api/inspections)
+  const kmChartProxyBase = normalizeProxyBase(env.VITE_KM_CHART_DEV_PROXY_BASE || '/dtj-api')
+  const rawKmChartBase = env.VITE_KM_CHART_API_BASE?.trim()
+
+  if (rawKmChartBase && ABSOLUTE_URL_PATTERN.test(rawKmChartBase)) {
+    try {
+      const kmChartURL = new URL(rawKmChartBase)
+      const target = `${kmChartURL.protocol}//${kmChartURL.host}`
+      const rewriteBase = normalizeRewriteBase(kmChartURL.pathname || '/dtj/api/inspections')
+      const pattern = new RegExp(`^${escapeForRegex(kmChartProxyBase)}`)
+
+      proxies[kmChartProxyBase] = {
+        target,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(pattern, rewriteBase),
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (!proxies[kmChartProxyBase]) {
+    const pattern = new RegExp(`^${escapeForRegex(kmChartProxyBase)}`)
+    proxies[kmChartProxyBase] = {
+      target: 'http://45.8.116.32',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(pattern, '/dtj/api/inspections'),
     }
   }
 
