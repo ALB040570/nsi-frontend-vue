@@ -3,6 +3,8 @@
  *  Использование: считывается сборщиком при запуске dev/production серверов.
  */
 import { fileURLToPath, URL } from 'node:url'
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
 
 import { defineConfig, loadEnv, type PluginOption, type ProxyOptions } from 'vite'
 import type { Server as ProxyServer } from 'http-proxy'
@@ -65,6 +67,9 @@ function withMetaProxyGuards(options: ProxyOptions): ProxyOptions {
     },
   }
 }
+
+const REPORTS_DATA_ROUTE = '/dev-reports'
+const projectRoot = fileURLToPath(new URL('.', import.meta.url))
 
 function createProxyConfig(env: Record<string, string>): Record<string, ProxyOptions> {
   const proxies: Record<string, ProxyOptions> = {}
@@ -346,6 +351,56 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
   return proxies
 }
 
+function reportsDataPlugin(): PluginOption {
+  const reportsFilePath = path.resolve(projectRoot, 'src/data/reportTemplates.json')
+  return {
+    name: 'reports-data-plugin',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        if (!req.url?.startsWith(REPORTS_DATA_ROUTE)) return next()
+
+        if (req.method === 'GET') {
+          try {
+            const data = await fs.readFile(reportsFilePath, 'utf-8')
+            res.setHeader('Content-Type', 'application/json')
+            res.end(data)
+          } catch (error) {
+            res.statusCode = 500
+            res.end(String(error))
+          }
+          return
+        }
+
+        if (req.method === 'PUT') {
+          try {
+            const chunks: Buffer[] = []
+            for await (const chunk of req) {
+              chunks.push(Buffer.from(chunk))
+            }
+            const body = Buffer.concat(chunks).toString('utf-8')
+            const parsed = JSON.parse(body)
+            if (!Array.isArray(parsed)) {
+              res.statusCode = 400
+              res.end('Payload must be an array')
+              return
+            }
+            await fs.writeFile(reportsFilePath, JSON.stringify(parsed, null, 2) + '\n', 'utf-8')
+            res.statusCode = 204
+            res.end()
+          } catch (error) {
+            res.statusCode = 500
+            res.end(String(error))
+          }
+          return
+        }
+
+        res.statusCode = 405
+        res.end('Method Not Allowed')
+      })
+    },
+  }
+}
+
 async function resolvePwaPlugin(): Promise<PluginOption | null> {
   try {
     const mod = await import('vite-plugin-pwa')
@@ -388,7 +443,7 @@ export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const pwaPlugin = await resolvePwaPlugin()
 
-  const plugins: PluginOption[] = [vue(), vueDevTools()]
+  const plugins: PluginOption[] = [vue(), vueDevTools(), reportsDataPlugin()]
   if (pwaPlugin) plugins.push(pwaPlugin)
 
   return {

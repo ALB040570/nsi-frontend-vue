@@ -53,7 +53,13 @@
 
         </div>
 
-        <NButton type="primary" size="small" @click="openCreateDialog">
+        <NButton
+          type="primary"
+          size="small"
+          :disabled="isProduction"
+          :title="isProduction ? t('nsi.reports.create.disabledHint', {}, { default: 'Добавление временно недоступно' }) : undefined"
+          @click="openCreateDialog"
+        >
           {{ t('nsi.reports.createReport', {}, { default: 'Добавить отчёт' }) }}
         </NButton>
       </div>
@@ -469,6 +475,7 @@ import {
   TrashOutline,
 } from '@vicons/ionicons5'
 
+import reportsSeed from '@/data/reportTemplates.json'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 import { normalizeText } from '@shared/lib'
 import {
@@ -578,383 +585,67 @@ interface GeneratorFormModel {
   tml: string | null
 }
 
-interface StoredReport {
-  id: string
+interface StoredReportEntry {
+  id?: string
   index: string
   name: string
   orgUnit: string
-  orgUnitId: number | null
-  periodTypeId: number | null
+  orgUnitId?: number | null
+  periodTypeId?: number | null
   description?: string
 }
 
-const REPORTS_STORAGE_KEY = 'nsi.reports.list'
+const REPORTS_DATA_ENDPOINT = '/dev-reports'
 
-const INITIAL_REPORTS: ReportTemplate[] = [
-  {
-    id: 'report-1',
-    index: 'ПО-4',
-    name: 'Отчёт о рельсах, снятых с путей вследствие изломов, дефектов и повреждений',
-    orgUnit: 'Дистанция пути',
-    orgUnitId: 1073,
-    periodTypeId: 11,
-    description:
-      'Генерация шаблона ПО-4 по списанию рельсов. Пока используем фиксированные параметры из ТЗ.',
-    rpc: BASE_REPORT_RPC,
-  },
-  /* {
-    id: 'report-10',
-    code: 'INFRA_SUMMARY',
-    index: 'ИНФ-10',
-    name: 'Сводный отчёт по инфраструктуре',
-    orgUnit: 'Управление эксплуатации',
-    component: 'Силовой трансформатор ТДН',
-    description: 'Актуальная информация о состоянии объектов, степени готовности и ключевых KPI.',
-    apiPath: '/reports/infrastructure/summary',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['Подстанция 110 кВ', 'Распределительный пункт'],
-    parameters: [
-      {
-        key: 'periodStart',
-        label: 'Начало периода',
-        type: 'date',
-        placeholder: 'YYYY-MM-DD',
-        required: true,
-      },
-      {
-        key: 'periodEnd',
-        label: 'Окончание периода',
-        type: 'date',
-        placeholder: 'YYYY-MM-DD',
-        required: true,
-      },
-      {
-        key: 'region',
-        label: 'Регион',
-        type: 'select',
-        options: REGION_OPTIONS,
-        placeholder: 'Выберите регион',
-      },
-    ],
-  },
-  {
-    id: 'report-2',
-    code: 'DEFECTS_CRITICALITY',
-    index: 'ИНФ-2',
-    name: 'Отчёт по дефектам и критичности',
-    orgUnit: 'Служба качества',
-    component: 'Линия электропередачи 220 кВ',
-    description: 'Статистика дефектов, динамика выявления и уровень критичности по объектам.',
-    apiPath: '/reports/quality/defects-criticality',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['ЛЭП-110', 'ЛЭП-220'],
-    parameters: [
-      {
-        key: 'period',
-        label: 'Отчётный месяц',
-        type: 'date',
-        placeholder: 'Выберите дату',
-        required: true,
-      },
-      {
-        key: 'objectType',
-        label: 'Тип объекта',
-        type: 'text',
-        placeholder: 'Например, ЛЭП, ПС и т.д.',
-      },
-      {
-        key: 'status',
-        label: 'Статус',
-        type: 'select',
-        options: STATUS_OPTIONS,
-        defaultValue: 'all',
-      },
-    ],
-  },
-  {
-    id: 'report-3',
-    code: 'REPAIRS_PLAN_FACT',
-    index: 'ИНФ-3',
-    name: 'План ремонтов по объектам',
-    orgUnit: 'Производственный департамент',
-    component: 'Щит управления РУ-6',
-    description:
-      'Сравнение плановых и фактических сроков ремонтов, ответственная команда, бюджет и статусы.',
-    apiPath: '/reports/planning/repairs-plan-fact',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['ЩУ', 'КРУ'],
-    parameters: [
-      {
-        key: 'year',
-        label: 'Год',
-        type: 'number',
-        placeholder: 'Например, 2025',
-        required: true,
-        defaultValue: new Date().getFullYear(),
-      },
-      {
-        key: 'orgUnit',
-        label: 'Подразделение',
-        type: 'text',
-        placeholder: 'Укажите подразделение',
-      },
-      {
-        key: 'region',
-        label: 'Регион',
-        type: 'select',
-        options: REGION_OPTIONS,
-      },
-    ],
-  },
-  {
-    id: 'report-4',
-    code: 'CONTRACT_EXECUTION',
-    index: 'ИНФ-4',
-    name: 'Исполнение работ по договорам',
-    orgUnit: 'Центр проектного управления',
-    component: 'Модуль КИПиА и телеметрии',
-    description: 'Фактические объёмы выполненных работ, сумма договоров и процент исполнения.',
-    apiPath: '/reports/contracts/execution',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['КТП', 'ТП-110'],
-    parameters: [
-      {
-        key: 'contractNumber',
-        label: 'Номер договора',
-        type: 'text',
-        placeholder: 'DTJ-2025-001',
-      },
-      {
-        key: 'periodStart',
-        label: 'Начало периода',
-        type: 'date',
-        required: true,
-      },
-      {
-        key: 'periodEnd',
-        label: 'Окончание периода',
-        type: 'date',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'report-5',
-    code: 'PROCUREMENT_PIPELINE',
-    index: 'ИНФ-5',
-    name: 'Отчёт по закупкам и поставкам',
-    orgUnit: 'Департамент снабжения',
-    component: 'Комплект снабжения ТМЦ',
-    description: 'Пул закупок, статус поставок, сроки и ответственные по каждой заявке.',
-    apiPath: '/reports/procurement/pipeline',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['Склад ТМЦ', 'Логистический центр'],
-    parameters: [
-      {
-        key: 'direction',
-        label: 'Направление',
-        type: 'select',
-        options: [
-          { label: 'Материалы', value: 'materials' },
-          { label: 'Оборудование', value: 'equipment' },
-          { label: 'Техника', value: 'vehicles' },
-        ],
-        placeholder: 'Выберите направление',
-      },
-      {
-        key: 'status',
-        label: 'Статус заявки',
-        type: 'select',
-        options: STATUS_OPTIONS,
-        defaultValue: 'active',
-      },
-      {
-        key: 'period',
-        label: 'Отчётный месяц',
-        type: 'date',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'report-6',
-    code: 'RESOURCE_UTILIZATION',
-    index: 'ИНФ-6',
-    name: 'Загрузка ресурсов и техники',
-    orgUnit: 'Логистический центр',
-    component: 'Автопарк специализированной техники',
-    description: 'Загрузка техники, сменность, простои и прогноз по обеспечению ресурсами.',
-    apiPath: '/reports/resources/utilization',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['Спецтехника', 'Автоколонна'],
-    parameters: [
-      {
-        key: 'planner',
-        label: 'Планировщик',
-        type: 'text',
-        placeholder: 'ФИО или ID',
-      },
-      {
-        key: 'region',
-        label: 'Регион',
-        type: 'select',
-        options: REGION_OPTIONS,
-      },
-      {
-        key: 'periodStart',
-        label: 'Начало периода',
-        type: 'date',
-        required: true,
-      },
-      {
-        key: 'periodEnd',
-        label: 'Окончание периода',
-        type: 'date',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'report-7',
-    code: 'REQUEST_STATUS',
-    index: 'ИНФ-7',
-    name: 'Статус заявок на ТМЦ',
-    orgUnit: 'Складской комплекс',
-    component: 'Складской модуль ТМЦ',
-    description: 'Очередь заявок на материально-технические ценности и SLA обработки.',
-    apiPath: '/reports/procurement/requests-status',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['Складской узел', 'Цех снабжения'],
-    parameters: [
-      {
-        key: 'warehouse',
-        label: 'Склад',
-        type: 'text',
-        placeholder: 'Например, Москва-1',
-      },
-      {
-        key: 'status',
-        label: 'Статус заявки',
-        type: 'select',
-        options: STATUS_OPTIONS,
-        defaultValue: 'all',
-      },
-    ],
-  },
-  {
-    id: 'report-8',
-    code: 'FINANCE_OVERVIEW',
-    index: 'ФБ-3',
-    name: 'Финансовый мониторинг проектов',
-    orgUnit: 'Финансово-экономический блок',
-    component: 'Финансовый блок проекта',
-    description: 'Исполнение бюджетов проектов, кассовые разрывы и прогнозы на квартал.',
-    apiPath: '/reports/finance/overview',
-    method: 'POST',
-    availableFormats: ['xlsx', 'pdf'],
-    objectTypes: ['Проектный офис', 'Площадка строительства'],
-    parameters: [
-      {
-        key: 'quarter',
-        label: 'Квартал',
-        type: 'select',
-        options: [
-          { label: 'Q1', value: 'Q1' },
-          { label: 'Q2', value: 'Q2' },
-          { label: 'Q3', value: 'Q3' },
-          { label: 'Q4', value: 'Q4' },
-        ],
-        defaultValue: 'Q1',
-      },
-      {
-        key: 'year',
-        label: 'Год',
-        type: 'number',
-        placeholder: 'Например, 2025',
-        defaultValue: new Date().getFullYear(),
-      },
-    ],
-  }, */
-]
+const INITIAL_REPORTS: ReportTemplate[] = normalizeStoredReports(
+  (reportsSeed as StoredReportEntry[]) ?? [],
+)
 
-function cloneInitialReport(report: ReportTemplate): ReportTemplate {
+function cloneReport(report: ReportTemplate): ReportTemplate {
   return {
     ...report,
-    rpc: BASE_REPORT_RPC,
+    rpc: report.rpc ?? BASE_REPORT_RPC,
   }
 }
 
-function normalizeStoredReport(entry: unknown): ReportTemplate | null {
-  if (!entry || typeof entry !== 'object') return null
-  const { id, index, name, orgUnit } = entry as Record<string, unknown>
-  if (
-    typeof id !== 'string' ||
-    !id.trim() ||
-    typeof index !== 'string' ||
-    !index.trim() ||
-    typeof name !== 'string' ||
-    !name.trim() ||
-    typeof orgUnit !== 'string' ||
-    !orgUnit.trim()
-  ) {
-    return null
-  }
-
+function normalizeStoredReportEntry(entry: StoredReportEntry | undefined, fallbackIndex: number) {
+  if (!entry) return null
+  const id =
+    typeof entry.id === 'string' && entry.id.trim()
+      ? entry.id.trim()
+      : `report-${fallbackIndex + 1}`
+  const indexValue = typeof entry.index === 'string' ? entry.index.trim() : ''
+  const nameValue = typeof entry.name === 'string' ? entry.name.trim() : ''
+  const orgValue = typeof entry.orgUnit === 'string' ? entry.orgUnit.trim() : ''
+  if (!indexValue || !nameValue || !orgValue) return null
   const orgUnitId =
-    typeof (entry as { orgUnitId?: unknown }).orgUnitId === 'number' &&
-    Number.isFinite((entry as { orgUnitId?: number }).orgUnitId as number)
-      ? ((entry as { orgUnitId: number }).orgUnitId as number)
+    typeof entry.orgUnitId === 'number' && Number.isFinite(entry.orgUnitId)
+      ? entry.orgUnitId
       : null
   const periodTypeId =
-    typeof (entry as { periodTypeId?: unknown }).periodTypeId === 'number' &&
-    Number.isFinite((entry as { periodTypeId?: number }).periodTypeId as number)
-      ? ((entry as { periodTypeId: number }).periodTypeId as number)
+    typeof entry.periodTypeId === 'number' && Number.isFinite(entry.periodTypeId)
+      ? entry.periodTypeId
       : null
-  const description =
-    typeof (entry as { description?: unknown }).description === 'string'
-      ? ((entry as { description: string }).description as string)
-      : ''
 
   return {
-    id: id.trim(),
-    index: index.trim(),
-    name: name.trim(),
-    orgUnit: orgUnit.trim(),
+    id,
+    index: indexValue,
+    name: nameValue,
+    orgUnit: orgValue,
     orgUnitId,
     periodTypeId,
-    description,
+    description: typeof entry.description === 'string' ? entry.description : '',
     rpc: BASE_REPORT_RPC,
   }
 }
 
-function loadReportsFromStorage(): ReportTemplate[] {
-  const fallback = INITIAL_REPORTS.map(cloneInitialReport)
-  if (typeof window === 'undefined') {
-    return fallback
-  }
-  try {
-    const raw = window.localStorage.getItem(REPORTS_STORAGE_KEY)
-    if (!raw) return fallback
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return fallback
-    const normalized = parsed
-      .map((item) => normalizeStoredReport(item))
-      .filter((item): item is ReportTemplate => Boolean(item))
-    return normalized.length ? normalized : fallback
-  } catch (error) {
-    console.error('[ReportsPage] loadReportsFromStorage failed:', error)
-    return fallback
-  }
+function normalizeStoredReports(entries: StoredReportEntry[]): ReportTemplate[] {
+  return entries
+    .map((entry, index) => normalizeStoredReportEntry(entry, index))
+    .filter((entry): entry is ReportTemplate => Boolean(entry))
 }
 
-function toStoredReport(report: ReportTemplate): StoredReport {
+function toStoredReportEntry(report: ReportTemplate): StoredReportEntry {
   return {
     id: report.id,
     index: report.index,
@@ -966,17 +657,7 @@ function toStoredReport(report: ReportTemplate): StoredReport {
   }
 }
 
-function saveReportsToStorage(list: ReportTemplate[] = reports.value) {
-  if (typeof window === 'undefined') return
-  try {
-    const payload = list.map((report) => toStoredReport(report))
-    window.localStorage.setItem(REPORTS_STORAGE_KEY, JSON.stringify(payload))
-  } catch (error) {
-    console.error('[ReportsPage] saveReportsToStorage failed:', error)
-  }
-}
-
-const reports = ref<ReportTemplate[]>(INITIAL_REPORTS.map(cloneInitialReport))
+const reports = ref<ReportTemplate[]>(INITIAL_REPORTS.map((report) => cloneReport(report)))
 
 const { t } = useI18n()
 const { isMobile } = useIsMobile('(max-width: 768px)')
@@ -1024,6 +705,37 @@ const periodTypeLabelMap = computed(() => {
 function getPeriodTypeLabel(id: number | null | undefined) {
   if (id == null) return ''
   return periodTypeLabelMap.value.get(id) ?? ''
+}
+
+async function loadReportsFromRepo() {
+  if (import.meta.env.PROD || typeof fetch === 'undefined') {
+    reports.value = INITIAL_REPORTS.map((report) => cloneReport(report))
+    return
+  }
+  try {
+    const response = await fetch(REPORTS_DATA_ENDPOINT, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`status ${response.status}`)
+    const payload = (await response.json()) as StoredReportEntry[]
+    const normalized = normalizeStoredReports(payload)
+    const source = normalized.length ? normalized : INITIAL_REPORTS
+    reports.value = source.map((item) => cloneReport(item))
+  } catch (error) {
+    console.warn('[ReportsPage] loadReportsFromRepo failed:', error)
+    reports.value = INITIAL_REPORTS.map((report) => cloneReport(report))
+  }
+}
+
+async function persistReportsToRepo() {
+  if (import.meta.env.PROD || typeof fetch === 'undefined') return
+  try {
+    await fetch(REPORTS_DATA_ENDPOINT, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reports.value.map((report) => toStoredReportEntry(report)), null, 2),
+    })
+  } catch (error) {
+    console.warn('[ReportsPage] persistReportsToRepo failed:', error)
+  }
 }
 
 const filteredReports = computed(() => {
@@ -1087,14 +799,6 @@ watch([total, () => pagination.pageSize], () => {
     pagination.page = maxPage.value
   }
 })
-
-watch(
-  reports,
-  () => {
-    saveReportsToStorage()
-  },
-  { deep: true },
-)
 
 const rowKey = (row: ReportRow) => row.id
 
@@ -1928,7 +1632,7 @@ watch(
 )
 
 onMounted(() => {
-  reports.value = loadReportsFromStorage()
+  void loadReportsFromRepo()
   void loadPeriodTypes()
   if (typeof window === 'undefined') return
   syncModalBounds()
@@ -1965,25 +1669,25 @@ async function handleEditSave() {
 
   editDialog.submitting = true
   try {
-  const payload = {
-    index: editDialog.form.index.trim(),
-    name: editDialog.form.name.trim(),
-    orgUnit: editDialog.form.orgUnit.trim(),
-    orgUnitId: editDialog.form.orgUnitId ?? null,
-    periodTypeId: editDialog.form.periodTypeId ?? null,
-  }
+    const payload = {
+      index: editDialog.form.index.trim(),
+      name: editDialog.form.name.trim(),
+      orgUnit: editDialog.form.orgUnit.trim(),
+      orgUnitId: editDialog.form.orgUnitId ?? null,
+      periodTypeId: editDialog.form.periodTypeId ?? null,
+    }
 
-  if (editDialog.mode === 'create') {
-    const newReport: ReportTemplate = {
-      id: createReportId(),
+    if (editDialog.mode === 'create') {
+      const newReport: ReportTemplate = {
+        id: createReportId(),
         index: payload.index,
         name: payload.name,
-      orgUnit: payload.orgUnit,
-      orgUnitId: payload.orgUnitId,
-      periodTypeId: payload.periodTypeId,
-      description: '',
-      rpc: BASE_REPORT_RPC,
-    }
+        orgUnit: payload.orgUnit,
+        orgUnitId: payload.orgUnitId,
+        periodTypeId: payload.periodTypeId,
+        description: '',
+        rpc: BASE_REPORT_RPC,
+      }
       reports.value = [...reports.value, newReport]
       message.success(
         t('nsi.reports.create.success', {}, { default: 'Отчёт добавлен в справочник' }),
@@ -2000,6 +1704,7 @@ async function handleEditSave() {
       message.success(t('common.saved', {}, { default: 'Изменения сохранены' }))
     }
 
+    await persistReportsToRepo()
     editDialog.open = false
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error)
@@ -2029,6 +1734,7 @@ function confirmDelete(report: ReportTemplate) {
     onPositiveClick: async () => {
       deletingId.value = report.id
       reports.value = reports.value.filter((item) => item.id !== report.id)
+      await persistReportsToRepo()
       deletingId.value = null
       message.success(t('nsi.reports.actions.removeSuccess', {}, { default: 'Отчёт удалён' }))
     },
