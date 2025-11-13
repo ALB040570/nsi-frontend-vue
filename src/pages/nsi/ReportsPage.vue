@@ -37,22 +37,6 @@
           </template>
         </NInput>
 
-        <div class="toolbar__filters">
-          <NSelect
-            v-model:value="orgUnitFilter"
-            :options="orgUnitOptions"
-            multiple
-            filterable
-            clearable
-            size="small"
-            class="toolbar__select"
-            :placeholder="
-              t('nsi.reports.filter.orgUnit', {}, { default: 'Организационная единица' })
-            "
-          />
-
-        </div>
-
         <NButton
           type="primary"
           size="small"
@@ -108,9 +92,7 @@
             </header>
 
             <dl class="card__grid">
-              <dt>{{ t('nsi.reports.table.orgUnit', {}, { default: 'Орг. единица' }) }}</dt>
-              <dd>{{ item.orgUnit }}</dd>
-              <dt>{{ t('nsi.reports.form.periodType', {}, { default: 'Период отчёта' }) }}</dt>
+              <dt>{{ t('nsi.reports.table.periodicity', {}, { default: 'Периодичность' }) }}</dt>
               <dd>
                 <span class="period-chip">
                   {{
@@ -164,8 +146,8 @@
       "
       style="width: min(520px, 96vw)"
     >
-      <template v-if="generator.report" #header-extra>
-        <span class="modal-subtitle">{{ generator.report.orgUnit }}</span>
+      <template v-if="generatorOrgUnitLabel" #header-extra>
+        <span class="modal-subtitle">{{ generatorOrgUnitLabel }}</span>
       </template>
 
       <p v-if="generator.report?.description" class="modal-description">
@@ -180,82 +162,97 @@
         label-placement="top"
         class="generator-form"
       >
-        <NFormItem
-          :label="t('nsi.reports.form.date', {}, { default: 'Дата отчёта' })"
-          path="date"
-        >
-          <NDatePicker
-            v-model:value="generatorForm.date"
-            type="date"
-            format="dd.MM.yyyy"
-            value-format="yyyy-MM-dd"
-            :placeholder="t('nsi.reports.form.datePlaceholder', {}, { default: 'Выберите дату' })"
-            clearable
-            style="width: 100%"
-          />
-        </NFormItem>
+        <NGrid cols="1" :x-gap="16" :y-gap="12">
+          <NFormItemGi
+            span="24"
+            :label="t('nsi.reports.form.date', {}, { default: 'Дата отчёта' })"
+            path="date"
+          >
+            <NDatePicker
+              v-model:value="generatorForm.date"
+              type="date"
+              format="dd.MM.yyyy"
+              value-format="yyyy-MM-dd"
+              :placeholder="
+                t('nsi.reports.form.datePlaceholder', {}, { default: 'Выберите дату' })
+              "
+              clearable
+              style="width: 100%"
+            />
+          </NFormItemGi>
 
-        <NFormItem
-          :label="t('nsi.reports.form.client', {}, { default: 'Организация заказчика' })"
-          path="objClient"
-        >
-          <NSelect
-            v-model:value="generatorForm.objClient"
-            :options="clientOptions"
-            :loading="clientsLoading"
-            filterable
-            clearable
-            :placeholder="
-              t('nsi.reports.form.clientPlaceholder', {}, { default: 'Выберите организацию' })
-            "
-            @update:value="handleClientSelect"
-            style="width: 100%"
-          />
-        </NFormItem>
+          <NFormItemGi
+            span="24"
+            :label="t('nsi.reports.form.client', {}, { default: 'Организация заказчика' })"
+            path="objClient"
+          >
+            <NSelect
+              v-model:value="generatorForm.objClient"
+              :options="clientOptions"
+              :loading="clientsLoading"
+              filterable
+              clearable
+              :placeholder="
+                t('nsi.reports.form.clientPlaceholder', {}, { default: 'Выберите организацию' })
+              "
+              @update:value="handleClientSelect"
+              style="width: 100%"
+            />
+          </NFormItemGi>
 
-        <NFormItem
-          :label="
-            t(
-              'nsi.reports.form.director',
-              {},
-              { default: 'Ответственный со стороны подрядчика' },
-            )
-          "
-          path="directorId"
-        >
-          <NSelect
-            v-model:value="generatorForm.directorId"
-            :options="filteredPersonnelOptions"
-            :loading="personnelLoading"
-            filterable
-            clearable
-            :placeholder="
-              t('nsi.reports.form.directorPlaceholder', {}, { default: 'Выберите ответственного' })
+          <NFormItemGi
+            span="24"
+            :label="
+              t('nsi.reports.table.orgUnit', {}, { default: 'Организационная единица исполнителя' })
             "
-            @update:value="handleDirectorSelect"
-            style="width: 100%"
-          />
-        </NFormItem>
+            path="orgUnitId"
+          >
+            <NTreeSelect
+              v-model:value="generatorForm.orgUnitId"
+              :options="orgStructureTreeOptions"
+              :loading="orgStructureLoading"
+              filterable
+              clearable
+              :placeholder="
+                t(
+                  'nsi.reports.form.orgUnitPlaceholder',
+                  {},
+                  { default: 'Выберите орг. единицу исполнителя' },
+                )
+              "
+              @update:value="handleGeneratorOrgUnitSelect"
+            />
+          </NFormItemGi>
 
-        <NFormItem
-          :label="
-            t('nsi.reports.form.executor', {}, { default: 'Исполнитель со стороны подрядчика' })
-          "
-          path="executorId"
-        >
-          <NSelect
-            v-model:value="generatorForm.executorId"
-            :options="personnelOptions"
-            :loading="personnelLoading"
-            filterable
-            clearable
-            :placeholder="
-              t('nsi.reports.form.executorPlaceholder', {}, { default: 'Выберите исполнителя' })
+          <NFormItemGi
+            span="24"
+            :label="
+              t(
+                'nsi.reports.form.director',
+                {},
+                { default: 'Ответственное лицо исполнителя' },
+              )
             "
-            @update:value="handleExecutorSelect"
-            style="width: 100%"
-          />
-        </NFormItem>
+            path="directorId"
+          >
+            <NSelect
+              v-model:value="generatorForm.directorId"
+              :options="filteredPersonnelOptions"
+              :loading="personnelLoading"
+              filterable
+              clearable
+              :placeholder="
+                t(
+                  'nsi.reports.form.directorPlaceholder',
+                  {},
+                  { default: 'Выберите ответственного' },
+                )
+              "
+              @update:value="handleDirectorSelect"
+              style="width: 100%"
+            />
+          </NFormItemGi>
+        </NGrid>
       </NForm>
 
       <div class="modal-footer">
@@ -279,8 +276,8 @@
         t('nsi.reports.preview.title', {}, { default: 'Предпросмотр отчёта' })
       "
     >
-      <template v-if="preview.report" #header-extra>
-        <span class="modal-subtitle">{{ preview.report.orgUnit }}</span>
+      <template v-if="preview.orgUnitName" #header-extra>
+        <span class="modal-subtitle">{{ preview.orgUnitName }}</span>
       </template>
 
       <div class="preview-bar">
@@ -381,22 +378,6 @@
           <NInput v-model:value="editDialog.form.name" />
         </NFormItem>
         <NFormItem
-          :label="t('nsi.reports.table.orgUnit', {}, { default: 'Организационная единица' })"
-          path="orgUnitId"
-        >
-          <NSelect
-            v-model:value="editDialog.form.orgUnitId"
-            :options="orgStructureOptions"
-            :loading="orgStructureLoading"
-            filterable
-            clearable
-            :placeholder="
-              t('nsi.reports.form.orgUnitPlaceholder', {}, { default: 'Выберите орг. единицу' })
-            "
-            @update:value="handleEditOrgUnitSelect"
-          />
-        </NFormItem>
-        <NFormItem
           :label="t('nsi.reports.form.periodType', {}, { default: 'Период отчёта' })"
           path="periodTypeId"
         >
@@ -451,6 +432,8 @@ import {
   NEmpty,
   NForm,
   NFormItem,
+  NFormItemGi,
+  NGrid,
   NIcon,
   NInput,
   NModal,
@@ -458,11 +441,13 @@ import {
   NSelect,
   NSpin,
   NTooltip,
+  NTreeSelect,
   type DataTableColumns,
+  type DatePickerProps,
   type FormInst,
   type FormRules,
   type SelectOption,
-  type DatePickerProps,
+  type TreeSelectOption,
   useDialog,
   useMessage,
 } from 'naive-ui'
@@ -476,6 +461,7 @@ import {
 } from '@vicons/ionicons5'
 
 import reportsSeed from '@/data/reportTemplates.json'
+import { useAuth } from '@features/auth'
 import { useIsMobile } from '@/shared/composables/useIsMobile'
 import { normalizeText } from '@shared/lib'
 import {
@@ -496,8 +482,6 @@ interface ReportTemplate {
   id: string
   index: string
   name: string
-  orgUnit: string
-  orgUnitId: number | null
   periodTypeId: number | null
   description: string
   rpc: ReportRpcConfig
@@ -557,6 +541,7 @@ interface ClientRecord {
 interface PersonnelRecord {
   id: number
   fullName: string
+  login?: string | null
   namePosition?: string | null
   nameLocation?: string | null
   UserPhone?: string | null
@@ -573,12 +558,12 @@ interface GeneratorFormModel {
   date: DatePickerValue | null
   objClient: number | null
   objLocation: number | null
+  orgUnitId: number | null
   fullNameClient: string | null
   directorId: number | null
   fullNameDirector: string | null
   nameDirectorPosition: string | null
   nameDirectorLocation: string | null
-  executorId: number | null
   fulNameUser: string | null
   nameUserPosition: string | null
   UserPhone: string | null
@@ -589,8 +574,6 @@ interface StoredReportEntry {
   id?: string
   index: string
   name: string
-  orgUnit: string
-  orgUnitId?: number | null
   periodTypeId?: number | null
   description?: string
 }
@@ -616,12 +599,7 @@ function normalizeStoredReportEntry(entry: StoredReportEntry | undefined, fallba
       : `report-${fallbackIndex + 1}`
   const indexValue = typeof entry.index === 'string' ? entry.index.trim() : ''
   const nameValue = typeof entry.name === 'string' ? entry.name.trim() : ''
-  const orgValue = typeof entry.orgUnit === 'string' ? entry.orgUnit.trim() : ''
-  if (!indexValue || !nameValue || !orgValue) return null
-  const orgUnitId =
-    typeof entry.orgUnitId === 'number' && Number.isFinite(entry.orgUnitId)
-      ? entry.orgUnitId
-      : null
+  if (!indexValue || !nameValue) return null
   const periodTypeId =
     typeof entry.periodTypeId === 'number' && Number.isFinite(entry.periodTypeId)
       ? entry.periodTypeId
@@ -631,8 +609,6 @@ function normalizeStoredReportEntry(entry: StoredReportEntry | undefined, fallba
     id,
     index: indexValue,
     name: nameValue,
-    orgUnit: orgValue,
-    orgUnitId,
     periodTypeId,
     description: typeof entry.description === 'string' ? entry.description : '',
     rpc: BASE_REPORT_RPC,
@@ -650,8 +626,6 @@ function toStoredReportEntry(report: ReportTemplate): StoredReportEntry {
     id: report.id,
     index: report.index,
     name: report.name,
-    orgUnit: report.orgUnit,
-    orgUnitId: report.orgUnitId ?? null,
     periodTypeId: report.periodTypeId ?? null,
     description: report.description ?? '',
   }
@@ -663,9 +637,10 @@ const { t } = useI18n()
 const { isMobile } = useIsMobile('(max-width: 768px)')
 const message = useMessage()
 const dialog = useDialog()
+const auth = useAuth()
+const isProduction = import.meta.env.PROD
 
 const searchQuery = ref('')
-const orgUnitFilter = ref<string[]>([])
 const sortOrder = ref<SortOrder>('index-asc')
 
 const pagination = reactive({
@@ -675,11 +650,6 @@ const pagination = reactive({
 
 const tableLoading = ref(false)
 const deletingId = ref<string | null>(null)
-
-const orgUnitOptions = computed<SelectOption[]>(() => {
-  const values = Array.from(new Set(reports.value.map((item) => item.orgUnit))).filter(Boolean)
-  return values.map((value) => ({ label: value, value }))
-})
 
 const periodTypes = ref<PeriodTypeRecord[]>([])
 const periodTypesLoading = ref(false)
@@ -740,7 +710,6 @@ async function persistReportsToRepo() {
 
 const filteredReports = computed(() => {
   const search = normalizeText(searchQuery.value)
-  const orgSet = new Set(orgUnitFilter.value)
 
   const rows = reports.value.filter((report) => {
     const periodLabel = normalizeText(getPeriodTypeLabel(report.periodTypeId))
@@ -748,10 +717,8 @@ const filteredReports = computed(() => {
       !search ||
       normalizeText(report.index).includes(search) ||
       normalizeText(report.name).includes(search) ||
-      normalizeText(report.orgUnit).includes(search) ||
       periodLabel.includes(search)
-    const matchesOrg = !orgSet.size || orgSet.has(report.orgUnit)
-    return matchesSearch && matchesOrg
+    return matchesSearch
   })
 
   const order = sortOrder.value
@@ -790,7 +757,7 @@ const visibleCount = computed(() =>
 
 const maxPage = computed(() => Math.max(1, Math.ceil(total.value / pagination.pageSize)))
 
-watch([searchQuery, orgUnitFilter], () => {
+watch(searchQuery, () => {
   pagination.page = 1
 })
 
@@ -888,7 +855,6 @@ function renderIndexCell(row: ReportRow) {
 function renderNameCell(row: ReportRow) {
   return h('div', { class: 'name-cell' }, [
     h('div', { class: 'name-cell__title' }, row.name),
-    renderPeriodChip(row.periodTypeId),
   ])
 }
 
@@ -896,15 +862,7 @@ function renderPeriodChip(periodTypeId: number | null | undefined) {
   const label =
     getPeriodTypeLabel(periodTypeId) ||
     t('nsi.reports.form.periodTypeEmpty', {}, { default: 'Не указан' })
-  return h('div', { class: 'name-cell__chips' }, [
-    h('span', { class: 'period-chip' }, label),
-  ])
-}
-
-function renderOrgCell(row: ReportRow) {
-  return h('div', { class: 'org-cell' }, [
-    h('div', { class: 'org-cell__primary' }, row.orgUnit),
-  ])
+  return h('span', { class: 'period-chip' }, label)
 }
 
 function renderActionsCell(row: ReportRow) {
@@ -949,10 +907,10 @@ const columns = computed<DataTableColumns<ReportRow>>(() => [
     render: (row) => renderNameCell(row),
   },
   {
-    title: t('nsi.reports.table.orgUnit', {}, { default: 'Организационная единица' }),
-    key: 'orgUnit',
-    width: 240,
-    render: (row) => renderOrgCell(row),
+    title: t('nsi.reports.table.periodicity', {}, { default: 'Периодичность' }),
+    key: 'periodicity',
+    width: 220,
+    render: (row) => renderPeriodChip(row.periodTypeId),
   },
   {
     title: t('nsi.reports.table.actions', {}, { default: 'Действия' }),
@@ -969,12 +927,12 @@ const generatorForm = reactive<GeneratorFormModel>({
   date: null,
   objClient: null,
   objLocation: null,
+  orgUnitId: null,
   fullNameClient: null,
   directorId: null,
   fullNameDirector: null,
   nameDirectorPosition: null,
   nameDirectorLocation: null,
-  executorId: null,
   fulNameUser: null,
   nameUserPosition: null,
   UserPhone: null,
@@ -1003,30 +961,95 @@ const clientOptions = computed<SelectOption[]>(() =>
   })),
 )
 
+const orgChildrenMap = computed<Map<number, number[]>>(() => {
+  const map = new Map<number, number[]>()
+  orgUnits.value.forEach((unit) => {
+    if (unit.parent == null) return
+    const siblings = map.get(unit.parent) ?? []
+    siblings.push(unit.id)
+    map.set(unit.parent, siblings)
+  })
+  return map
+})
+
+function collectOrgDescendantIds(rootId: number | null | undefined) {
+  if (rootId == null) return []
+  const ids: number[] = []
+  const stack: number[] = [rootId]
+  while (stack.length) {
+    const current = stack.pop()!
+    ids.push(current)
+    const children = orgChildrenMap.value.get(current)
+    if (children?.length) {
+      stack.push(...children)
+    }
+  }
+  return ids
+}
+
+function getOrgUnitName(id: number | null | undefined) {
+  if (id == null) return ''
+  const unit = orgUnits.value.find((item) => item.id === id)
+  return unit?.name ?? ''
+}
+
+function toNumericId(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return null
+}
+
 const personnelOptions = computed<SelectOption[]>(() =>
-  personnel.value.map((item) => ({
-    label: item.namePosition ? `${item.fullName} (${item.namePosition})` : item.fullName,
-    value: item.id,
+  personnel.value.map((person) => ({
+    label: person.namePosition ? `${person.fullName} (${person.namePosition})` : person.fullName,
+    value: person.id,
   })),
 )
 
 const filteredPersonnelOptions = computed<SelectOption[]>(() => {
-  const targetOrgId = generator.report?.orgUnitId ?? null
-  const collection =
-    targetOrgId != null
-      ? personnel.value.filter((item) => item.objLocation === targetOrgId)
-      : personnel.value
-  return collection.map((item) => ({
-    label: item.namePosition ? `${item.fullName} (${item.namePosition})` : item.fullName,
-    value: item.id,
-  }))
+  const targetOrgId = generatorForm.orgUnitId ?? null
+  if (targetOrgId == null) return personnelOptions.value
+  const allowedSet = new Set(collectOrgDescendantIds(targetOrgId))
+  return personnel.value
+    .filter((person) => {
+      const locationId = toNumericId(person.objLocation)
+      return locationId != null && allowedSet.has(locationId)
+    })
+    .map((person) => ({
+      label: person.namePosition ? `${person.fullName} (${person.namePosition})` : person.fullName,
+      value: person.id,
+    }))
 })
 
-const orgStructureOptions = computed<SelectOption[]>(() =>
-  orgUnits.value.map((unit) => ({
-    label: unit.name,
-    value: unit.id,
-  })),
+const generatorOrgUnitLabel = computed(() =>
+  getOrgUnitName(generatorForm.orgUnitId),
+)
+
+const currentUser = auth.user
+const currentUserPersonnel = computed(() => {
+  const login = currentUser.value?.login
+  if (!login) return null
+  return personnel.value.find((person) => person.login === login) ?? null
+})
+
+watch(
+  () => currentUserPersonnel.value,
+  () => {
+    if (generator.open) {
+      applyExecutorFromCurrentUser()
+    }
+  },
+)
+
+const orgStructureTreeOptions = computed<TreeSelectOption[]>(() =>
+  buildOrgTreeOptions(orgUnits.value),
 )
 
 const generatorRules: FormRules = {
@@ -1043,34 +1066,48 @@ const generatorRules: FormRules = {
     },
   },
   objClient: {
-    type: 'number',
     required: true,
     trigger: ['blur', 'change'],
-    message: t(
-      'nsi.reports.validation.objClient',
-      {},
-      { default: 'Выберите организацию заказчика' },
-    ),
+    validator: (_, value) => {
+      if (toNumericId(value) == null) {
+        return new Error(
+          t('nsi.reports.validation.objClient', {}, { default: 'Выберите организацию заказчика' }),
+        )
+      }
+      return true
+    },
+  },
+  orgUnitId: {
+    required: true,
+    trigger: ['blur', 'change'],
+    validator: (_, value) => {
+      if (toNumericId(value) == null) {
+        return new Error(
+          t(
+            'nsi.reports.validation.orgUnit',
+            {},
+            { default: 'Выберите организационную единицу исполнителя' },
+          ),
+        )
+      }
+      return true
+    },
   },
   directorId: {
-    type: 'number',
     required: true,
     trigger: ['blur', 'change'],
-    message: t(
-      'nsi.reports.validation.director',
-      {},
-      { default: 'Выберите ответственного со стороны подрядчика' },
-    ),
-  },
-  executorId: {
-    type: 'number',
-    required: true,
-    trigger: ['blur', 'change'],
-    message: t(
-      'nsi.reports.validation.executor',
-      {},
-      { default: 'Выберите исполнителя со стороны подрядчика' },
-    ),
+    validator: (_, value) => {
+      if (toNumericId(value) == null) {
+        return new Error(
+          t(
+            'nsi.reports.validation.director',
+            {},
+            { default: 'Выберите ответственного со стороны подрядчика' },
+          ),
+        )
+      }
+      return true
+    },
   },
 }
 
@@ -1087,6 +1124,7 @@ const preview = reactive<{
   payload: Record<string, unknown>
   jobId: string | null
   remoteUrl: string | null
+  orgUnitName: string
 }>({
   open: false,
   loading: false,
@@ -1098,6 +1136,7 @@ const preview = reactive<{
   payload: {},
   jobId: null,
   remoteUrl: null,
+  orgUnitName: '',
 })
 
 const previewPeriodLabel = computed(() => {
@@ -1140,8 +1179,6 @@ const editDialog = reactive({
   form: {
     index: '',
     name: '',
-    orgUnit: '',
-    orgUnitId: null as number | null,
     periodTypeId: null as number | null,
   },
 })
@@ -1156,16 +1193,6 @@ const editFormRules: FormRules = {
     required: true,
     trigger: ['blur', 'input'],
     message: t('nsi.reports.validation.name', {}, { default: 'Укажите наименование отчёта' }),
-  },
-  orgUnitId: {
-    type: 'number',
-    required: true,
-    trigger: ['blur', 'change'],
-    message: t(
-      'nsi.reports.validation.orgUnit',
-      {},
-      { default: 'Выберите организационную единицу' },
-    ),
   },
   periodTypeId: {
     type: 'number',
@@ -1184,12 +1211,10 @@ function openCreateDialog() {
   editDialog.reportId = null
   editDialog.form.index = ''
   editDialog.form.name = ''
-  editDialog.form.orgUnit = ''
-  editDialog.form.orgUnitId = null
   editDialog.form.periodTypeId = null
   editDialog.open = true
   editFormRef.value?.restoreValidation()
-  void Promise.all([loadOrgUnits(), loadPeriodTypes()])
+  void loadPeriodTypes()
 }
 
 function openGenerator(report: ReportTemplate) {
@@ -1205,6 +1230,7 @@ async function ensureReferenceDataLoaded() {
     loadPeriodTypes(),
     loadClients(),
     loadPersonnel(),
+    loadOrgUnits(),
   ])
 }
 
@@ -1212,65 +1238,60 @@ function resetGeneratorForm(report: ReportTemplate) {
   generatorForm.date = Date.now()
   generatorForm.objClient = null
   generatorForm.fullNameClient = null
-  generatorForm.objLocation = report.orgUnitId ?? null
+  generatorForm.orgUnitId = null
+  generatorForm.objLocation = null
   generatorForm.directorId = null
   generatorForm.fullNameDirector = null
   generatorForm.nameDirectorPosition = null
   generatorForm.nameDirectorLocation = null
-  generatorForm.executorId = null
   generatorForm.fulNameUser = null
   generatorForm.nameUserPosition = null
   generatorForm.UserPhone = null
   generatorForm.tml = report.index ?? report.rpc?.tml ?? null
+  applyExecutorFromCurrentUser()
 }
 
-function handleClientSelect(value: number | null) {
-  generatorForm.objClient = value
-  if (value == null) {
-    generatorForm.fullNameClient = null
-    return
-  }
-  const client = clients.value.find((item) => item.id === value)
-  generatorForm.fullNameClient = client?.fullName ?? client?.name ?? null
-}
-
-function handleDirectorSelect(value: number | null) {
-  generatorForm.directorId = value
-  if (value == null) {
+function handleGeneratorOrgUnitSelect(value: number | string | null) {
+  const normalizedValue = toNumericId(value)
+  generatorForm.orgUnitId = normalizedValue
+  generatorForm.objLocation = normalizedValue
+  if (
+    normalizedValue == null ||
+    (generatorForm.directorId != null &&
+      !filteredPersonnelOptions.value.some((option) => option.value === generatorForm.directorId))
+  ) {
+    generatorForm.directorId = null
     generatorForm.fullNameDirector = null
     generatorForm.nameDirectorPosition = null
     generatorForm.nameDirectorLocation = null
-    generatorForm.objLocation = generator.report?.orgUnitId ?? null
+  }
+}
+
+function handleClientSelect(value: number | string | null) {
+  const normalizedValue = toNumericId(value)
+  generatorForm.objClient = normalizedValue
+  if (normalizedValue == null) {
+    generatorForm.fullNameClient = null
     return
   }
-  const person = personnel.value.find((item) => item.id === value)
+  const client = clients.value.find((item) => item.id === normalizedValue)
+  generatorForm.fullNameClient = client?.fullName ?? client?.name ?? null
+}
+
+function handleDirectorSelect(value: number | string | null) {
+  const normalizedValue = toNumericId(value)
+  generatorForm.directorId = normalizedValue
+  if (normalizedValue == null) {
+    generatorForm.fullNameDirector = null
+    generatorForm.nameDirectorPosition = null
+    generatorForm.nameDirectorLocation = null
+    generatorForm.objLocation = generatorForm.orgUnitId
+    return
+  }
+  const person = personnel.value.find((item) => item.id === normalizedValue)
   generatorForm.fullNameDirector = person?.fullName ?? null
   generatorForm.nameDirectorPosition = person?.namePosition ?? null
   generatorForm.nameDirectorLocation = person?.nameLocation ?? null
-}
-
-function handleExecutorSelect(value: number | null) {
-  generatorForm.executorId = value
-  if (value == null) {
-    generatorForm.fulNameUser = null
-    generatorForm.nameUserPosition = null
-    generatorForm.UserPhone = null
-    return
-  }
-  const person = personnel.value.find((item) => item.id === value)
-  generatorForm.fulNameUser = person?.fullName ?? null
-  generatorForm.nameUserPosition = person?.nameLocation ?? null
-  generatorForm.UserPhone = person?.UserPhone ?? null
-}
-
-function handleEditOrgUnitSelect(value: number | null) {
-  editDialog.form.orgUnitId = value
-  if (value == null) {
-    editDialog.form.orgUnit = ''
-    return
-  }
-  const unit = orgUnits.value.find((item) => item.id === value)
-  editDialog.form.orgUnit = unit?.name ?? ''
 }
 
 async function loadPeriodTypes() {
@@ -1341,6 +1362,9 @@ async function loadPersonnel() {
         [0],
       )
       personnel.value = dedupeById(response?.records ?? [])
+      if (generator.open) {
+        applyExecutorFromCurrentUser()
+      }
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       console.error('[ReportsPage] loadPersonnel failed:', reason)
@@ -1390,12 +1414,13 @@ async function loadOrgUnits() {
 }
 
 function buildPayload(report: ReportTemplate) {
+  const selectedOrgUnit = generatorForm.orgUnitId ?? generatorForm.objLocation ?? null
   return {
     tml: generatorForm.tml ?? report.index ?? report.rpc?.tml ?? null,
     date: normalizeDateValue(generatorForm.date),
     periodType: report.periodTypeId,
     objClient: generatorForm.objClient,
-    objLocation: generatorForm.objLocation,
+    objLocation: selectedOrgUnit,
     fullNameClient: generatorForm.fullNameClient,
     fullNameDirector: generatorForm.fullNameDirector,
     nameDirectorPosition: generatorForm.nameDirectorPosition,
@@ -1439,14 +1464,186 @@ function hasDateValue(value: DatePickerValue | null): boolean {
   return false
 }
 
-function dedupeById<T extends { id: number }>(records: T[] = []): T[] {
-  const unique = new Map<number, T>()
+function dedupeById<T extends { id: number | string }>(
+  records: T[] = [],
+): Array<T & { id: number }> {
+  const unique = new Map<number, T & { id: number }>()
   records.forEach((record) => {
-    if (typeof record.id === 'number') {
-      unique.set(record.id, record)
+    const numericId = toNumericId(record.id)
+    if (numericId == null) return
+    if (!unique.has(numericId)) {
+      const normalizedRecord = { ...record, id: numericId } as T & { id: number }
+      unique.set(numericId, normalizedRecord)
     }
   })
   return Array.from(unique.values())
+}
+
+function buildOrgTreeOptions(records: OrgUnitRecord[]): TreeSelectOption[] {
+  const nodes = new Map<number, TreeSelectOption & { children?: TreeSelectOption[] }>()
+  const roots: TreeSelectOption[] = []
+
+  records.forEach((record) => {
+    nodes.set(record.id, {
+      label: record.name,
+      key: record.id,
+      value: record.id,
+      children: [],
+    })
+  })
+
+  records.forEach((record) => {
+    const node = nodes.get(record.id)
+    if (!node) return
+    const parentId = record.parent ?? null
+    if (parentId != null && nodes.has(parentId)) {
+      const parentNode = nodes.get(parentId)!
+      parentNode.children = parentNode.children ?? []
+      parentNode.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+
+  const compact = (options: TreeSelectOption[]) => {
+    options.forEach((option) => {
+      if (option.children && option.children.length) {
+        compact(option.children)
+      } else {
+        delete option.children
+      }
+    })
+  }
+
+  compact(roots)
+  return roots
+}
+
+type PersonnelTreeNode = TreeSelectOption & {
+  nodeType?: 'org' | 'person'
+  orgRef?: number | null
+  children?: PersonnelTreeNode[]
+}
+
+function buildPersonnelTreeOptions(
+  orgRecords: OrgUnitRecord[],
+  personnelRecords: PersonnelRecord[],
+): TreeSelectOption[] {
+  const orgNodes = new Map<number, PersonnelTreeNode>()
+  const roots: PersonnelTreeNode[] = []
+
+  orgRecords.forEach((org) => {
+    orgNodes.set(org.id, {
+      label: org.name,
+      key: `org-${org.id}`,
+      value: `org-${org.id}`,
+      selectable: false,
+      nodeType: 'org',
+      orgRef: org.id,
+      children: [],
+    })
+  })
+
+  orgRecords.forEach((org) => {
+    const node = orgNodes.get(org.id)!
+    if (org.parent != null && orgNodes.has(org.parent)) {
+      orgNodes.get(org.parent)!.children!.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+
+  personnelRecords.forEach((person) => {
+    const label = person.namePosition
+      ? `${person.fullName} (${person.namePosition})`
+      : person.fullName
+    const node: PersonnelTreeNode = {
+      label,
+      key: `person-${person.id}`,
+      value: person.id,
+      nodeType: 'person',
+      orgRef: typeof person.objLocation === 'number' ? person.objLocation : null,
+    }
+    const parent =
+      typeof person.objLocation === 'number' ? orgNodes.get(person.objLocation) : null
+    if (parent) {
+      parent.children = parent.children ?? []
+      parent.children.push(node)
+    } else {
+      roots.push(node)
+    }
+  })
+
+  return compactPersonnelTree(roots)
+}
+
+function compactPersonnelTree(nodes: PersonnelTreeNode[]): PersonnelTreeNode[] {
+  return nodes
+    .map((node) => {
+      const next: PersonnelTreeNode = { ...node }
+      if (node.children?.length) {
+        const children = compactPersonnelTree(node.children)
+        if (children.length) {
+          next.children = children
+        } else {
+          delete next.children
+        }
+      } else {
+        delete next.children
+      }
+      return next
+    })
+    .filter((node) => (node.nodeType === 'org' ? Boolean(node.children?.length) : true))
+}
+
+function filterPersonnelTree(options: TreeSelectOption[], allowedOrgIds: Set<number>) {
+  const traverse = (nodes: PersonnelTreeNode[]): PersonnelTreeNode[] => {
+    const result: PersonnelTreeNode[] = []
+    nodes.forEach((node) => {
+      if (node.nodeType === 'person') {
+        if (node.orgRef == null || allowedOrgIds.has(node.orgRef)) {
+          result.push({ ...node, children: undefined })
+        }
+        return
+      }
+      const children = node.children ? traverse(node.children) : []
+      if (children.length) {
+        result.push({ ...node, children })
+      }
+    })
+    return result
+  }
+  return traverse(options as PersonnelTreeNode[])
+}
+
+function pickString(
+  source: Record<string, unknown> | null | undefined,
+  keys: string[],
+): string | null {
+  if (!source) return null
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (trimmed) return trimmed
+    }
+  }
+  return null
+}
+
+function applyExecutorFromCurrentUser() {
+  const person = currentUserPersonnel.value
+  if (person) {
+    generatorForm.fulNameUser = person.fullName ?? null
+    generatorForm.nameUserPosition = person.namePosition ?? person.nameLocation ?? null
+    generatorForm.UserPhone = person.UserPhone ?? null
+    return
+  }
+
+  const userRecord = currentUser.value as Record<string, unknown> | null
+  generatorForm.fulNameUser = pickString(userRecord, ['fullname', 'fullName', 'name'])
+  generatorForm.nameUserPosition = pickString(userRecord, ['namePosition', 'position'])
+  generatorForm.UserPhone = pickString(userRecord, ['UserPhone', 'phone', 'mobile'])
 }
 
 async function generateReportViaRpc(
@@ -1529,10 +1726,11 @@ async function handleGenerate() {
   generator.submitting = true
   const report = generator.report
   const payload = buildPayload(report)
+  const orgUnitName = getOrgUnitName(generatorForm.orgUnitId)
 
   try {
     const file = await generateReportViaRpc(report, payload, 'pdf')
-    await openPreview(report, file, payload)
+    await openPreview(report, file, payload, orgUnitName)
     message.success(t('nsi.reports.generate.success', {}, { default: 'Отчёт успешно сформирован' }))
     generator.open = false
   } catch (error) {
@@ -1547,11 +1745,16 @@ async function openPreview(
   report: ReportTemplate,
   file: ReportFileResult,
   payload: Record<string, unknown>,
+  orgUnitName?: string | null,
 ) {
   preview.report = report
   preview.payload = { ...payload }
   preview.jobId = file.jobId ?? null
   preview.remoteUrl = file.remoteUrl ?? null
+  const payloadOrgUnit = toNumericId(
+    (payload.objLocation as number | string | null | undefined) ?? null,
+  )
+  preview.orgUnitName = orgUnitName || getOrgUnitName(payloadOrgUnit)
   preview.open = true
   await applyPreviewFile(file)
 }
@@ -1626,6 +1829,7 @@ watch(
       preview.blob = null
       preview.fileName = ''
       preview.format = 'pdf'
+      preview.orgUnitName = ''
       stopModalResize()
     }
   },
@@ -1652,12 +1856,10 @@ function openEdit(report: ReportTemplate) {
   editDialog.reportId = report.id
   editDialog.form.index = report.index
   editDialog.form.name = report.name
-  editDialog.form.orgUnit = report.orgUnit
-  editDialog.form.orgUnitId = report.orgUnitId ?? null
   editDialog.form.periodTypeId = report.periodTypeId ?? null
   editDialog.open = true
   editFormRef.value?.restoreValidation()
-  void Promise.all([loadOrgUnits(), loadPeriodTypes()])
+  void loadPeriodTypes()
 }
 
 async function handleEditSave() {
@@ -1672,8 +1874,6 @@ async function handleEditSave() {
     const payload = {
       index: editDialog.form.index.trim(),
       name: editDialog.form.name.trim(),
-      orgUnit: editDialog.form.orgUnit.trim(),
-      orgUnitId: editDialog.form.orgUnitId ?? null,
       periodTypeId: editDialog.form.periodTypeId ?? null,
     }
 
@@ -1682,8 +1882,6 @@ async function handleEditSave() {
         id: createReportId(),
         index: payload.index,
         name: payload.name,
-        orgUnit: payload.orgUnit,
-        orgUnitId: payload.orgUnitId,
         periodTypeId: payload.periodTypeId,
         description: '',
         rpc: BASE_REPORT_RPC,
@@ -1698,8 +1896,6 @@ async function handleEditSave() {
       if (!target) return
       target.index = payload.index
       target.name = payload.name
-      target.orgUnit = payload.orgUnit
-      target.orgUnitId = payload.orgUnitId
       target.periodTypeId = payload.periodTypeId
       message.success(t('common.saved', {}, { default: 'Изменения сохранены' }))
     }
@@ -1944,17 +2140,6 @@ const ActionsRenderer = defineComponent({
   justify-content: flex-end;
 }
 
-.toolbar__filters {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.toolbar__select {
-  min-width: 200px;
-}
-
 .toolbar__search {
   width: clamp(200px, 22vw, 320px);
 }
@@ -2001,10 +2186,6 @@ const ActionsRenderer = defineComponent({
   margin-bottom: 6px;
 }
 
-.name-cell__chips {
-  margin-top: 6px;
-}
-
 .period-chip {
   display: inline-flex;
   align-items: center;
@@ -2016,10 +2197,6 @@ const ActionsRenderer = defineComponent({
   color: var(--s360-color-text, rgba(0, 0, 0, 0.8));
 }
 
-
-.org-cell__primary {
-  font-weight: 500;
-}
 
 .table-actions {
   display: inline-flex;
@@ -2216,9 +2393,7 @@ const ActionsRenderer = defineComponent({
     justify-content: stretch;
   }
 
-  .toolbar__search,
-  .toolbar__select,
-  .toolbar__filters {
+  .toolbar__search {
     width: 100%;
   }
 
