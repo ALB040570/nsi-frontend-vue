@@ -1,6 +1,6 @@
 <!-- Страница: src/pages/nsi/ResourcesPage.vue
-     Назначение: Верстка справочника «Ресурсы» с единым списком и типом ресурса, CRUD на фронте (пока без API).
-     Использование: роут /nsi/resources (с фильтром по типу через query ?type=materials|equipment|tools|third-party). -->
+     Назначение: Справочник «Ресурсы» с единым списком и типом ресурса. Материалы/услуги берутся из resource API, техника/инструменты/профессии — из Factor_*.
+     Использование: роут /nsi/resources (с фильтром по типу через query ?type=materials|equipment|tools|professions|third-party). -->
 <template>
   <section class="resources-page">
     <NCard size="small" class="toolbar" content-style="padding: 10px 14px">
@@ -84,7 +84,7 @@
             <NTag size="small" :bordered="false" round type="info">{{ typeLabels[item.type] }}</NTag>
           </header>
 
-          <dl class="card__grid">
+          <dl v-if="!isNameOnlyType(item.type)" class="card__grid">
             <dt>Ед. изм.</dt>
             <dd>{{ item.unit }}</dd>
             <dt>Описание</dt>
@@ -132,8 +132,8 @@
     <!-- Инфо -->
     <NModal v-model:show="infoOpen" preset="card" title="О справочнике" style="max-width: 640px">
       <p>
-        Справочник «Ресурсы» объединяет материалы, технику, инструменты и услуги сторонних в единую таблицу с полем «Вид ресурса». В меню доступны
-        быстрые фильтры по видам.
+        Справочник «Ресурсы» объединяет материалы, технику, инструменты, профессии и услуги сторонних в единую таблицу с полем «Вид ресурса». Для
+        техники, инструментов и профессий сохраняется только название (без единиц и описаний). В меню доступны быстрые фильтры по видам.
       </p>
       <template #footer>
         <NButton type="primary" @click="infoOpen = false">Понятно</NButton>
@@ -171,8 +171,11 @@
         <NFormItem v-else label="Единица измерения">
           <span class="form-hint">Не требуется для выбранного вида ресурса</span>
         </NFormItem>
-        <NFormItem label="Описание">
+        <NFormItem v-if="supportsDescription" label="Описание">
           <NInput v-model:value="form.description" type="textarea" :autosize="{ minRows: 3, maxRows: 6 }" placeholder="Краткое описание" />
+        </NFormItem>
+        <NFormItem v-else label="Описание">
+          <span class="form-hint">Не требуется для выбранного вида ресурса</span>
         </NFormItem>
       </NForm>
       <template #footer>
@@ -206,9 +209,11 @@ import {
   useMessage,
 } from 'naive-ui'
 import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
-import { resourceRpc, rpc as nsiRpc } from '@shared/api'
+import { metaRpc, resourceRpc, rpc as nsiRpc } from '@shared/api'
 
-type ResourceType = 'materials' | 'equipment' | 'tools' | 'third-party'
+type ResourceType = 'materials' | 'equipment' | 'tools' | 'professions' | 'third-party'
+type NameOnlyResourceType = Extract<ResourceType, 'equipment' | 'tools' | 'professions'>
+type MeasuredResourceType = Extract<ResourceType, 'materials' | 'third-party'>
 
 interface PaginationState {
   page: number
@@ -236,10 +241,22 @@ const typeLabels: Record<ResourceType, string> = {
   materials: 'Материал',
   equipment: 'Техника',
   tools: 'Инструменты',
+  professions: 'Профессия',
   'third-party': 'Услуги сторонних',
 }
 
 const typeOptions = Object.entries(typeLabels).map(([value, label]) => ({ label, value })) as SelectOption[]
+
+const NAME_ONLY_TYPES = ['equipment', 'tools', 'professions'] as const
+const NAME_ONLY_TYPE_SET = new Set<ResourceType>(NAME_ONLY_TYPES)
+
+function isNameOnlyType(type: ResourceType): type is NameOnlyResourceType {
+  return NAME_ONLY_TYPE_SET.has(type)
+}
+
+function isMeasuredResource(type: ResourceType): type is MeasuredResourceType {
+  return type === 'materials' || type === 'third-party'
+}
 
 const message = useMessage()
 
@@ -263,6 +280,7 @@ interface ResourceFormState {
 interface ResourcePayloadBase {
   [key: string]: unknown
   name?: string | null
+  fullName?: string | null
   Description?: string | null
 }
 
@@ -276,9 +294,17 @@ interface ServiceResponse extends ResourcePayloadBase {
   pvMeasure?: string | number | null
 }
 
-type EquipmentResponse = ResourcePayloadBase
+interface FactorResponse extends ResourcePayloadBase {
+  id?: string | number | null
+  pv?: string | number | null
+  fv?: string | number | null
+}
 
-type ToolResponse = ResourcePayloadBase
+type EquipmentResponse = FactorResponse
+
+type ToolResponse = FactorResponse
+
+type ProfessionResponse = FactorResponse
 
 interface MeasureResponse {
   id?: string | number | null
@@ -307,12 +333,20 @@ const ARRAY_WRAPPER_KEYS = [
   'Items',
   'rows',
   'Rows',
+  'records',
+  'Records',
 ]
 
 const ID_CANDIDATES = [
   'id',
   'Id',
   'ID',
+  'fv',
+  'Fv',
+  'FV',
+  'pv',
+  'Pv',
+  'PV',
   'idMaterial',
   'IdMaterial',
   'ID_Material',
@@ -331,18 +365,29 @@ const ID_CANDIDATES = [
   'refKey',
 ]
 
+const META_PARENT_BY_TYPE: Record<NameOnlyResourceType, number> = {
+  equipment: 1252,
+  tools: 1256,
+  professions: 1127,
+}
+
+const FACTOR_KEY_BY_TYPE: Record<NameOnlyResourceType, string> = {
+  equipment: 'Factor_Equipment',
+  tools: 'Factor_Tool',
+  professions: 'Factor_Position',
+}
+
 const remoteItems = ref<ResourceRow[]>([])
 const measureOptions = ref<MeasureSelectOption[]>([])
 let measureOptionMap: Map<string, MeasureSelectOption> = new Map()
-
-const EQUIPMENT_NUMBER_KEYS = ['Number', 'number'] as const
 
 const form = reactive<ResourceFormState>({ type: 'materials', name: '', measureKey: null, description: '' })
 const errors = reactive<{ [K in keyof ResourceFormState]?: string | null }>({})
 
 const dialogTitle = computed(() => (editingRow.value ? 'Редактировать ресурс' : 'Добавить ресурс'))
 const isEditing = computed(() => editingRow.value !== null)
-const requiresMeasure = computed(() => form.type === 'materials' || form.type === 'third-party')
+const requiresMeasure = computed(() => isMeasuredResource(form.type))
+const supportsDescription = computed(() => !isNameOnlyType(form.type))
 const saveLoading = ref(false)
 
 const normalizedSearch = computed(() => search.value.trim().toLocaleLowerCase('ru-RU'))
@@ -396,9 +441,11 @@ watch(
 watch(
   () => form.type,
   (next) => {
-    if (next === 'equipment' || next === 'tools') {
+    if (isNameOnlyType(next)) {
       form.measureKey = null
       errors.measureKey = null
+      form.description = ''
+      errors.description = null
     }
   },
 )
@@ -453,11 +500,18 @@ function validate(): boolean {
   return ok
 }
 
-const METHOD_BY_TYPE: Record<ResourceType, string> = {
+const RESOURCE_METHOD_BY_TYPE: Record<MeasuredResourceType, string> = {
   materials: 'data/saveMaterial',
-  equipment: 'data/saveEquipment',
-  tools: 'data/saveTool',
   'third-party': 'data/saveTpService',
+}
+
+interface MetaFactorInsertRecord {
+  id?: number | string | null
+  name?: string | null
+}
+
+interface MetaFactorInsertResult {
+  records?: MetaFactorInsertRecord[]
 }
 
 async function save() {
@@ -469,21 +523,29 @@ async function save() {
   form.description = normalizedDescription
 
   const currentRow = editingRow.value
-  const method = METHOD_BY_TYPE[form.type]
-  const mode = currentRow ? 'upd' : 'ins'
-  const payload = buildPayload(
-    {
-      type: form.type,
-      name: normalizedName,
-      description: normalizedDescription,
-      measureKey: form.measureKey,
-    },
-    currentRow,
-  )
+  const currentType = form.type
 
   saveLoading.value = true
   try {
-    await resourceRpc(method, [mode, payload])
+    if (isNameOnlyType(currentType)) {
+      await saveNameOnlyResource(currentType, normalizedName, currentRow)
+    } else {
+      if (!isMeasuredResource(currentType)) {
+        throw new Error('Неподдерживаемый вид ресурса')
+      }
+      const method = RESOURCE_METHOD_BY_TYPE[currentType]
+      const mode = currentRow ? 'upd' : 'ins'
+      const payload = buildPayload(
+        {
+          type: currentType,
+          name: normalizedName,
+          description: normalizedDescription,
+          measureKey: form.measureKey,
+        },
+        currentRow,
+      )
+      await resourceRpc(method, [mode, payload])
+    }
     message.success(currentRow ? 'Ресурс обновлён' : 'Ресурс добавлен')
     dialogOpen.value = false
     editingRow.value = null
@@ -498,8 +560,43 @@ async function save() {
   }
 }
 
+function resolveMetaId(record?: ResourcePayloadBase | null): number {
+  if (!record) return 0
+  for (const key of ['id', 'Id', 'ID', 'fv', 'Fv', 'FV', 'pv', 'Pv', 'PV']) {
+    const value = (record as Record<string, unknown>)[key]
+    const num = Number(formatText(value))
+    if (!Number.isNaN(num) && Number.isFinite(num)) return num
+  }
+  return 0
+}
+
+function buildMetaPayload(type: NameOnlyResourceType, name: string, row: ResourceRow | null) {
+  const parent = META_PARENT_BY_TYPE[type]
+  const id = resolveMetaId(row?.raw)
+  return {
+    rec: {
+      id,
+      cod: '',
+      accessLevel: 1,
+      name,
+      fullName: name,
+      cmt: null,
+      parent,
+    },
+  }
+}
+
+async function saveNameOnlyResource(type: NameOnlyResourceType, name: string, row: ResourceRow | null) {
+  const payload = buildMetaPayload(type, name, row)
+  const result = await metaRpc<MetaFactorInsertResult>('factor/insert', [payload])
+  const records = unwrapArrayPayload<MetaFactorInsertRecord>(result)
+  if (!records.length) {
+    throw new Error('Meta API: не удалось сохранить запись')
+  }
+}
+
 interface BuildPayloadState {
-  type: ResourceType
+  type: MeasuredResourceType
   name: string
   description: string
   measureKey: string | null
@@ -531,63 +628,7 @@ function buildPayload(state: BuildPayloadState, row: ResourceRow | null): Record
     base.fullName = state.name
   }
 
-  if (state.type === 'equipment' && !row) {
-    base.Number = computeNextEquipmentNumber()
-  }
-
   return base
-}
-
-function computeNextEquipmentNumber(): string {
-  const fallback = '0001'
-  let maxNumeric = 0
-  let hasNumeric = false
-  let padLength = fallback.length
-
-  for (const row of remoteItems.value) {
-    if (row.type !== 'equipment') continue
-    const rawNumber = extractEquipmentNumber(row.raw)
-    if (!rawNumber) continue
-
-    const { numeric, pad } = parseEquipmentNumber(rawNumber)
-    padLength = Math.max(padLength, pad)
-
-    if (numeric == null) continue
-    hasNumeric = true
-    if (numeric > maxNumeric) maxNumeric = numeric
-  }
-
-  const nextNumeric = hasNumeric ? maxNumeric + 1 : 1
-  return String(nextNumeric).padStart(Math.max(1, padLength), '0')
-}
-
-function extractEquipmentNumber(record: ResourcePayloadBase): string | null {
-  for (const key of EQUIPMENT_NUMBER_KEYS) {
-    const value = record[key]
-    if (value == null) continue
-    const text = formatText(value)
-    if (text) return text
-  }
-  return null
-}
-
-function parseEquipmentNumber(value: string): { numeric: number | null; pad: number } {
-  const trimmed = value.trim()
-  if (!trimmed) return { numeric: null, pad: 0 }
-
-  if (/^\d+$/.test(trimmed)) {
-    const numeric = Number.parseInt(trimmed, 10)
-    return { numeric: Number.isNaN(numeric) ? null : numeric, pad: trimmed.length }
-  }
-
-  const match = trimmed.match(/(\d+)(?!.*\d)/)
-  if (match) {
-    const numeric = Number.parseInt(match[1], 10)
-    return { numeric: Number.isNaN(numeric) ? null : numeric, pad: match[1].length }
-  }
-
-  const numeric = Number(trimmed)
-  return { numeric: Number.isNaN(numeric) ? null : numeric, pad: trimmed.length }
 }
 
 function normalizeMeasurePart(value: unknown): number | string | null {
@@ -602,57 +643,84 @@ function normalizeMeasurePart(value: unknown): number | string | null {
 
 const rowKey = (row: ResourceRow) => row.id
 
-const columns = computed<DataTableColumn<ResourceRow>[]>(() => [
-  {
-    title: 'Название',
-    key: 'name',
-    sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
-    width: 400,
-    ellipsis: { tooltip: true },
-    render: (row) => h('span', { class: 'table-cell__primary' }, row.name),
-  },
-  {
-    title: 'Вид ресурса',
-    key: 'type',
-    width: 180,
-    render: (row) => h(NTag, { size: 'small', bordered: false, round: true, type: 'info' }, { default: () => typeLabels[row.type] }),
-  },
-  { title: 'Ед. изм.', key: 'unit', width: 120 },
-  { title: 'Описание', key: 'description', ellipsis: { tooltip: true } },
-  {
-    title: 'Действия',
-    key: 'actions',
-    width: 120,
-    render(row) {
-      const editButton = h(
-        NButton,
-        {
-          quaternary: true,
-          circle: true,
-          size: 'small',
-          title: 'Редактировать',
-          onClick: () => openEdit(row.id),
-        },
-        { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-      )
+const shouldHideDetailsColumns = computed(() => Boolean(typeFilter.value && isNameOnlyType(typeFilter.value)))
 
-      const removeButton = h(
-        NButton,
-        {
-          quaternary: true,
-          circle: true,
-          size: 'small',
-          type: 'error',
-          title: 'Удаление доступно в другой задаче',
-          disabled: true,
-        },
-        { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-      )
+function getColumnKey(column: DataTableColumn<ResourceRow>): string | number | undefined {
+  return (column as DataTableColumn<ResourceRow> & { key?: string | number }).key
+}
 
-      return h('div', { class: 'table-actions' }, [editButton, removeButton])
+const columns = computed<DataTableColumn<ResourceRow>[]>(() => {
+  const base: DataTableColumn<ResourceRow>[] = [
+    {
+      title: 'Название',
+      key: 'name',
+      sorter: (a, b) => a.name.localeCompare(b.name, 'ru'),
+      width: 400,
+      ellipsis: { tooltip: true },
+      render: (row) => h('span', { class: 'table-cell__primary' }, row.name),
     },
-  },
-])
+    {
+      title: 'Вид ресурса',
+      key: 'type',
+      width: 180,
+      render: (row) => h(NTag, { size: 'small', bordered: false, round: true, type: 'info' }, { default: () => typeLabels[row.type] }),
+    },
+    {
+      title: 'Ед. изм.',
+      key: 'unit',
+      width: 120,
+      render: (row) => row.unit || '—',
+    },
+    {
+      title: 'Описание',
+      key: 'description',
+      ellipsis: { tooltip: true },
+      render: (row) => row.description || '—',
+    },
+    {
+      title: 'Действия',
+      key: 'actions',
+      width: 120,
+      render(row) {
+        const editButton = h(
+          NButton,
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            title: 'Редактировать',
+            onClick: () => openEdit(row.id),
+          },
+          { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
+        )
+
+        const removeButton = h(
+          NButton,
+          {
+            quaternary: true,
+            circle: true,
+            size: 'small',
+            type: 'error',
+            title: 'Удаление доступно в другой задаче',
+            disabled: true,
+          },
+          { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
+        )
+
+        return h('div', { class: 'table-actions' }, [editButton, removeButton])
+      },
+    },
+  ]
+
+  if (shouldHideDetailsColumns.value) {
+    return base.filter((column) => {
+      const key = getColumnKey(column)
+      return key !== 'unit' && key !== 'description'
+    })
+  }
+
+  return base
+})
 
 function showMore() {
   if (pagination.page < maxPage.value) pagination.page += 1
@@ -662,11 +730,12 @@ async function fetchResources() {
   tableLoading.value = true
   measureLoading.value = true
   try {
-    const [materialsRaw, servicesRaw, equipmentRaw, toolsRaw, measuresRaw] = await Promise.all([
+    const [materialsRaw, servicesRaw, equipmentRaw, toolsRaw, professionsRaw, measuresRaw] = await Promise.all([
       resourceRpc<unknown>('data/loadMaterial', [0]),
       resourceRpc<unknown>('data/loadTpService', [0]),
-      resourceRpc<unknown>('data/loadEquipment', [0]),
-      resourceRpc<unknown>('data/loadTool', [0]),
+      nsiRpc<unknown>('data/loadFvForSelect', [FACTOR_KEY_BY_TYPE.equipment]),
+      nsiRpc<unknown>('data/loadFvForSelect', [FACTOR_KEY_BY_TYPE.tools]),
+      nsiRpc<unknown>('data/loadFvForSelect', [FACTOR_KEY_BY_TYPE.professions]),
       nsiRpc<unknown>('data/loadMeasure', ['Prop_Measure']),
     ])
 
@@ -680,6 +749,7 @@ async function fetchResources() {
       ...createServiceRows(unwrapArrayPayload<ServiceResponse>(servicesRaw), dictionaries.lookup),
       ...createEquipmentRows(unwrapArrayPayload<EquipmentResponse>(equipmentRaw)),
       ...createToolRows(unwrapArrayPayload<ToolResponse>(toolsRaw)),
+      ...createProfessionRows(unwrapArrayPayload<ProfessionResponse>(professionsRaw)),
     ]
   } catch (error) {
     console.error('Не удалось загрузить справочник ресурсов', error)
@@ -694,7 +764,7 @@ async function fetchResources() {
 
 function setTypeFromQuery() {
   const q = String(route.query.type || '')
-  if (q && ['materials', 'equipment', 'tools', 'third-party'].includes(q)) {
+  if (q && ['materials', 'equipment', 'tools', 'professions', 'third-party'].includes(q)) {
     typeFilter.value = q as ResourceType
   } else {
     typeFilter.value = null
@@ -867,29 +937,26 @@ function createServiceRows(services: ServiceResponse[], measures: MeasureLookup)
 }
 
 function createEquipmentRows(equipment: EquipmentResponse[]): ResourceRow[] {
-  return equipment.map((item, index) => {
-    const id = resolveRowId('equipment', item, index)
-    return {
-      id,
-      type: 'equipment',
-      name: resolveName(item.name),
-      unit: 'единица',
-      description: resolveDescription(item.Description),
-      raw: item,
-      measureKey: null,
-    }
-  })
+  return createNameOnlyRows(equipment, 'equipment', 'equipment')
 }
 
 function createToolRows(tools: ToolResponse[]): ResourceRow[] {
-  return tools.map((item, index) => {
-    const id = resolveRowId('tool', item, index)
+  return createNameOnlyRows(tools, 'tools', 'tool')
+}
+
+function createProfessionRows(records: ProfessionResponse[]): ResourceRow[] {
+  return createNameOnlyRows(records, 'professions', 'profession')
+}
+
+function createNameOnlyRows(records: FactorResponse[], type: NameOnlyResourceType, prefix: string): ResourceRow[] {
+  return records.map((item, index) => {
+    const id = resolveRowId(prefix, item, index)
     return {
       id,
-      type: 'tools',
-      name: resolveName(item.name),
-      unit: 'единица',
-      description: resolveDescription(item.Description),
+      type,
+      name: resolveName(item.name ?? item.fullName),
+      unit: '',
+      description: '',
       raw: item,
       measureKey: null,
     }
