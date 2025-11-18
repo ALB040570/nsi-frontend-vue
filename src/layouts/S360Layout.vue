@@ -229,6 +229,7 @@ Object.assign(menuRouteByKey, {
   'resources:materials': '/nsi/resources?type=materials',
   'resources:equipment': '/nsi/resources?type=equipment',
   'resources:tools': '/nsi/resources?type=tools',
+  'resources:professions': '/nsi/resources?type=professions',
   'resources:third-party': '/nsi/resources?type=third-party',
 })
 
@@ -325,6 +326,7 @@ const RESOURCES_CHILDREN = [
   { key: 'resources:materials', menuLabel: 'Материалы', tooltip: 'Материалы' },
   { key: 'resources:equipment', menuLabel: 'Техника', tooltip: 'Техника' },
   { key: 'resources:tools', menuLabel: 'Инструменты', tooltip: 'Инструменты' },
+  { key: 'resources:professions', menuLabel: 'Профессии', tooltip: 'Профессии' },
   {
     key: 'resources:third-party',
     menuLabel: 'Услуги сторонних',
@@ -332,7 +334,7 @@ const RESOURCES_CHILDREN = [
   },
 ] satisfies Array<{ key: string; menuLabel: string; tooltip: string }>
 
-// Вставляем группу «Ресурсы» перед «Компоненты» (если найдена), иначе в конец
+// Вставляем группу «Ресурсы» сразу после «Задачи» (если найдена), иначе в конец
 const resourcesMenuOption: MenuOption = {
   key: 'resources',
   icon: renderIcon(FolderOutline),
@@ -362,8 +364,8 @@ const RESOURCES_MOBILE_ITEMS: MenuItem[] = [
 
 const menuOptionsWithResources = computed<MenuOption[]>(() => {
   const base: MenuOption[] = [...menuOptions]
-  const idx = base.findIndex((o) => String((o as MenuOption).key ?? '') === 'components')
-  if (idx >= 0) base.splice(idx, 0, resourcesMenuOption)
+  const idx = base.findIndex((o) => String((o as MenuOption).key ?? '') === 'tasks')
+  if (idx >= 0) base.splice(idx + 1, 0, resourcesMenuOption)
   else base.push(resourcesMenuOption)
   return base
 })
@@ -441,7 +443,7 @@ const syncMenuValue = () => {
   const currentPath = route.path
   if (currentPath === '/nsi/resources') {
     const t = String(route.query?.type || '')
-    if (t && ['materials', 'equipment', 'tools', 'third-party'].includes(t)) {
+    if (t && ['materials', 'equipment', 'tools', 'professions', 'third-party'].includes(t)) {
       menuValue.value = `resources:${t}`
       return
     }
@@ -528,7 +530,7 @@ const mobileDrawerItems = computed<MenuItem[]>(() => {
   let resourcesInserted = false
 
   for (const item of MENU_ITEMS) {
-    if (!resourcesInserted && item.key === 'components') {
+    if (!resourcesInserted && item.key === 'tasks') {
       flat.push(...RESOURCES_MOBILE_ITEMS)
       resourcesInserted = true
     }
