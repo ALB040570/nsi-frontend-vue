@@ -14,11 +14,11 @@
             class="page-title__info"
             aria-label="Подсказка по разделу"
             @click="infoOpen = true"
-          >
-            <template #icon>
-              <NIcon><InformationCircleOutline /></NIcon>
-            </template>
-          </NButton>
+        >
+          <template #icon>
+            <NIcon><InformationCircleOutline /></NIcon>
+          </template>
+        </NButton>
         </h2>
         <div class="subtext">Ведите единые списки ресурсов</div>
       </div>
@@ -90,22 +90,6 @@
             <dt>Описание</dt>
             <dd>{{ item.description || '-' }}</dd>
           </dl>
-
-          <footer class="card__actions">
-            <NButton quaternary circle size="small" title="Редактировать" @click="openEdit(item.id)">
-              <template #icon><NIcon><CreateOutline /></NIcon></template>
-            </NButton>
-            <NButton
-              quaternary
-              circle
-              size="small"
-              type="error"
-              title="Удаление доступно в другой задаче"
-              disabled
-            >
-              <template #icon><NIcon><TrashOutline /></NIcon></template>
-            </NButton>
-          </footer>
         </article>
       </div>
 
@@ -467,23 +451,6 @@ function openCreate() {
   dialogOpen.value = true
 }
 
-function openEdit(id: string) {
-  const row = remoteItems.value.find((r) => r.id === id)
-  if (!row) {
-    message.error('Не удалось найти ресурс для редактирования')
-    return
-  }
-
-  editingRow.value = row
-  resetForm({
-    type: row.type,
-    name: row.name,
-    measureKey: row.measureKey ?? null,
-    description: row.description ?? '',
-  })
-  dialogOpen.value = true
-}
-
 function validate(): boolean {
   let ok = true
   errors.type = form.type ? null : 'Выберите вид'
@@ -676,39 +643,6 @@ const columns = computed<DataTableColumn<ResourceRow>[]>(() => {
       key: 'description',
       ellipsis: { tooltip: true },
       render: (row) => row.description || '—',
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 120,
-      render(row) {
-        const editButton = h(
-          NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            title: 'Редактировать',
-            onClick: () => openEdit(row.id),
-          },
-          { icon: () => h(NIcon, null, { default: () => h(CreateOutline) }) },
-        )
-
-        const removeButton = h(
-          NButton,
-          {
-            quaternary: true,
-            circle: true,
-            size: 'small',
-            type: 'error',
-            title: 'Удаление доступно в другой задаче',
-            disabled: true,
-          },
-          { icon: () => h(NIcon, null, { default: () => h(TrashOutline) }) },
-        )
-
-        return h('div', { class: 'table-actions' }, [editButton, removeButton])
-      },
     },
   ]
 
