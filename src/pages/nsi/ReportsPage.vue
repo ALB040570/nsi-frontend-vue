@@ -1519,6 +1519,7 @@ function buildOrgTreeOptions(records: OrgUnitRecord[]): TreeSelectOption[] {
   return roots
 }
 
+/* Построение дерева исполнителей пока не используется (включим позже вместе с UI)
 type PersonnelTreeNode = TreeSelectOption & {
   nodeType?: 'org' | 'person'
   orgRef?: number | null
@@ -1615,6 +1616,7 @@ function filterPersonnelTree(options: TreeSelectOption[], allowedOrgIds: Set<num
   }
   return traverse(options as PersonnelTreeNode[])
 }
+*/
 
 function pickString(
   source: Record<string, unknown> | null | undefined,
