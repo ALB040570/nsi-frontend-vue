@@ -65,14 +65,14 @@ VITE_RPC_PATH=/api
 VITE_AUTH_LOGIN_PATH=/auth/login
 ```
 
-**2) Стенд `https://example.com/dtj/nsi`, REST под `.../dtj/nsi/api`:**
+**2) Стенд `https://example.com/dtj/ind`, REST под `.../dtj/ind/api`:**
 ```ini
-VITE_API_BASE=https://example.com/dtj/nsi
+VITE_API_BASE=https://example.com/dtj/ind
 VITE_API_DEV_PROXY_BASE=/api
 VITE_RPC_PATH=/api
-VITE_AUTH_LOGIN_PATH=/dtj/nsi/auth/login
+VITE_AUTH_LOGIN_PATH=/dtj/ind/auth/login
 # если логин внутри API:
-# VITE_AUTH_LOGIN_PATH=/dtj/nsi/api/auth/login
+# VITE_AUTH_LOGIN_PATH=/dtj/ind/api/auth/login
 ```
 
 ⚠️ Избегайте двойных `//` и завершающих `/`.
@@ -83,7 +83,7 @@ VITE_AUTH_LOGIN_PATH=/dtj/nsi/auth/login
 
 - В dev Vite-прокси настраивается в [`vite.config.ts`](vite.config.ts) функцией `createProxyConfig`.  
 - Запросы на `VITE_API_DEV_PROXY_BASE` (по умолчанию `/api`) переписываются на `VITE_API_BASE`.  
-- В старых версиях был жёсткий fallback на `http://45.8.116.32/dtj/nsi/api` — рекомендуется удалить или закомментировать, чтобы не ходить на внешний сервер случайно.  
+- В старых версиях был жёсткий fallback на `http://45.8.116.32/dtj/ind/api` — рекомендуется удалить или закомментировать, чтобы не ходить на внешний сервер случайно.  
 
 ---
 
@@ -132,8 +132,8 @@ VITE_AUTH_LOGIN_PATH=/dtj/nsi/auth/login
        try_files $uri /index.html;
      }
 
-     location /api/ {
-       proxy_pass https://backend.example.com/dtj/nsi/api/;
+    location /api/ {
+      proxy_pass https://backend.example.com/dtj/ind/api/;
        proxy_set_header Host $host;
        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
      }
