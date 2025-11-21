@@ -830,8 +830,10 @@ onBeforeUnmount(() => {
 }
 
 .logo-mark {
-  width: 70.51px;
   height: 50px;
+  width: auto;
+  max-width: 160px;
+  display: block;
 }
 
 .logo-text {
@@ -1208,8 +1210,9 @@ onBeforeUnmount(() => {
 }
 @media (max-width: 480px) {
   .logo-mark {
-    width: 56.4px;
     height: 40px;
+    width: auto;
+    max-width: 120px;
   }
 }
 </style>
