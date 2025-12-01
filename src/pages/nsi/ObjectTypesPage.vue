@@ -47,12 +47,14 @@
           class="toolbar__select"
           :aria-label="t('nsi.objectTypes.sortAria', {}, { default: 'Порядок сортировки' })"
         />
+        <!-- Ассистент временно отключён
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
             <NIcon><ChatbubblesOutline /></NIcon>
           </template>
           Ассистент
         </NButton>
+        -->
         <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.add', {}, { default: 'Добавить тип' }) }}</NButton>
       </div>
     </NCard>
@@ -188,7 +190,7 @@
         </div>
       </template>
     </NModal>
-
+    <!-- Ассистент временно отключён
     <NModal
       v-model:show="assistantOpen"
       preset="card"
@@ -281,6 +283,7 @@
         </div>
       </template>
     </NModal>
+    -->
 
     <NModal
       v-model:show="infoOpen"
@@ -351,9 +354,10 @@ import {
   CreateOutline,
   TrashOutline,
   InformationCircleOutline,
-  ChatbubblesOutline,
-  MicOutline,
-  MicOffOutline,
+  // Ассистент временно отключён
+  // ChatbubblesOutline,
+  // MicOutline,
+  // MicOffOutline,
 } from '@vicons/ionicons5'
 
 import { debounce } from 'lodash-es'
@@ -556,6 +560,8 @@ const updateGeometryMutation = mutations.updateGeometry
 const renameWithMigrationMutation = mutations.renameWithMigration
 const updateComponentsDiffMutation = mutations.updateComponentsDiff
 const removeCascadeMutation = mutations.removeCascade
+
+/* Ассистент временно отключён
 
 type AssistantRole = 'assistant' | 'user'
 interface AssistantMessage {
@@ -1124,6 +1130,8 @@ watch(assistantOpen, (value) => {
     cancelSpeech()
   }
 })
+
+*/
 
 watch(
   () => fetchState.value.errorMessage,
@@ -2085,6 +2093,7 @@ const removeRow = async (id: string | number) => {
   width: 100%;
 }
 
+/* Ассистент временно отключён
 .toolbar__assistant {
   display: inline-flex;
   align-items: center;
@@ -2222,4 +2231,5 @@ const removeRow = async (id: string | number) => {
   gap: 8px;
   flex-wrap: wrap;
 }
+*/
 </style>

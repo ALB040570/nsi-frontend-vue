@@ -2,7 +2,12 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import { render, fireEvent, screen } from '@testing-library/vue'
 import { defineComponent, h, ref } from 'vue'
 
-import type { ActivityItem, DiagnosticItem, NsiCoverage, RelationsCounts } from '@entities/nsi-dashboard'
+import type {
+  ActivityItem,
+  DiagnosticItem,
+  NsiCoverage,
+  RelationsCounts,
+} from '@entities/nsi-dashboard'
 
 const coverageMock: NsiCoverage = {
   sources: { total: 10, withIssuerDateExec: 8 },
@@ -150,7 +155,10 @@ vi.mock('naive-ui', () => {
 vi.mock('@/widgets/nsi-dashboard/CtaRow.vue', () => ({
   default: defineComponent({
     props: { title: { type: String, default: '' }, actions: { type: Array, default: () => [] } },
-    emits: ['toggle-assistant', 'select-search'],
+    emits: [
+      // 'toggle-assistant',
+      'select-search',
+    ],
     setup(props) {
       return () =>
         h('section', [
@@ -233,7 +241,9 @@ describe('NsiDashboardPage', () => {
 
   it('renders dashboard header and quick actions', () => {
     render(NsiDashboardPage)
-    expect(screen.getByRole('heading', { name: 'Нормативная база (НСИ) Service 360' })).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'Нормативная база отрасли Service 360' }),
+    ).toBeTruthy()
     expect(screen.getAllByRole('button', { name: '+ Документ' })[0]).toBeTruthy()
   })
 

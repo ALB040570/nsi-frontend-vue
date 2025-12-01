@@ -5,6 +5,7 @@
         <h1 class="nsi-dashboard-cta__title">{{ title }}</h1>
         <p class="nsi-dashboard-cta__subtitle">{{ subtitle }}</p>
       </div>
+      <!-- Ассистент временно отключен
       <NTooltip trigger="hover" :disabled="assistantTooltip === ''">
         <template #trigger>
           <label class="nsi-dashboard-cta__assistant" :aria-pressed="assistantEnabled">
@@ -19,12 +20,15 @@
         </template>
         <span>{{ assistantTooltip }}</span>
       </NTooltip>
+      -->
     </div>
 
+    <!-- Ассистент временно отключен
     <div v-if="assistantEnabled" class="nsi-dashboard-cta__assistant-banner" role="status">
       <strong>{{ assistantBannerTitle }}</strong>
       <span>{{ assistantBannerText }}</span>
     </div>
+    -->
 
     <div class="nsi-dashboard-cta__controls">
       <div ref="searchRef" class="nsi-dashboard-cta__search">
@@ -91,7 +95,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, type RouteLocationRaw } from 'vue-router'
-import { NButton, NIcon, NInput, NSpin, NSwitch, NTooltip } from 'naive-ui'
+import { NButton, NIcon, NInput, NSpin, NTooltip } from 'naive-ui'
 import { SearchOutline } from '@vicons/ionicons5'
 
 import { useNsiSearch } from '@features/nsi-dashboard'
@@ -112,11 +116,11 @@ interface CtaRowProps {
   title: string
   subtitle: string
   actions: ActionItem[]
-  assistantEnabled: boolean
-  assistantLabel: string
-  assistantTooltip: string
-  assistantBannerTitle: string
-  assistantBannerText: string
+  assistantEnabled?: boolean
+  assistantLabel?: string
+  assistantTooltip?: string
+  assistantBannerTitle?: string
+  assistantBannerText?: string
   searchPlaceholder: string
   searchTypingHint: string
   searchEmpty: string
@@ -278,9 +282,10 @@ function handleResultSelect(item: NsiSearchResult) {
   searchFocused.value = false
 }
 
-function emitToggle(value: boolean) {
-  emit('toggle-assistant', value)
-}
+// Ассистент временно отключён
+// function emitToggle(value: boolean) {
+//   emit('toggle-assistant', value)
+// }
 
 function navigate(target: RouteLocationRaw) {
   void router.push(target)
@@ -345,6 +350,7 @@ onBeforeUnmount(() => {
   font-size: var(--s360-font-body);
 }
 
+/* Ассистент временно отключён
 .nsi-dashboard-cta__assistant {
   display: inline-flex;
   align-items: center;
@@ -368,6 +374,7 @@ onBeforeUnmount(() => {
   color: var(--s360-text-success);
   font-size: var(--s360-font-body);
 }
+*/
 
 .nsi-dashboard-cta__controls {
   display: flex;

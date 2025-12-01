@@ -100,7 +100,7 @@ function createProxyConfig(env: Record<string, string>): Record<string, ProxyOpt
     proxies[apiProxyBase] = {
       target: 'http://45.8.116.32',
       changeOrigin: true,
-      rewrite: (path) => path.replace(pattern, '/dtj/nsi/api'),
+      rewrite: (path) => path.replace(pattern, '/dtj/ind/api'),
     }
   }
 
@@ -413,7 +413,7 @@ async function resolvePwaPlugin(): Promise<PluginOption | null> {
       manifest: {
         name: 'NSI',
         short_name: 'NSI',
-        start_url: '/dtj/nsi/',
+        start_url: '/dtj/ind/',
         display: 'standalone',
         background_color: '#006d77',
         theme_color: '#006d77',
@@ -448,7 +448,7 @@ export default defineConfig(async ({ mode }) => {
 
   return {
     plugins,
-    base: '/dtj/nsi/',
+    base: '/dtj/ind/',
     resolve: {
       alias: {
         '@': fileURLToPath(new URL('./src', import.meta.url)),

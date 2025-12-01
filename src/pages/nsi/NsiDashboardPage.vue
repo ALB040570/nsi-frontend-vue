@@ -7,15 +7,11 @@
         <span class="breadcrumbs__current">{{ breadcrumbHome }}</span>
       </nav>
 
+      <!-- Ассистент временно отключён -->
       <CtaRow
         :title="pageTitle"
         :subtitle="pageSubtitle"
         :actions="quickActions"
-        :assistant-enabled="assistantEnabled"
-        :assistant-label="assistantLabel"
-        :assistant-tooltip="assistantTooltip"
-        :assistant-banner-title="assistantBannerTitle"
-        :assistant-banner-text="assistantBannerText"
         :search-placeholder="searchPlaceholder"
         :search-typing-hint="searchTypingHint"
         :search-empty="searchEmpty"
@@ -23,7 +19,6 @@
         :search-open-label="searchOpenLabel"
         :search-types="searchTypes"
         :actions-aria-label="actionsAriaLabel"
-        @toggle-assistant="assistantEnabled = $event"
         @select-search="handleSearchSelect"
       />
 
@@ -89,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { NButton, NCard } from 'naive-ui'
 
@@ -125,14 +120,11 @@ type TileId = keyof NsiCoverage
 const router = useRouter()
 const { t } = useI18n()
 
-const assistantEnabled = ref(false)
-
 const coverageQuery = useNsiCoverageQuery()
 const diagnosticsQuery = useNsiDiagnosticsQuery()
 // Fetch recent activity (increased limit for better overview)
 const activityQuery = useNsiActivityQuery(12)
 const countsQuery = useNsiCountsQuery()
-import { watchEffect } from 'vue'
 
 watchEffect(() => {
   // статус запроса и готовые данные
@@ -197,10 +189,12 @@ const relationsLoading = computed(() => countsQuery.status.value === 'pending')
 
 const pageTitle = computed(() => t('nsi.dashboard.title'))
 const pageSubtitle = computed(() => t('nsi.dashboard.subtitle'))
+/* Ассистент временно отключён
 const assistantLabel = computed(() => t('nsi.dashboard.actions.assistant.label'))
 const assistantTooltip = computed(() => t('nsi.dashboard.actions.assistant.tooltip'))
 const assistantBannerTitle = computed(() => t('nsi.dashboard.actions.assistant.bannerTitle'))
 const assistantBannerText = computed(() => t('nsi.dashboard.actions.assistant.bannerText'))
+*/
 
 const searchPlaceholder = computed(() => t('nsi.dashboard.search.placeholder'))
 const searchTypingHint = computed(() => t('nsi.dashboard.search.typingHint'))

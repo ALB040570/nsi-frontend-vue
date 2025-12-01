@@ -192,7 +192,7 @@ import {
   type SelectOption,
   useMessage,
 } from 'naive-ui'
-import { InformationCircleOutline, CreateOutline, TrashOutline } from '@vicons/ionicons5'
+import { InformationCircleOutline } from '@vicons/ionicons5'
 import { metaRpc, resourceRpc, rpc as nsiRpc } from '@shared/api'
 
 type ResourceType = 'materials' | 'equipment' | 'tools' | 'professions' | 'third-party'

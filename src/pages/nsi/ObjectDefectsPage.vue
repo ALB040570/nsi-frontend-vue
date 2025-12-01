@@ -63,12 +63,14 @@
           class="toolbar__select"
           :aria-label="t('nsi.objectTypes.defects.sortAria', {}, { default: 'Порядок сортировки' })"
         />
+        <!-- Ассистент временно отключён
         <NButton quaternary class="toolbar__assistant" @click="openAssistant">
           <template #icon>
             <NIcon><ChatbubblesOutline /></NIcon>
           </template>
           Ассистент
         </NButton>
+        -->
         <NButton type="primary" @click="openCreate">+ {{ t('nsi.objectTypes.defects.add', {}, { default: 'Добавить дефект' }) }}</NButton>
       </div>
     </NCard>
@@ -218,7 +220,7 @@
         </div>
       </template>
     </NModal>
-
+    <!-- Ассистент временно отключён
     <NModal
       v-model:show="assistantOpen"
       preset="card"
@@ -330,6 +332,7 @@
         </div>
       </template>
     </NModal>
+    -->
 
     <NModal
       v-model:show="infoOpen"
@@ -393,9 +396,10 @@ import {
   CreateOutline,
   TrashOutline,
   InformationCircleOutline,
-  ChatbubblesOutline,
-  MicOutline,
-  MicOffOutline,
+  // Ассистент временно отключён
+  // ChatbubblesOutline,
+  // MicOutline,
+  // MicOffOutline,
 } from '@vicons/ionicons5'
 
 import { CreatableSelect } from '@features/creatable-select'
@@ -600,6 +604,7 @@ const categorySelectOptions = computed(() =>
   categoryOptions.value.map((option) => ({ label: option.name, value: option.fvId })),
 )
 
+/* Ассистент временно отключён
 const categoryNameMap = computed(() => {
   const map = new Map<string, DefectCategoryOption>()
   for (const option of categoryOptions.value) {
@@ -623,6 +628,9 @@ const componentNameMap = computed(() => {
   }
   return map
 })
+*/
+
+/* Ассистент временно отключён
 
 type AssistantRole = 'assistant' | 'user'
 
@@ -1380,6 +1388,7 @@ watch(assistantOpen, (value) => {
     cancelSpeech()
   }
 })
+*/
 
 const filteredRows = computed(() => {
   const search = normalizeText(q.value)
@@ -2225,6 +2234,7 @@ defineExpose({ save, editing, form, openEdit, removeRow })
   font-style: italic;
 }
 
+/* Ассистент временно отключён
 .toolbar__assistant {
   display: inline-flex;
   align-items: center;
@@ -2392,4 +2402,5 @@ defineExpose({ save, editing, form, openEdit, removeRow })
     max-width: 100%;
   }
 }
+*/
 </style>
