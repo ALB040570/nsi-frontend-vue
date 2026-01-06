@@ -90,7 +90,7 @@
     <div class="table-area">
       <NDataTable
         v-if="!isMobile"
-        class="s360-cards table-full table-stretch"
+        class="s360-cards table-full table-stretch works-table"
         :columns="columns"
         :data="rows"
         :loading="tableLoading"
@@ -921,9 +921,15 @@ const renderObjectTypes = (row: WorkTableRow): VNodeChild => {
 
   const chipNodes = chips.map((name, idx) =>
     h(
-      NTag,
-      { size: 'small', round: true, bordered: true, class: 'chip', key: `${row.id}-ot-${idx}` },
-      { default: () => name },
+      'span',
+      { class: 'chip-tooltip', title: name, key: `${row.id}-ot-${idx}` },
+      [
+        h(
+          NTag,
+          { size: 'small', round: true, bordered: true, class: 'chip' },
+          { default: () => name },
+        ),
+      ],
     ),
   )
 
@@ -983,21 +989,32 @@ const columns: DataTableColumns<WorkTableRow> = [
   {
     title: 'Вид работы',
     key: 'workTypeName',
+    className: 'col-work-type',
+    width: 200,
+    minWidth: 180,
     render: (row) => row.workTypeName ?? '—',
   },
   {
     title: 'Тип объекта',
     key: 'objectTypeName',
+    className: 'col-object-type',
+    width: 280,
+    minWidth: 240,
     render: renderObjectTypes,
   },
   {
     title: 'Источник и номер',
     key: 'sourceName',
+    className: 'col-source',
+    width: 240,
+    minWidth: 200,
     render: renderSource,
   },
   {
     title: 'Периодичность',
     key: 'periodicityText',
+    width: 140,
+    minWidth: 120,
     render: renderPeriodicity,
   },
   {
@@ -1840,6 +1857,27 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
+:deep(.works-table .n-data-table-table) {
+  table-layout: fixed;
+  width: 100%;
+}
+
+:deep(.works-table .n-data-table-td) {
+  overflow: hidden;
+}
+
+:deep(.works-table .n-data-table-td),
+:deep(.works-table .n-data-table-th) {
+  min-width: 0;
+}
+
+:deep(.works-table .n-data-table-th[data-col-key='objectTypeName']),
+:deep(.works-table .n-data-table-td.col-object-type) {
+  width: 280px;
+  max-width: 280px;
+  min-width: 240px;
+}
+
 :deep(.n-data-table .n-data-table-table) {
   border-collapse: separate;
   border-spacing: 0 12px;
@@ -1988,24 +2026,30 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 6px;
   max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.chip-tooltip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chip {
-  background: var(--s360-surface);
-  max-width: 100%;
+  display: inline-flex;
   min-width: 0;
-  white-space: normal;
-  line-height: 1.3;
+  max-width: 100%;
+  background: var(--s360-surface);
 }
 
 .chip :deep(.n-tag__content) {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: normal;
-  word-break: break-word;
+  white-space: nowrap;
+  display: block;
 }
 
 .chip--more { cursor: pointer; }
@@ -2023,12 +2067,10 @@ onBeforeUnmount(() => {
 }
 
 .cell-clamp {
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
+  display: block;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
-  white-space: normal;
-  word-break: break-word;
 }
 
 .modal-footer {
