@@ -176,7 +176,15 @@ function createProxyConfig(env: Record<string, string>, proxyTarget: string): Re
     '/dtj/api/objects',
   )
 
-  // 5) Personnal API
+  // 5) Userinfo API
+  configureProxy(
+    env.VITE_USERINFO_DEV_PROXY_BASE,
+    env.VITE_USERINFO_API_BASE,
+    '/userinfo',
+    '/userinfo',
+  )
+
+  // 6) Personnal API
   configureProxy(
     env.VITE_PERSONNAL_DEV_PROXY_BASE,
     env.VITE_PERSONNAL_API_BASE,
@@ -184,7 +192,7 @@ function createProxyConfig(env: Record<string, string>, proxyTarget: string): Re
     '/dtj/api/personnal',
   )
 
-  // 6) OrgStructure API
+  // 7) OrgStructure API
   configureProxy(
     env.VITE_ORGSTRUCTURE_DEV_PROXY_BASE,
     env.VITE_ORGSTRUCTURE_API_BASE,
@@ -192,7 +200,7 @@ function createProxyConfig(env: Record<string, string>, proxyTarget: string): Re
     '/dtj/api/orgstructure',
   )
 
-  // 7) Report API
+  // 8) Report API
   configureProxy(
     env.VITE_REPORT_DEV_PROXY_BASE,
     env.VITE_REPORT_API_BASE,
@@ -200,7 +208,7 @@ function createProxyConfig(env: Record<string, string>, proxyTarget: string): Re
     '/dtj/api/report',
   )
 
-  // 8) Report load endpoint
+  // 9) Report load endpoint
   configureProxy(
     env.VITE_REPORT_LOAD_DEV_PROXY_BASE,
     env.VITE_REPORT_LOAD_BASE,
@@ -208,7 +216,7 @@ function createProxyConfig(env: Record<string, string>, proxyTarget: string): Re
     '/loadReport',
   )
 
-  // 9) KM-chart widget API (/dtj-api → /dtj/api/inspections)
+  // 10) KM-chart widget API (/dtj-api → /dtj/api/inspections)
   configureProxy(
     env.VITE_KM_CHART_DEV_PROXY_BASE,
     env.VITE_KM_CHART_API_BASE,

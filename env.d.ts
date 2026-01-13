@@ -16,6 +16,8 @@ interface ImportMetaEnv {
   readonly VITE_RESOURCE_DEV_PROXY_BASE?: string
   readonly VITE_OBJECTS_API_BASE?: string
   readonly VITE_OBJECTS_DEV_PROXY_BASE?: string
+  readonly VITE_USERINFO_API_BASE?: string
+  readonly VITE_USERINFO_DEV_PROXY_BASE?: string
   readonly VITE_PERSONNAL_API_BASE?: string
   readonly VITE_PERSONNAL_DEV_PROXY_BASE?: string
   readonly VITE_ORGSTRUCTURE_API_BASE?: string
