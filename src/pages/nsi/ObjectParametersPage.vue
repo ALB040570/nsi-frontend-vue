@@ -247,15 +247,6 @@
                   clearable
                 />
               </div>
-              <div class="limits-grid__item">
-                <span class="limits-grid__label">{{ t('nsi.objectTypes.params.form.limits.norm.label', {}, { default: 'Норма' }) }}</span>
-                <NInputNumber
-                  v-model:value="creationForm.limitNorm"
-                  :show-button="false"
-                  :placeholder="t('nsi.objectTypes.params.form.limits.norm.placeholder', {}, { default: 'Нормативное значение' })"
-                  clearable
-                />
-              </div>
             </div>
 
           </NFormItem>
@@ -1284,7 +1275,6 @@ const filteredRows = computed(() => {
       item.note,
       item.minValue != null ? String(item.minValue) : null,
       item.maxValue != null ? String(item.maxValue) : null,
-      item.normValue != null ? String(item.normValue) : null,
     ]
     return fields.some((field) => normalizeText(field ?? '').includes(search))
   })
@@ -1461,7 +1451,6 @@ function renderRange(row: LoadedObjectParameter): VNodeChild {
     { label: 'ЕИ', value: row.unitName ?? '—', type: 'info' as const },
     { label: 'Мин', value: renderLimit(row.minValue), type: 'warning' as const },
     { label: 'Макс', value: renderLimit(row.maxValue), type: 'error' as const },
-    { label: 'Норм', value: renderLimit(row.normValue), type: 'success' as const },
   ]
 
   const rows = items.map(({ label, value, type }) => {
