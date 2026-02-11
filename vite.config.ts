@@ -55,6 +55,16 @@ function normalizeBasePath(value: string | undefined): string {
   return withLeading.endsWith('/') ? withLeading : `${withLeading}/`
 }
 
+type PwaMode = 'development' | 'production'
+
+function normalizePwaMode(value: string | undefined, fallback: PwaMode): PwaMode {
+  const trimmed = value?.trim()
+  if (trimmed === 'production' || trimmed === 'development') {
+    return trimmed
+  }
+  return fallback
+}
+
 function withMetaProxyGuards(options: ProxyOptions): ProxyOptions {
   const originalConfigure = options.configure
 
@@ -277,11 +287,12 @@ function reportsDataPlugin(): PluginOption {
   }
 }
 
-async function resolvePwaPlugin(basePath: string): Promise<PluginOption | null> {
+async function resolvePwaPlugin(basePath: string, pwaMode: PwaMode): Promise<PluginOption | null> {
   try {
     const mod = await import('vite-plugin-pwa')
     if (typeof mod?.VitePWA !== 'function') return null
     return mod.VitePWA({
+      mode: pwaMode,
       registerType: 'autoUpdate',
       injectRegister: false, // у тебя своя регистрация через pwa.ts — норм
       devOptions: { enabled: false }, // <— ДОБАВЬ ЭТО
@@ -319,8 +330,9 @@ async function resolvePwaPlugin(basePath: string): Promise<PluginOption | null> 
 export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const basePath = normalizeBasePath(env.VITE_BASE_PATH)
+  const pwaMode = normalizePwaMode(env.VITE_PWA_MODE, 'development')
   const proxyTarget = env.VITE_PROXY_TARGET?.trim()
-  const pwaPlugin = await resolvePwaPlugin(basePath)
+  const pwaPlugin = await resolvePwaPlugin(basePath, pwaMode)
   const proxyConfig = proxyTarget ? createProxyConfig(env, proxyTarget) : undefined
 
   const plugins: PluginOption[] = [vue(), vueDevTools(), reportsDataPlugin()]
