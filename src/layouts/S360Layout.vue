@@ -173,7 +173,6 @@ import {
 import logoMark from '@/assets/logo.png'
 import { useAuth } from '@features/auth'
 import { useUiSidebar } from '@features/ui'
-import { Report } from '@vicons/tabler'
 
 interface LanguageOption {
   label: string
@@ -313,13 +312,6 @@ const MENU_ITEMS = [
     menuLabel: 'Источники',
     mobileLabel: 'Источники',
     tooltip: 'Справочник нормативных документов',
-  },
-  {
-    key: 'reports',
-    icon: Report,
-    menuLabel: 'Отчёты',
-    mobileLabel: 'Отчёты',
-    tooltip: 'Справочник отчётов',
   },
 ] satisfies MenuItem[]
 

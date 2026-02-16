@@ -369,10 +369,12 @@ interface RawResourceNormTool {
   objUser?: number | string | null
   pvUser?: number | string | null
   idValue?: number | string | null
+  idQuantity?: number | string | null
   idUpdatedAt?: number | string | null
   UpdatedAt?: string | null
   nameTypTool?: string | null
   Value?: number | string | null
+  Quantity?: number | string | null
 }
 
 interface RawResourceNormEquipment {
@@ -500,9 +502,11 @@ interface ToolRow {
   objUser: number | null
   pvUser: number | null
   idValue: number | null
+  idQuantity: number | null
   idUpdatedAt: number | null
   updatedAt: string | null
   value: number | null
+  quantity: number | null
   toolKey: string | null
   nameTypTool: string
   isSaving: boolean
@@ -724,8 +728,12 @@ function buildMaterialLabel(item: RawResourceNormMaterial): string {
 function buildToolLabel(item: RawResourceNormTool): string {
   const name = asText(item.nameTypTool)
   const value = asText(item.Value)
-  if (name && value) return `${name} ${value}`.trim()
-  return (name || value).trim()
+  const quantity = asText(item.Quantity)
+  const parts: string[] = []
+  if (name) parts.push(name)
+  if (quantity) parts.push(`${quantity} единиц`)
+  if (value) parts.push(`${value} мин`)
+  return parts.join(' ').trim()
 }
 
 function buildEquipmentLabel(item: RawResourceNormEquipment): string {
@@ -1062,9 +1070,11 @@ function normalizeToolRecord(record: RawResourceNormTool, index: number): ToolRo
   const objUser = pickNumber(source, ['objUser', 'OBJUSER'])
   const pvUser = pickNumber(source, ['pvUser', 'PVUSER'])
   const idValue = pickNumber(source, ['idValue', 'IDVALUE'])
+  const idQuantity = pickNumber(source, ['idQuantity', 'IDQUANTITY'])
   const idUpdatedAt = pickNumber(source, ['idUpdatedAt', 'IDUPDATEDAT'])
   const updatedAt = pickString(source, ['UpdatedAt', 'updatedAt'])
   const value = pickNumber(source, ['Value', 'value'])
+  const quantity = pickNumber(source, ['Quantity', 'quantity'])
   const nameTypTool = pickString(source, ['nameTypTool', 'NameTypTool']) || ''
   const toolKey = fvTypTool != null && pvTypTool != null ? `${fvTypTool}:${pvTypTool}` : null
 
@@ -1082,9 +1092,11 @@ function normalizeToolRecord(record: RawResourceNormTool, index: number): ToolRo
     objUser: objUser ?? null,
     pvUser: pvUser ?? null,
     idValue: idValue ?? null,
+    idQuantity: idQuantity ?? null,
     idUpdatedAt: idUpdatedAt ?? null,
     updatedAt: updatedAt || null,
     value: value ?? null,
+    quantity: quantity ?? null,
     toolKey,
     nameTypTool,
     isSaving: false,
@@ -1472,9 +1484,11 @@ function addToolRow() {
       objUser: null,
       pvUser: null,
       idValue: null,
+      idQuantity: null,
       idUpdatedAt: null,
       updatedAt: null,
       value: null,
+      quantity: null,
       toolKey: null,
       nameTypTool: '',
       isSaving: false,
@@ -1678,15 +1692,16 @@ function hasDuplicateMaterial(target: MaterialRow): boolean {
 
 function buildToolSignature(row: ToolRow): string | null {
   const value = normalizeValue(row.value)
-  if (!value) return null
+  const quantity = normalizeValue(row.quantity)
+  if (!value || !quantity) return null
 
   if (row.fvTypTool != null && row.pvTypTool != null) {
-    return `fv:${row.fvTypTool}|pv:${row.pvTypTool}|val:${value}`
+    return `fv:${row.fvTypTool}|pv:${row.pvTypTool}|qty:${quantity}|val:${value}`
   }
 
   const name = normalizeText(row.nameTypTool)
   if (!name) return null
-  return `name:${name}|val:${value}`
+  return `name:${name}|qty:${quantity}|val:${value}`
 }
 
 function hasDuplicateTool(target: ToolRow): boolean {
@@ -1900,8 +1915,8 @@ async function saveToolRow(row: ToolRow) {
   if (toolKeyParsed.fv != null) row.fvTypTool = toolKeyParsed.fv
   if (toolKeyParsed.pv != null) row.pvTypTool = toolKeyParsed.pv
 
-  if (row.fvTypTool == null || row.pvTypTool == null || row.value == null) {
-    message.error('Заполните инструмент и значение')
+  if (row.fvTypTool == null || row.pvTypTool == null || row.value == null || row.quantity == null) {
+    message.error('Заполните инструмент, количество и время')
     return
   }
 
@@ -1917,6 +1932,7 @@ async function saveToolRow(row: ToolRow) {
     name: mode === 'ins' ? buildAutoName('Tool') : row.name || buildAutoName('Tool'),
     fvTypTool: row.fvTypTool,
     pvTypTool: row.pvTypTool,
+    Quantity: row.quantity,
     Value: row.value,
   }
 
@@ -1938,6 +1954,7 @@ async function saveToolRow(row: ToolRow) {
     payload.objUser = row.objUser ?? meta.objUser ?? undefined
     payload.pvUser = row.pvUser ?? meta.pvUser ?? undefined
     if (row.idValue != null) payload.idValue = row.idValue
+    if (row.idQuantity != null) payload.idQuantity = row.idQuantity
     if (row.idUpdatedAt != null) payload.idUpdatedAt = row.idUpdatedAt
     payload.UpdatedAt = stamp
   }
@@ -2581,14 +2598,28 @@ const toolColumns = computed<DataTableColumns<ToolRow>>(() => [
       }),
   },
   {
-    title: 'Задействовано,ед',
+    title: 'Кол-во, ед.',
+    key: 'quantity',
+    minWidth: 140,
+    render: (row) =>
+      h(NInputNumber, {
+        value: row.quantity,
+        min: 0,
+        placeholder: 'Ед.',
+        onUpdateValue: (value: number | null) => {
+          row.quantity = value
+        },
+      }),
+  },
+  {
+    title: 'Время работы 1 единицы, минут',
     key: 'value',
     minWidth: 140,
     render: (row) =>
       h(NInputNumber, {
         value: row.value,
         min: 0,
-        placeholder: 'Ед',
+        placeholder: 'Мин',
         onUpdateValue: (value: number | null) => {
           row.value = value
         },
@@ -2607,7 +2638,12 @@ const toolColumns = computed<DataTableColumns<ToolRow>>(() => [
             quaternary: true,
             circle: true,
             loading: row.isSaving,
-            disabled: row.fvTypTool == null || row.pvTypTool == null || row.value == null || hasDuplicateTool(row),
+            disabled:
+              row.fvTypTool == null ||
+              row.pvTypTool == null ||
+              row.value == null ||
+              row.quantity == null ||
+              hasDuplicateTool(row),
             onClick: () => void saveToolRow(row),
             'aria-label': 'Сохранить инструмент',
           },
